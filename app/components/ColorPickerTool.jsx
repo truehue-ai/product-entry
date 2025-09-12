@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useRef, useEffect, useMemo } from "react";
+import React, { useState, useRef, useEffect, useMemo, useCallback } from "react";
 import { useRouter } from "next/navigation";
 
 import SBPickerPanel from "./SBPickerPanel"; // adjust path if needed
@@ -17,6 +17,15 @@ const LIP_CATEGORIES = [
 
 const isLipCategory = (c) => LIP_CATEGORIES.includes(c);
 
+// Quick reader to DataURL
+function fileToDataURL(file) {
+  return new Promise((resolve, reject) => {
+    const fr = new FileReader();
+    fr.onload = () => resolve(fr.result);
+    fr.onerror = reject;
+    fr.readAsDataURL(file);
+  });
+}
 
 export default function ColorPickerTool({ initialBrand = "", initialProduct = "" }) {
 
@@ -27,13 +36,54 @@ export default function ColorPickerTool({ initialBrand = "", initialProduct = ""
   const [category, setCategory] = useState("lip");
   const [shades, setShades] = useState([{ name: "", hex: "", skintone: "", undertone: "", link: "", price: "" }]);
   const [activeShadeIndex, setActiveShadeIndex] = useState(0);
-  const [image, setImage] = useState(null);
-  const [image1, setImage1] = useState(null);
-  const [image2, setImage2] = useState(null);
-  const canvasRef1 = useRef();
-  const canvasRef2 = useRef();
-  const imageRef1 = useRef();
-  const imageRef2 = useRef();
+
+  // ===== Images: drag & drop multi-upload =====
+  const [images, setImages] = useState([]); // [{id, name, dataUrl}]
+  const canvasRefs = useRef([]);            // array of canvas refs (by index)
+  const imgRefs = useRef([]);               // array of hidden img refs (by index)
+  const fileInputRef = useRef(null);
+  const [isOver, setIsOver] = useState(false);
+  const ACCEPT = ["image/png","image/jpeg","image/webp","image/gif","image/heic","image/heif"];
+  const MAX_FILES = 50;
+
+  // add files (FileList or array<File>)
+  const addFiles = useCallback(async (filesLike) => {
+    const files = Array.from(filesLike || []);
+    if (!files.length) return;
+
+    const room = Math.max(0, MAX_FILES - images.length);
+    const toAdd = files.slice(0, room).filter(f =>
+      ACCEPT.includes(f.type) || /\.(png|jpe?g|webp|gif|heic|heif)$/i.test(f.name || "")
+    );
+
+    const dataUrls = await Promise.all(toAdd.map(fileToDataURL));
+    const mapped = toAdd.map((f, idx) => ({
+      id: `${f.name}-${f.size}-${f.lastModified}-${Math.random().toString(36).slice(2)}`,
+      name: f.name,
+      dataUrl: dataUrls[idx],
+    }));
+
+    setImages(prev => prev.concat(mapped));
+  }, [images.length]);
+
+  const onDrop = useCallback((e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsOver(false);
+    if (e.dataTransfer?.files?.length) addFiles(e.dataTransfer.files);
+  }, [addFiles]);
+
+  const onBrowse = useCallback(async (e) => {
+    if (e.target.files?.length) await addFiles(e.target.files);
+    e.target.value = ""; // allow same file selection again
+  }, [addFiles]);
+
+  const removeImage = useCallback((id) => {
+    setImages(prev => prev.filter(p => p.id !== id));
+    // canvas/img refs will shift; safe due to index-based mapping below
+  }, []);
+  // ===== end drag & drop =====
+
   const [productType, setProductType] = useState("");
   const [tags, setTags] = useState("");  
   const [lockedIndex, setLockedIndex] = useState(null);
@@ -42,26 +92,30 @@ export default function ColorPickerTool({ initialBrand = "", initialProduct = ""
   const [coverage, setCoverage] = useState("");
   const [finish, setFinish] = useState("");
 
+  const canvasRef = useRef(); // (kept from original; unused in new multi-image flow)
+  const imageRef = useRef();  // (kept from original; unused in new multi-image flow)
 
-  const canvasRef = useRef();
-  const imageRef = useRef();
+  // ===== Canvas drawing when images array updates =====
+  useEffect(() => {
+    images.forEach((imgObj, idx) => {
+      const imgEl = imgRefs.current[idx];
+      const canvasEl = canvasRefs.current[idx];
+      if (!imgEl || !canvasEl || !imgObj?.dataUrl) return;
 
-  const handleImageUpload = (e, imageNumber) => {
-    const file = e.target.files[0];
-    const reader = new FileReader();
-    reader.onload = () => {
-      if (imageNumber === 1) {
-        setImage1(reader.result);
-      } else if (imageNumber === 2) {
-        setImage2(reader.result);
-      }
-    };
-    reader.readAsDataURL(file);
-  };
-  
+      const ctx = canvasEl.getContext("2d");
+      imgEl.onload = () => {
+        // Set canvas to natural size for accurate pixel sampling
+        canvasEl.width = imgEl.naturalWidth;
+        canvasEl.height = imgEl.naturalHeight;
+        ctx.drawImage(imgEl, 0, 0);
+      };
+      imgEl.src = imgObj.dataUrl;
+    });
+  }, [images]);
 
-  const handleMouseMove = (e, imgNum) => {
-    const canvas = imgNum === 1 ? canvasRef1.current : canvasRef2.current;
+  // ===== Color pick from canvas (hover to preview, click to lock & open SB panel) =====
+  const handleMouseMove = (e, idx) => {
+    const canvas = canvasRefs.current[idx];
     if (!canvas || lockedIndex === activeShadeIndex) return;
     const ctx = canvas.getContext("2d");
     const rect = canvas.getBoundingClientRect();
@@ -69,35 +123,42 @@ export default function ColorPickerTool({ initialBrand = "", initialProduct = ""
     const scaleY = canvas.height / rect.height;
     const x = (e.clientX - rect.left) * scaleX;
     const y = (e.clientY - rect.top) * scaleY;
-    const pixel = ctx.getImageData(x, y, 1, 1).data;
-    const hex = `#${[...pixel].slice(0, 3).map(x => x.toString(16).padStart(2, "0")).join("")}`;
+
+    // clamp to integer pixel coords
+    const px = Math.max(0, Math.min(canvas.width - 1, Math.floor(x)));
+    const py = Math.max(0, Math.min(canvas.height - 1, Math.floor(y)));
+
+    const pixel = ctx.getImageData(px, py, 1, 1).data;
+    const hex = `#${[pixel[0], pixel[1], pixel[2]].map(v => v.toString(16).padStart(2, "0")).join("")}`;
     const newShades = [...shades];
     newShades[activeShadeIndex].hex = hex;
     setShades(newShades);
-  };  
+  };
 
-  const handleClick = (e, imgNum) => {
-    const canvas = imgNum === 1 ? canvasRef1.current : canvasRef2.current;
+  const handleClick = (e, idx) => {
+    const canvas = canvasRefs.current[idx];
     if (!canvas) {
       console.warn("Canvas not ready");
       return;
     }
-  
     const ctx = canvas.getContext("2d");
     const rect = canvas.getBoundingClientRect();
     const scaleX = canvas.width / rect.width;
     const scaleY = canvas.height / rect.height;
     const x = (e.clientX - rect.left) * scaleX;
     const y = (e.clientY - rect.top) * scaleY;
-    const pixel = ctx.getImageData(x, y, 1, 1).data;
-  
+
+    // clamp to integer pixel coords
+    const px = Math.max(0, Math.min(canvas.width - 1, Math.floor(x)));
+    const py = Math.max(0, Math.min(canvas.height - 1, Math.floor(y)));
+
+    const pixel = ctx.getImageData(px, py, 1, 1).data;
     const [r, g, b] = pixel;
     const [h] = rgbToHsb(r, g, b);
     setCurrentHue(h);
     setShowSBPicker(true);
     setLockedIndex(activeShadeIndex);
   };
-  
 
   const handleSave = async () => {
     if (!brand || !product || !category ) {
@@ -216,8 +277,6 @@ export default function ColorPickerTool({ initialBrand = "", initialProduct = ""
     }
     
   };
-  
-  
 
   const handleAddToProductDatabase = async () => {
     if (!brand || !product) {
@@ -278,12 +337,6 @@ export default function ColorPickerTool({ initialBrand = "", initialProduct = ""
       alert("Failed to update product database.");
     }
   };
-  
-  
-  
-  
-  
-  
 
   const handleSendToShopify = async () => {
     if (!brand || !product || !productType || !tags) {
@@ -301,7 +354,6 @@ export default function ColorPickerTool({ initialBrand = "", initialProduct = ""
       }
     }, null, 2));
     
-  
     const res = await fetch('/api/shopify-create-product', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -321,8 +373,6 @@ export default function ColorPickerTool({ initialBrand = "", initialProduct = ""
       alert("Failed to add product: " + result.error);
     }
   };
-  
-  
 
   const handleTriggerPhotoshop = () => {
     console.log("Triggered Photoshop for:", { brand, product, category, shades });
@@ -353,7 +403,6 @@ export default function ColorPickerTool({ initialBrand = "", initialProduct = ""
       await navigator.clipboard.writeText(exportText);
       alert("Copied to clipboard!");
     } catch (e) {
-      // Fallback: select the textarea programmatically if needed
       const ta = document.getElementById("th-export-textarea");
       if (ta) {
         ta.focus();
@@ -362,34 +411,7 @@ export default function ColorPickerTool({ initialBrand = "", initialProduct = ""
     }
   };
 
-  useEffect(() => {
-    if (image1 && imageRef1.current && canvasRef1.current) {
-      const img = imageRef1.current;
-      const canvas = canvasRef1.current;
-      const ctx = canvas.getContext("2d");
-      img.onload = () => {
-        canvas.width = img.naturalWidth;
-        canvas.height = img.naturalHeight;
-        ctx.drawImage(img, 0, 0);
-      };
-      img.src = image1;
-    }
-  }, [image1]);
-  
-  useEffect(() => {
-    if (image2 && imageRef2.current && canvasRef2.current) {
-      const img = imageRef2.current;
-      const canvas = canvasRef2.current;
-      const ctx = canvas.getContext("2d");
-      img.onload = () => {
-        canvas.width = img.naturalWidth;
-        canvas.height = img.naturalHeight;
-        ctx.drawImage(img, 0, 0);
-      };
-      img.src = image2;
-    }
-  }, [image2]);  
-
+  // Load existing (kept as-is)
   useEffect(() => {
     const load = async () => {
       if (!initialBrand || !initialProduct) return;
@@ -417,11 +439,9 @@ export default function ColorPickerTool({ initialBrand = "", initialProduct = ""
           }))
         );
       }
-      
     };
     load();
   }, [initialBrand, initialProduct]);
-  
 
   const deleteShade = (index) => {
     setShades(prev => {
@@ -451,10 +471,6 @@ export default function ColorPickerTool({ initialBrand = "", initialProduct = ""
       return next;
     });
   };
-  
-
-  
-
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-pink-50 to-rose-100 font-sans p-6">
@@ -463,7 +479,7 @@ export default function ColorPickerTool({ initialBrand = "", initialProduct = ""
         h1, h2 { font-family: 'Playfair Display', serif; }
         button { font-family: 'Roboto Mono', monospace; }
       `}</style>
-            <div className="max-w-7xl mx-auto mb-4 flex items-center justify-between">
+      <div className="max-w-7xl mx-auto mb-4 flex items-center justify-between">
         <div className="flex gap-2">
           <button
             className="px-4 py-2 bg-white text-[#ab1f10] border border-[#ab1f10] rounded hover:bg-rose-100"
@@ -481,7 +497,9 @@ export default function ColorPickerTool({ initialBrand = "", initialProduct = ""
           Logout
         </button>
       </div>
+
       <div className="max-w-7xl mx-auto bg-white shadow-xl rounded-2xl overflow-hidden flex flex-col md:flex-row">
+        {/* Left column: controls */}
         <div className="w-full md:w-1/3 p-6 space-y-4 bg-rose-50">
           <h1 className="text-2xl font-bold text-[#ab1f10] mb-4">TrueHue Shade Capture</h1>
 
@@ -565,33 +583,33 @@ export default function ColorPickerTool({ initialBrand = "", initialProduct = ""
             onChange={(e) => setTags(e.target.value)}
           />
 
-
           <h2 className="text-lg font-semibold mt-6 text-[#ab1f10]">Shades</h2>
 
           {shades.map((shade, i) => (
             <div key={i} className="space-y-1">
               <div className="flex flex-col gap-2">
                 <div className="flex items-center gap-2">
-                <input
-                  className="flex-grow p-2 border border-rose-200 rounded text-black placeholder:text-gray-400 min-w-0"
-                  placeholder="Shade Name"
-                  value={shade.name}
-                  onChange={(e) => {
-                    const newShades = [...shades];
-                    newShades[i].name = e.target.value;
-                    setShades(newShades);
-                  }}
-                  onFocus={() => {
-                    setActiveShadeIndex(i);
-                    setLockedIndex(null);
-                  }}
-                />
+                  <input
+                    className="flex-grow p-2 border border-rose-200 rounded text-black placeholder:text-gray-400 min-w-0"
+                    placeholder="Shade Name"
+                    value={shade.name}
+                    onChange={(e) => {
+                      const newShades = [...shades];
+                      newShades[i].name = e.target.value;
+                      setShades(newShades);
+                    }}
+                    onFocus={() => {
+                      setActiveShadeIndex(i);
+                      setLockedIndex(null);
+                    }}
+                  />
 
-                <div
-                  className="w-10 h-10 shrink-0 rounded border border-gray-300"
-                  style={{ backgroundColor: shade.hex }}
-                />
+                  <div
+                    className="w-10 h-10 shrink-0 rounded border border-gray-300"
+                    style={{ backgroundColor: shade.hex }}
+                  />
                   <span className="w-[80px] text-sm font-mono text-black">{shade.hex}</span>
+
                   <input
                     className="flex-grow p-2 border border-rose-200 rounded text-black placeholder:text-gray-400 min-w-0"
                     placeholder="Product Link"
@@ -616,18 +634,17 @@ export default function ColorPickerTool({ initialBrand = "", initialProduct = ""
                   />
 
                   <button
-                      type="button"
-                      aria-label={`Delete shade ${shade.name || i + 1}`}
-                      title="Delete shade"
-                      onClick={() => deleteShade(i)}
-                      className="shrink-0 px-3 py-2 rounded border border-rose-200 text-rose-700 hover:bg-rose-100"
-                    >
-                      Delete
-                    </button>
-
-
+                    type="button"
+                    aria-label={`Delete shade ${shade.name || i + 1}`}
+                    title="Delete shade"
+                    onClick={() => deleteShade(i)}
+                    className="shrink-0 px-3 py-2 rounded border border-rose-200 text-rose-700 hover:bg-rose-100"
+                  >
+                    Delete
+                  </button>
                 </div>
               </div>
+
               {(category === "foundation" || category === "contour" || category === "concealer" || category === "skin-tint")  && (
                 <div className="flex flex-col gap-2 pt-1">
                   {!(shade.skintone && shade.undertone) ? (
@@ -685,9 +702,6 @@ export default function ColorPickerTool({ initialBrand = "", initialProduct = ""
                   )}
                 </div>
               )}
-
-
-
             </div>
           ))}
 
@@ -750,80 +764,92 @@ export default function ColorPickerTool({ initialBrand = "", initialProduct = ""
               </div>
             </div>
           )}
-
-
         </div>
 
+        {/* Right column: images (drag & drop + list of canvases) */}
         <div className="w-full md:w-2/3 p-6 flex flex-col items-center">
-        <div className="mb-4 w-full flex justify-center gap-4">
-          <label className="px-4 py-2 bg-[#ab1f10] text-white rounded cursor-pointer hover:bg-red-700 transition">
-            Upload Image 1
+          {/* Dropzone */}
+          <div
+            onDragEnter={(e) => { e.preventDefault(); setIsOver(true); }}
+            onDragOver={(e) => { e.preventDefault(); setIsOver(true); }}
+            onDragLeave={(e) => { e.preventDefault(); setIsOver(false); }}
+            onDrop={onDrop}
+            className={[
+              "w-full max-w-2xl flex flex-col items-center justify-center text-center rounded-2xl border-2 border-dashed transition p-6",
+              isOver ? "border-[#ab1f10] bg-[#fff8f7]" : "border-gray-300 bg-white"
+            ].join(" ")}
+          >
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              className="rounded-xl border px-4 py-2 text-sm font-medium hover:bg-gray-50"
+            >
+              Browse images
+            </button>
             <input
+              ref={fileInputRef}
               type="file"
-              accept="image/*"
-              onChange={(e) => handleImageUpload(e, 1)}
+              accept={ACCEPT.join(",")}
+              multiple
+              onChange={onBrowse}
               className="hidden"
             />
-          </label>
-          <label className="px-4 py-2 bg-[#ab1f10] text-white rounded cursor-pointer hover:bg-red-700 transition">
-            Upload Image 2
-            <input
-              type="file"
-              accept="image/*"
-              onChange={(e) => handleImageUpload(e, 2)}
-              className="hidden"
-            />
-          </label>
-        </div>
+            <p className="mt-2 text-sm text-gray-600">
+              Drag & drop images here, or click to browse
+            </p>
+            <p className="mt-1 text-xs text-gray-400">
+              {images.length}/{MAX_FILES} images
+            </p>
+          </div>
 
-        <div className="w-full flex flex-col gap-6 items-center">
-          {image1 && (
-            <div className="w-full max-w-xl relative">
-              <canvas
-                ref={canvasRef1}
-                onMouseMove={(e) => handleMouseMove(e, 1)}
-                onClick={(e) => handleClick(e, 1)}
-                className="w-full h-auto border rounded shadow-md"
-              />
-              <img
-                ref={imageRef1}
-                src={image1}
-                alt="Uploaded 1"
-                className="w-full h-auto object-contain rounded absolute top-0 left-0 opacity-0 pointer-events-none"
-              />
-            </div>
-          )}
-
-          {image2 && (
-            <div className="w-full max-w-xl relative">
-              <canvas
-                ref={canvasRef2}
-                onMouseMove={(e) => handleMouseMove(e, 2)}
-                onClick={(e) => handleClick(e, 2)}
-                className="w-full h-auto border rounded shadow-md"
-              />
-              <img
-                ref={imageRef2}
-                src={image2}
-                alt="Uploaded 2"
-                className="w-full h-auto object-contain rounded absolute top-0 left-0 opacity-0 pointer-events-none"
-              />
-            </div>
-          )}
-        </div>
+          {/* Render each image canvas below */}
+          <div className="w-full mt-6 flex flex-col gap-6 items-center">
+            {images.map((img, idx) => (
+              <div key={img.id} className="w-full max-w-2xl relative">
+                <canvas
+                  ref={(el) => (canvasRefs.current[idx] = el)}
+                  onMouseMove={(e) => handleMouseMove(e, idx)}
+                  onClick={(e) => handleClick(e, idx)}
+                  className="w-full h-auto border rounded shadow-md"
+                />
+                <img
+                  ref={(el) => (imgRefs.current[idx] = el)}
+                  src={img.dataUrl}
+                  alt={img.name || `Uploaded ${idx+1}`}
+                  className="w-full h-auto object-contain rounded absolute top-0 left-0 opacity-0 pointer-events-none"
+                />
+                {/* Delete button */}
+                <button
+                  type="button"
+                  aria-label="Remove image"
+                  onClick={() => removeImage(img.id)}
+                  className="absolute top-3 right-3 inline-flex h-9 w-9 items-center justify-center rounded-full bg-white/90 text-[#ab1f10] shadow hover:bg-white"
+                  title="Remove"
+                >
+                  ✕
+                </button>
+                {/* Filename footer */}
+                <div className="absolute inset-x-0 bottom-0 bg-black/50 text-white text-xs px-2 py-1 truncate rounded-b">
+                  {img.name}
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       </div>
-    <SBPickerPanel
-      show={showSBPicker}
-      hue={currentHue}
-      onClose={() => setShowSBPicker(false)}
-      activeShadeIndex={activeShadeIndex}
-      shades={shades}
-      setShades={setShades}
-      pickerSize={448}     // e.g., 448 or 512
-      panelWidth={520}
-      swatchSize={56}
-    />
+
+      {/* SB Picker Panel (unchanged) */}
+      <SBPickerPanel
+        show={showSBPicker}
+        hue={currentHue}
+        onClose={() => setShowSBPicker(false)}
+        activeShadeIndex={activeShadeIndex}
+        shades={shades}
+        setShades={setShades}
+        pickerSize={448}     // e.g., 448 or 512
+        panelWidth={520}
+        swatchSize={56}
+      />
     </div>
   );
 }
