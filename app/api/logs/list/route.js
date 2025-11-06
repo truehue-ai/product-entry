@@ -32,7 +32,7 @@ async function listAllKeys(prefix) {
   return keys;
 }
 
-export async function GET(req) {
+export async function GET(req) { 
   try {
     const { searchParams } = new URL(req.url);
     const q = (searchParams.get("q") || "").trim().toLowerCase();
