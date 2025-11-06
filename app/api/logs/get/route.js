@@ -3,13 +3,13 @@ export const runtime = "nodejs";
 import { GetObjectCommand, S3Client } from "@aws-sdk/client-s3";
 
 const s3 = new S3Client({
-  region: process.env.AWS_REGION,
+  region: process.env.X_AWS_REGION,
   credentials: {
-    accessKeyId: process.env.AWS_ACCESS_KEY_ID,
-    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
+    accessKeyId: process.env.X_AWS_ACCESS_KEY_ID,
+    secretAccessKey: process.env.X_AWS_SECRET_ACCESS_KEY,
   },
 });
-const BUCKET = process.env.AWS_BUCKET_NAME;
+const BUCKET = process.env.X_AWS_BUCKET_NAME;
 
 // ---- helpers ---------------------------------------------------------------
 

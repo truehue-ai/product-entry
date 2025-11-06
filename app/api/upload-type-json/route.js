@@ -9,13 +9,13 @@ export async function POST(req) {
   }
 
   const jsonContent = JSON.stringify(type, null, 2);
-  const bucket = process.env.AWS_BUCKET_NAME;
+  const bucket = process.env.X_AWS_BUCKET_NAME;
 
   const s3 = new S3Client({
-    region: process.env.AWS_REGION,
+    region: process.env.X_AWS_REGION,
     credentials: {
-      accessKeyId: process.env.AWS_ACCESS_KEY_ID,
-      secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
+      accessKeyId: process.env.X_AWS_ACCESS_KEY_ID,
+      secretAccessKey: process.env.X_AWS_SECRET_ACCESS_KEY,
     }
   });
 
