@@ -18,89 +18,71 @@ function fmtDate(value) {
   }
 }
 
-// Build a brand-wise product breakdown from payload (premium/favourites) and viewedGlobal
-function brandBreakdown(payload, brand) {
-  if (!payload?.users || !brand) {
-    return { premiumProducts: [], favouriteProducts: [], viewedProducts: [] };
-  }
-
-  const target = String(brand).toLowerCase();
-  const premiumMap = new Map();
-  const favMap = new Map();
-  const viewedMap = new Map();
-
-  for (const u of payload.users) {
-    // premium
-    for (const p of (u.premium?.products || [])) {
-      if (String(p.brand || "").toLowerCase() !== target) continue;
-      const key = String(p.product || "").trim();
-      if (!key) continue;
-      premiumMap.set(key, (premiumMap.get(key) || 0) + 1);
-    }
-    // favourites
-    for (const f of (u.favourites?.items || [])) {
-      if (String(f.brand || "").toLowerCase() !== target) continue;
-      const key = String(f.product || f.name || "").trim();
-      if (!key) continue;
-      favMap.set(key, (favMap.get(key) || 0) + 1);
-    }
-  }
-
-  // viewed: from global
-  for (const v of (payload.viewedGlobal?.items || [])) {
-    if (String(v.brand || "").toLowerCase() !== target) continue;
-    const key = String(v.product || "").trim();
-    if (!key) continue;
-    viewedMap.set(key, (viewedMap.get(key) || 0) + (Number(v.views) || 0));
-  }
-
-  const premiumProducts = Array.from(premiumMap.entries())
-    .map(([product, count]) => ({ product, count }))
-    .sort((a, b) => b.count - a.count)
-    .slice(0, 50);
-
-  const favouriteProducts = Array.from(favMap.entries())
-    .map(([product, count]) => ({ product, count }))
-    .sort((a, b) => b.count - a.count)
-    .slice(0, 50);
-
-  const viewedProducts = Array.from(viewedMap.entries())
-    .map(([product, views]) => ({ product, views }))
-    .sort((a, b) => b.views - a.views)
-    .slice(0, 50);
-
-  return { premiumProducts, favouriteProducts, viewedProducts };
-}
-
 export default function AnalyticsPage() {
-  const [loading, setLoading] = useState(false);
-  const [payload, setPayload] = useState(null);
+  // list state
+  const [loadingList, setLoadingList] = useState(false);
+  const [usersList, setUsersList] = useState([]); // [{id, name, number}]
+  const [topViewedBrands, setTopViewedBrands] = useState([]);
+  const [topViewedProducts, setTopViewedProducts] = useState([]);
+
+  // premium summary
+  const [topPremiumBrands, setTopPremiumBrands] = useState([]);
+  const [topPremiumProducts, setTopPremiumProducts] = useState([]);
+  const [premiumUpdatedAt, setPremiumUpdatedAt] = useState(null);
+
+  // perfect product premium summary
+  const [topPerfect5, setTopPerfect5] = useState([]);
+  const [topPerfect24, setTopPerfect24] = useState([]);
+  const [perfect5UpdatedAt, setPerfect5UpdatedAt] = useState(null);
+  const [perfect24UpdatedAt, setPerfect24UpdatedAt] = useState(null);
+
   const [query, setQuery] = useState("");
-  const [selected, setSelected] = useState(null);
-  const [sortKey, setSortKey] = useState("name"); // name | email | premium | lastPurchase
-  const [sortDir, setSortDir] = useState("asc");  // asc | desc
 
-  // brand modal
-  const [brandModalOpen, setBrandModalOpen] = useState(false);
-  const [brandModalBrand, setBrandModalBrand] = useState("");
-  const [brandModalData, setBrandModalData] = useState({
-    premiumProducts: [],
-    favouriteProducts: [],
-    viewedProducts: [],
-  });
+  // detail state
+  const [selectedId, setSelectedId] = useState(null);
+  const [loadingDetail, setLoadingDetail] = useState(false);
+  const [detail, setDetail] = useState(null); // { info, wallet, premium, favourites }
+  const [showImages, setShowImages] = useState(false);
 
+  // bottom analytics tab
+  const [activeTab, setActiveTab] = useState("views"); // "views" | "premium" | "perfect"
+
+  // fetch list + global analytics on mount
   useEffect(() => {
     let active = true;
     (async () => {
-      setLoading(true);
+      setLoadingList(true);
       try {
         const r = await fetch("/api/analytics/users", { cache: "no-store" });
         const j = await r.json();
-        if (active) setPayload(j);
-      } catch (e) {
-        if (active) setPayload(null);
+        if (!active) return;
+
+        setUsersList(j.users || []);
+        setTopViewedBrands(j.topViewedBrands || []);
+        setTopViewedProducts(j.topViewedProducts || []);
+
+        setTopPremiumBrands(j.topPremiumBrands || []);
+        setTopPremiumProducts(j.topPremiumProducts || []);
+        setPremiumUpdatedAt(j.premiumUpdatedAt || null);
+
+        setTopPerfect5(j.topPerfectProduct5Categories || []);
+        setTopPerfect24(j.topPerfectProduct24Categories || []);
+        setPerfect5UpdatedAt(j.perfectProduct5UpdatedAt || null);
+        setPerfect24UpdatedAt(j.perfectProduct24UpdatedAt || null);
+      } catch {
+        if (!active) return;
+        setUsersList([]);
+        setTopViewedBrands([]);
+        setTopViewedProducts([]);
+        setTopPremiumBrands([]);
+        setTopPremiumProducts([]);
+        setPremiumUpdatedAt(null);
+        setTopPerfect5([]);
+        setTopPerfect24([]);
+        setPerfect5UpdatedAt(null);
+        setPerfect24UpdatedAt(null);
       } finally {
-        if (active) setLoading(false);
+        if (active) setLoadingList(false);
       }
     })();
     return () => {
@@ -108,82 +90,55 @@ export default function AnalyticsPage() {
     };
   }, []);
 
-  const filtered = useMemo(() => {
-    if (!payload?.users) return [];
-    const q = query.trim().toLowerCase();
-    let arr = payload.users;
+  // reset images toggle when switching user
+  useEffect(() => {
+    setShowImages(false);
+  }, [selectedId]);
 
+  // fetch detail when selectedId changes
+  useEffect(() => {
+    if (!selectedId) {
+      setDetail(null);
+      return;
+    }
+    let active = true;
+    (async () => {
+      setLoadingDetail(true);
+      try {
+        const r = await fetch(
+          `/api/analytics/users?id=${encodeURIComponent(selectedId)}`,
+          { cache: "no-store" }
+        );
+        const j = await r.json();
+        if (active) setDetail(j.user || null);
+      } catch {
+        if (active) setDetail(null);
+      } finally {
+        if (active) setLoadingDetail(false);
+      }
+    })();
+    return () => {
+      active = false;
+    };
+  }, [selectedId]);
+
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    let arr = usersList || [];
     if (q) {
       arr = arr.filter((u) => {
         const hay = [
           String(u.id ?? ""),
-          String(u.info?.id ?? ""),
-          u.info?.name ?? "",
-          u.info?.email ?? "",
-          u.info?.phone ?? "",
-          u.info?.skinTone ?? "",
-          u.info?.undertone ?? "",
+          u.name ?? "",
+          u.number ?? "",
         ]
           .join(" ")
           .toLowerCase();
         return hay.includes(q);
       });
     }
-
-    arr = [...arr].sort((a, b) => {
-      let va = "";
-      let vb = "";
-      if (sortKey === "name") {
-        va = a.info?.name || "";
-        vb = b.info?.name || "";
-      } else if (sortKey === "email") {
-        va = a.info?.email || "";
-        vb = b.info?.email || "";
-      } else if (sortKey === "premium") {
-        va = a.premium?.count || 0;
-        vb = b.premium?.count || 0;
-      } else if (sortKey === "lastPurchase") {
-        va = a.premium?.lastPurchase || 0;
-        vb = b.premium?.lastPurchase || 0;
-      }
-      if (typeof va === "string" && typeof vb === "string") {
-        return sortDir === "asc" ? va.localeCompare(vb) : vb.localeCompare(va);
-      }
-      return sortDir === "asc" ? va - vb : vb - va;
-    });
-
-    return arr;
-  }, [payload, query, sortKey, sortDir]);
-
-  const openBrandModal = (brand) => {
-    if (!brand || !payload) return;
-    const data = brandBreakdown(payload, brand);
-    setBrandModalBrand(brand);
-    setBrandModalData(data);
-    setBrandModalOpen(true);
-  };
-
-  const closeBrandModal = () => {
-    setBrandModalOpen(false);
-    setBrandModalBrand("");
-    setBrandModalData({ premiumProducts: [], favouriteProducts: [], viewedProducts: [] });
-  };
-
-  if (loading)
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-pink-50 to-rose-100">
-        <div className="text-[#ab1f10] text-lg font-semibold animate-pulse">
-          Loading analytics…
-        </div>
-      </div>
-    );
-
-  if (!payload)
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-pink-50 to-rose-100">
-        <div className="text-gray-600">No data available.</div>
-      </div>
-    );
+    return [...arr].sort((a, b) => (a.name || "").localeCompare(b.name || ""));
+  }, [usersList, query]);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-pink-50 to-rose-100 p-6">
@@ -196,137 +151,181 @@ export default function AnalyticsPage() {
           <div className="text-sm text-gray-600">
             Total Users:{" "}
             <span className="font-semibold text-[#ab1f10]">
-              {payload.totals?.usersCount || 0}
-            </span>{" "}
-            · Premium Users:{" "}
-            <span className="font-semibold text-[#ab1f10]">
-              {payload.totals?.premiumUsers || 0}
-            </span>{" "}
-            · Premium Products:{" "}
-            <span className="font-semibold text-[#ab1f10]">
-              {payload.totals?.totalPremiumProducts || 0}
+              {usersList.length}
             </span>
           </div>
         </div>
 
-        {/* Search + Sorting */}
+        {/* Search */}
         <div className="flex flex-wrap gap-3 mb-5">
           <input
             className="flex-1 p-3 border border-rose-200 rounded text-black w-full md:w-auto"
-            placeholder="Search users by name, email, ID, tone or undertone…"
+            placeholder="Search by name, number, or ID…"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
           />
-          <select
-            className="p-3 border border-rose-200 rounded text-black"
-            value={sortKey}
-            onChange={(e) => setSortKey(e.target.value)}
-          >
-            <option value="name">Sort by Name</option>
-            <option value="email">Sort by Email</option>
-            <option value="premium">Sort by Premium Count</option>
-            <option value="lastPurchase">Sort by Last Purchase</option>
-          </select>
-          <button
-            className="px-4 py-2 bg-[#ab1f10] text-white rounded hover:bg-red-700"
-            onClick={() => setSortDir(sortDir === "asc" ? "desc" : "asc")}
-          >
-            {sortDir === "asc" ? "⬆ Asc" : "⬇ Desc"}
-          </button>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          {/* Left panel - users */}
+          {/* Left panel - users (name + number only) */}
           <div className="border rounded-lg overflow-hidden">
             <div className="bg-rose-50 px-3 py-2 text-sm text-[#ab1f10] font-semibold">
-              Users ({filtered.length})
+              Users {loadingList ? "(loading…)" : `(${filtered.length})`}
             </div>
             <ul className="max-h-[65vh] overflow-auto divide-y">
-              {filtered.map((u) => {
-                const isSel = selected && selected.id === u.id;
-                return (
-                  <li
-                    key={u.id}
-                    className={`px-3 py-2 cursor-pointer hover:bg-rose-50 ${
-                      isSel ? "bg-rose-100" : ""
-                    }`}
-                    onClick={() => setSelected(u)}
-                  >
-                    <div className="text-sm font-semibold text-black">
-                      {u.info?.name || "Unnamed"}
-                    </div>
-                    <div className="text-xs text-gray-600">
-                      {u.info?.email || "-"}
-                    </div>
-                    {(u.info?.skinTone || u.info?.undertone) && (
-                      <div className="text-[11px] text-gray-500">
-                        {u.info?.skinTone ? `Tone: ${u.info.skinTone}` : ""}
-                        {u.info?.undertone ? ` · UT: ${u.info.undertone}` : ""}
-                      </div>
-                    )}
-                    {(u.premium?.count || 0) > 0 && (
-                      <div className="text-xs text-[#ab1f10] font-medium">
-                        {u.premium.count} Premium
-                      </div>
-                    )}
-                    {(u.favourites?.count || 0) > 0 && (
-                      <div className="text-[11px] text-rose-700">
-                        {u.favourites.count} Favourites
-                      </div>
-                    )}
-                  </li>
-                );
-              })}
-              {filtered.length === 0 && (
+              {loadingList && filtered.length === 0 ? (
+                <li className="px-3 py-6 text-center text-gray-500 text-sm">
+                  Loading…
+                </li>
+              ) : filtered.length === 0 ? (
                 <li className="px-3 py-6 text-center text-gray-500 text-sm">
                   No matching users.
                 </li>
+              ) : (
+                filtered.map((u) => {
+                  const isSel = selectedId === u.id;
+                  return (
+                    <li
+                      key={u.id}
+                      className={`px-3 py-2 cursor-pointer hover:bg-rose-50 ${
+                        isSel ? "bg-rose-100" : ""
+                      }`}
+                      onClick={() => setSelectedId(u.id)}
+                    >
+                      <div className="text-sm font-semibold text-black">
+                        {u.name || "Unnamed"}
+                      </div>
+                      <div className="text-xs text-gray-700">
+                        {u.number || "-"}
+                      </div>
+                    </li>
+                  );
+                })
               )}
             </ul>
           </div>
 
-          {/* Right panel - user details */}
+          {/* Right panel - user details (lazy loaded) */}
           <div className="md:col-span-2">
-            {!selected && (
+            {!selectedId && (
               <div className="text-gray-600">
                 Select a user to view their analytics.
               </div>
             )}
 
-            {selected && (
+            {selectedId && loadingDetail && (
+              <div className="text-gray-600">Loading details…</div>
+            )}
+
+            {selectedId && !loadingDetail && !detail && (
+              <div className="text-gray-600">No details available.</div>
+            )}
+
+            {selectedId && detail && (
               <div className="space-y-4">
                 {/* User header */}
-                <div className="flex justify-between items-center">
+                <div className="flex justify-between items-center gap-4">
                   <div>
                     <div className="text-xl font-semibold text-black">
-                      {selected.info?.name || "Unnamed User"}
+                      {detail.info?.name || "Unnamed User"}
+                    </div>
+                    <div className="text-sm text-gray-700">
+                      {detail.info?.number ||
+                        detail.info?.id ||
+                        detail.id ||
+                        "-"}
                     </div>
                     <div className="text-sm text-gray-600">
-                      {selected.info?.email || "-"} · {selected.info?.phone || "-"}
+                      {detail.info?.email || "-"}
+                      {detail.info?.phone ? ` · ${detail.info.phone}` : ""}
                     </div>
                     <div className="text-xs text-gray-500">
-                      Joined: {fmtDate(selected.info?.createdAt)}
+                      Joined: {fmtDate(detail.info?.createdAt)}
+                      {detail.info?.lastLogin ? (
+                        <> · Last login: {fmtDate(detail.info.lastLogin)}</>
+                      ) : null}
                     </div>
-                    {(selected.info?.skinTone || selected.info?.undertone) && (
+                    {(detail.info?.skinTone || detail.info?.undertone) && (
                       <div className="text-xs text-gray-600">
-                        {selected.info?.skinTone ? `Skin Tone: ${selected.info.skinTone}` : ""}
-                        {selected.info?.undertone ? ` · Undertone: ${selected.info.undertone}` : ""}
+                        {detail.info?.skinTone
+                          ? `Skin Tone: ${detail.info.skinTone}`
+                          : ""}
+                        {detail.info?.undertone
+                          ? ` · Undertone: ${detail.info.undertone}`
+                          : ""}
                       </div>
                     )}
+                    <div className="text-sm text-[#ab1f10] font-medium">
+                      Coins: {detail.wallet?.coins ?? 0}
+                      {detail.wallet?.subscriber ? " · Subscriber" : ""}
+                    </div>
+                  </div>
+
+                  <div className="flex-shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => setShowImages((v) => !v)}
+                      className="px-4 py-2 text-sm rounded-lg border border-rose-200 text-[#ab1f10] hover:bg-rose-50 transition"
+                    >
+                      {showImages ? "Hide images" : "View images"}
+                    </button>
                   </div>
                 </div>
+
+                {/* Images section */}
+                {showImages && (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    {/* User image */}
+                    <div className="border rounded-lg bg-rose-50 p-3 flex flex-col items-center">
+                      <div className="text-sm font-semibold text-[#ab1f10] mb-2">
+                        User Image
+                      </div>
+                      {detail.info?.number && detail.info?.latestVersion ? (
+                        <img
+                          src={`https://d2bsc5jetkp62c.cloudfront.net/permanent/shopify/${detail.info.number}/${detail.info.latestVersion}/high_quality_image`}
+                          alt={`${detail.info?.name || "User"} image`}
+                          className="w-full max-w-xs rounded-lg object-cover"
+                        />
+                      ) : (
+                        <div className="text-xs text-gray-600">
+                          No user image available.
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Model image */}
+                    <div className="border rounded-lg bg-rose-50 p-3 flex flex-col items-center">
+                      <div className="text-sm font-semibold text-[#ab1f10] mb-2">
+                        Model Image
+                      </div>
+                      {detail.info?.modelPath ? (
+                        <img
+                          src={`https://d2bsc5jetkp62c.cloudfront.net/full_model_pics_jpg/${detail.info.modelPath}`}
+                          alt="Model image"
+                          className="w-full max-w-xs rounded-lg object-cover"
+                        />
+                      ) : (
+                        <div className="text-xs text-gray-600">
+                          No model image available.
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
 
                 {/* Premium products */}
                 <div className="border rounded-lg bg-rose-50 p-3">
                   <div className="text-sm font-semibold text-[#ab1f10] mb-2">
-                    Premium Products ({selected.premium?.count || 0})
+                    Premium Products ({detail.premium?.count || 0})
                   </div>
 
-                  {(selected.premium?.products?.length || 0) === 0 && (
-                    <div className="text-sm text-gray-600">No premium purchases.</div>
+                  {(detail.premium?.products?.length || 0) === 0 && (
+                    <div className="text-sm text-gray-600">
+                      No premium purchases.
+                    </div>
                   )}
 
-                  {(selected.premium?.products || []).map((p, idx) => (
+                  {(detail.premium?.products || []).map((p, idx) => (
                     <div
                       key={idx}
                       className="grid grid-cols-1 md:grid-cols-3 gap-3 items-center bg-white rounded p-2 mb-1"
@@ -345,14 +344,16 @@ export default function AnalyticsPage() {
                 {/* Favourites */}
                 <div className="border rounded-lg bg-rose-50 p-3">
                   <div className="text-sm font-semibold text-[#ab1f10] mb-2">
-                    Favourites ({selected.favourites?.count || 0})
+                    Favourites ({detail.favourites?.count || 0})
                   </div>
 
-                  {(selected.favourites?.items?.length || 0) === 0 && (
-                    <div className="text-sm text-gray-600">No favourites yet.</div>
+                  {(detail.favourites?.items?.length || 0) === 0 && (
+                    <div className="text-sm text-gray-600">
+                      No favourites yet.
+                    </div>
                   )}
 
-                  {(selected.favourites?.items || []).map((f, idx) => (
+                  {(detail.favourites?.items || []).map((f, idx) => (
                     <div
                       key={idx}
                       className="grid grid-cols-1 md:grid-cols-6 gap-3 items-center bg-white rounded p-2 mb-1"
@@ -361,7 +362,9 @@ export default function AnalyticsPage() {
                         <div className="text-sm font-semibold text-black">
                           {f.name || f.product || "—"}
                         </div>
-                        <div className="text-xs text-gray-600">{f.brand || "-"}</div>
+                        <div className="text-xs text-gray-600">
+                          {f.brand || "-"}
+                        </div>
                       </div>
 
                       <div
@@ -377,7 +380,12 @@ export default function AnalyticsPage() {
 
                       <div className="text-xs truncate">
                         {f.link ? (
-                          <a href={f.link} target="_blank" rel="noreferrer" className="underline">
+                          <a
+                            href={f.link}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="underline"
+                          >
                             Link
                           </a>
                         ) : (
@@ -396,184 +404,224 @@ export default function AnalyticsPage() {
           </div>
         </div>
 
-        {/* Footer - Top Premium Brands */}
-        <div className="mt-8">
-          <h2 className="text-lg font-semibold text-[#ab1f10] mb-2">
-            Top Premium Brands
-          </h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
-            {payload.totals?.topBrands?.length > 0 ? (
-              payload.totals.topBrands.map((b, idx) => (
+        {/* Bottom Analytics Tabs */}
+        <div className="mt-10">
+          {/* Tab Buttons */}
+          <div className="flex flex-wrap border-b border-rose-200 mb-4">
+            {[
+              { id: "views", label: "Views" },
+              { id: "premium", label: "Premium Products" },
+              { id: "perfect", label: "Perfect Product Premium" },
+            ].map((tab) => {
+              const isActive = activeTab === tab.id;
+              return (
                 <button
-                  key={idx}
+                  key={tab.id}
                   type="button"
-                  onClick={() => openBrandModal(b.brand)}
-                  className="bg-rose-50 border border-rose-200 rounded p-2 text-sm flex justify-between text-black hover:bg-rose-100 transition"
-                  title="View top products for this brand"
+                  onClick={() => setActiveTab(tab.id)}
+                  className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px mr-2 transition ${
+                    isActive
+                      ? "border-[#ab1f10] text-[#ab1f10]"
+                      : "border-transparent text-gray-500 hover:text-[#ab1f10] hover:border-rose-200"
+                  }`}
                 >
-                  <span className="font-medium text-left">{b.brand}</span>
-                  <span className="font-semibold">{b.count}</span>
+                  {tab.label}
                 </button>
-              ))
-            ) : (
-              <div className="text-gray-600 text-sm">No brand data yet.</div>
-            )}
+              );
+            })}
           </div>
-        </div>
 
-        {/* Footer - Top Favourite Brands */}
-        <div className="mt-8">
-          <h2 className="text-lg font-semibold text-[#ab1f10] mb-2">
-            Top Favourite Brands
-          </h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
-            {payload.totals?.topFavouriteBrands?.length > 0 ? (
-              payload.totals.topFavouriteBrands.map((b, idx) => (
-                <button
-                  key={idx}
-                  type="button"
-                  onClick={() => openBrandModal(b.brand)}
-                  className="bg-rose-50 border border-rose-200 rounded p-2 text-sm flex justify-between text-black hover:bg-rose-100 transition"
-                  title="View top favourites for this brand"
-                >
-                  <span className="font-medium text-left">{b.brand}</span>
-                  <span className="font-semibold">{b.count}</span>
-                </button>
-              ))
-            ) : (
-              <div className="text-gray-600 text-sm">No favourite brand data yet.</div>
-            )}
-          </div>
-        </div>
-
-        {/* Footer - Top Viewed Brands (global) */}
-        <div className="mt-8">
-          <h2 className="text-lg font-semibold text-[#ab1f10] mb-2">
-            Top Viewed Brands
-          </h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
-            {(payload.totals?.topViewedBrands || []).length > 0 ? (
-              payload.totals.topViewedBrands.map((b, idx) => (
-                <button
-                  key={idx}
-                  type="button"
-                  onClick={() => openBrandModal(b.brand)}
-                  className="bg-rose-50 border border-rose-200 rounded p-2 text-sm flex justify-between text-black hover:bg-rose-100 transition"
-                  title="View top viewed products for this brand"
-                >
-                  <span className="font-medium text-left">{b.brand}</span>
-                  <span className="font-semibold">{b.views}</span>
-                </button>
-              ))
-            ) : (
-              <div className="text-gray-600 text-sm">No viewed data yet.</div>
-            )}
-          </div>
-        </div>
-
-        {/* Footer - Top Viewed Products (global) */}
-        <div className="mt-8">
-          <h2 className="text-lg font-semibold text-[#ab1f10] mb-2">
-            Top Viewed Products
-          </h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
-            {(payload.totals?.topViewedProducts || []).length > 0 ? (
-              payload.totals.topViewedProducts.map((row, idx) => (
-                <div
-                  key={idx}
-                  className="bg-rose-50 border border-rose-200 rounded p-2 text-sm flex justify-between text-black"
-                >
-                  <span className="font-medium text-left">
-                    {row.brand} — {row.product}
-                  </span>
-                  <span className="font-semibold">{row.views}</span>
+          {/* Tab Content */}
+          {activeTab === "views" && (
+            <div className="space-y-8">
+              {/* Top Viewed Brands */}
+              <div>
+                <h2 className="text-lg font-semibold text-[#ab1f10] mb-2">
+                  Top Viewed Brands
+                </h2>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
+                  {(topViewedBrands || []).length > 0 ? (
+                    topViewedBrands.map((b, idx) => (
+                      <div
+                        key={idx}
+                        className="bg-rose-50 border border-rose-200 rounded p-2 text-sm flex justify-between text-black"
+                        title="Global views across all users"
+                      >
+                        <span className="font-medium text-left">{b.brand}</span>
+                        <span className="font-semibold">{b.views}</span>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="text-gray-600 text-sm">
+                      No viewed brand data yet.
+                    </div>
+                  )}
                 </div>
-              ))
-            ) : (
-              <div className="text-gray-600 text-sm">No viewed product data yet.</div>
-            )}
-          </div>
+              </div>
+
+              {/* Top Viewed Products */}
+              <div>
+                <h2 className="text-lg font-semibold text-[#ab1f10] mb-2">
+                  Top Viewed Products
+                </h2>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
+                  {(topViewedProducts || []).length > 0 ? (
+                    topViewedProducts.map((row, idx) => (
+                      <div
+                        key={idx}
+                        className="bg-rose-50 border border-rose-200 rounded p-2 text-sm flex justify-between text-black"
+                        title="Global views across all users"
+                      >
+                        <span className="font-medium text-left">
+                          {row.brand} — {row.product}
+                        </span>
+                        <span className="font-semibold">{row.views}</span>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="text-gray-600 text-sm">
+                      No viewed product data yet.
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {activeTab === "premium" && (
+            <div className="space-y-8">
+              {/* Top Premium Brands */}
+              <div>
+                <div className="flex items-baseline justify-between mb-2">
+                  <h2 className="text-lg font-semibold text-[#ab1f10]">
+                    Top Premium Brands (grants)
+                  </h2>
+                  <div className="text-xs text-gray-500">
+                    {premiumUpdatedAt ? `Updated: ${fmtDate(premiumUpdatedAt)}` : ""}
+                  </div>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
+                  {(topPremiumBrands || []).length > 0 ? (
+                    topPremiumBrands.map((b, idx) => (
+                      <div
+                        key={idx}
+                        className="bg-rose-50 border border-rose-200 rounded p-2 text-sm flex justify-between text-black"
+                        title="Total premium product grants per brand"
+                      >
+                        <span className="font-medium text-left">{b.brand}</span>
+                        <span className="font-semibold">{b.count}</span>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="text-gray-600 text-sm">
+                      No premium brand data yet.
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Top Premium Products */}
+              <div>
+                <h2 className="text-lg font-semibold text-[#ab1f10] mb-2">
+                  Top Premium Products (grants)
+                </h2>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
+                  {(topPremiumProducts || []).length > 0 ? (
+                    topPremiumProducts.map((row, idx) => (
+                      <div
+                        key={idx}
+                        className="bg-rose-50 border border-rose-200 rounded p-2 text-sm flex justify-between text-black"
+                        title="Total premium product grants per product"
+                      >
+                        <span className="font-medium text-left">
+                          {row.brand} — {row.product}
+                        </span>
+                        <span className="font-semibold">{row.count}</span>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="text-gray-600 text-sm">
+                      No premium product data yet.
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {activeTab === "perfect" && (
+            <div className="space-y-8">
+              {/* Perfect Product Premium (1-hour) */}
+              <div>
+                <div className="flex items-baseline justify-between mb-2">
+                  <h2 className="text-lg font-semibold text-[#ab1f10]">
+                    Perfect Product Premium (1-hour)
+                  </h2>
+                  <div className="text-xs text-gray-500">
+                    {perfect5UpdatedAt
+                      ? `Updated: ${fmtDate(perfect5UpdatedAt)}`
+                      : ""}
+                  </div>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
+                  {(topPerfect5 || []).length > 0 ? (
+                    topPerfect5.map((row, idx) => (
+                      <div
+                        key={idx}
+                        className="bg-rose-50 border border-rose-200 rounded p-2 text-sm flex justify-between text-black"
+                        title="Number of 1-hour premium unlocks for this category"
+                      >
+                        <span className="font-medium text-left">
+                          {row.category || "Unknown"}
+                        </span>
+                        <span className="font-semibold">{row.count}</span>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="text-gray-600 text-sm">
+                      No 1-hour perfect product data yet.
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Perfect Product Premium (24-hour) */}
+              <div>
+                <div className="flex items-baseline justify-between mb-2">
+                  <h2 className="text-lg font-semibold text-[#ab1f10]">
+                    Perfect Product Premium (24-hour)
+                  </h2>
+                  <div className="text-xs text-gray-500">
+                    {perfect24UpdatedAt
+                      ? `Updated: ${fmtDate(perfect24UpdatedAt)}`
+                      : ""}
+                  </div>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
+                  {(topPerfect24 || []).length > 0 ? (
+                    topPerfect24.map((row, idx) => (
+                      <div
+                        key={idx}
+                        className="bg-rose-50 border border-rose-200 rounded p-2 text-sm flex justify-between text-black"
+                        title="Number of 24-hour premium unlocks for this category"
+                      >
+                        <span className="font-medium text-left">
+                          {row.category || "Unknown"}
+                        </span>
+                        <span className="font-semibold">{row.count}</span>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="text-gray-600 text-sm">
+                      No 24-hour perfect product data yet.
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       </div>
-
-      {/* Brand Breakdown Modal (premium/favourites from users, viewed from global) */}
-      {brandModalOpen && (
-        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 px-4">
-          <div className="w-full max-w-4xl bg-white rounded-2xl shadow-2xl p-6">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-xl font-semibold text-[#ab1f10]">
-                {brandModalBrand} — Top Products
-              </h3>
-              <button
-                onClick={closeBrandModal}
-                className="text-sm px-3 py-1 rounded border border-rose-200 hover:bg-rose-50"
-                type="button"
-              >
-                Close
-              </button>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              {/* Top Premium */}
-              <div className="border rounded-lg bg-rose-50 p-3">
-                <div className="text-sm font-semibold text-[#ab1f10] mb-2">
-                  Top Premium
-                </div>
-                {brandModalData.premiumProducts.length === 0 ? (
-                  <div className="text-sm text-gray-600">No premium data.</div>
-                ) : (
-                  <ul className="divide-y bg-white rounded">
-                    {brandModalData.premiumProducts.map((row, i) => (
-                      <li key={i} className="flex items-center justify-between px-3 py-2">
-                        <span className="text-sm text-black">{row.product}</span>
-                        <span className="text-sm font-semibold">{row.count}</span>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </div>
-
-              {/* Top Favourites */}
-              <div className="border rounded-lg bg-rose-50 p-3">
-                <div className="text-sm font-semibold text-[#ab1f10] mb-2">
-                  Top Favourites
-                </div>
-                {brandModalData.favouriteProducts.length === 0 ? (
-                  <div className="text-sm text-gray-600">No favourites.</div>
-                ) : (
-                  <ul className="divide-y bg-white rounded">
-                    {brandModalData.favouriteProducts.map((row, i) => (
-                      <li key={i} className="flex items-center justify-between px-3 py-2">
-                        <span className="text-sm text-black">{row.product}</span>
-                        <span className="text-sm font-semibold">{row.count}</span>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </div>
-
-              {/* Top Viewed (from global) */}
-              <div className="border rounded-lg bg-rose-50 p-3">
-                <div className="text-sm font-semibold text-[#ab1f10] mb-2">
-                  Top Viewed
-                </div>
-                {brandModalData.viewedProducts.length === 0 ? (
-                  <div className="text-sm text-gray-600">No views.</div>
-                ) : (
-                  <ul className="divide-y bg-white rounded">
-                    {brandModalData.viewedProducts.map((row, i) => (
-                      <li key={i} className="flex items-center justify-between px-3 py-2">
-                        <span className="text-sm text-black">{row.product}</span>
-                        <span className="text-sm font-semibold">{row.views}</span>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
