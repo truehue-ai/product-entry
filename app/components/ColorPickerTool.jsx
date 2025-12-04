@@ -27,6 +27,103 @@ function fileToDataURL(file) {
   });
 }
 
+// Convert #rrggbb or #rgb to {r,g,b}
+function hexToRgb(hex) {
+  if (!hex) return null;
+  let clean = hex.trim().replace("#", "");
+  if (clean.length === 3) {
+    clean = clean.split("").map((ch) => ch + ch).join("");
+  }
+  if (clean.length !== 6) return null;
+
+  const num = parseInt(clean, 16);
+  return {
+    r: (num >> 16) & 255,
+    g: (num >> 8) & 255,
+    b: num & 255,
+  };
+}
+
+// Decide skin tone from S,B (0–100)
+// NOTE: I’m assuming Fair = brightest (B > 85 & low S). 
+// Adjust thresholds if you want to tweak the bands.
+function classifySkinToneFromSB(s, b) {
+  // --- F ---
+  // F: B > 85 AND S <= 50
+  if (b > 90 && s <= 50) {
+    return "F";
+  }
+
+  // --- FM ---
+  // if B > 80 and S >= 50
+  // otherwise B > 75 and S <= 60
+  if ((b > 85 && s >= 50) || (b > 80 && s <= 60)) {
+    return "FM";
+  }
+
+  // --- MD ---
+  // B > 70 and S >= 50
+  // OR B < 70 and S <= 50 and S >= 40
+  if ((b > 75 && s >= 40) || (b > 70 && s <= 50 && s >= 40)) {
+    return "MD";
+  }
+
+  // --- D1 ---
+  // B > 55 and S >= 50
+  // OR if 45 <= S <= 50 then B < 55
+  if ((b > 60 && s >= 55) || (s >= 45 && s <= 50 && b > 50)) {
+    return "D1";
+  }
+
+  // --- D2 ---
+  // 40 < B < 55   (unchanged because you only asked to adjust S)
+  if (b >= 48) {
+    return "D2";
+  }
+
+  // --- VD ---
+  // B < 40
+  if (b < 48) {
+    return "VD";
+  }
+
+  return "";
+}
+
+
+// Decide undertone from H (0–360)
+function classifyUndertoneFromHue(h, s, b) {
+  if (Number.isNaN(h)) return "";
+
+  // -------------------------------
+  // CASE 1: Very bright shades
+  // -------------------------------
+  if (b > 90) {
+    if (h >= 0 && h <= 25) return "C";       // Cool
+    if (h > 25 && h <= 28) return "N";       // Neutral
+    return "W";                              // Warm
+  }
+
+  // -------------------------------
+  // CASE 2: Low saturation + not super bright
+  // -------------------------------
+  if (s <= 45 && b < 90) {
+    if (h >= 0 && h <= 25) return "C";       // Cool
+    return "N";                              // Everything else Neutral
+  }
+
+  // -------------------------------
+  // CASE 3: Normal rule
+  // -------------------------------
+  if (h >= 0 && h < 20) return "C";          // Cool
+  if (h >= 20 && h < 24) return "N";        // Neutral
+  if (h >= 24) return "W";                    // Warm
+
+  return "";
+}
+
+
+
 export default function ColorPickerTool({ initialBrand = "", initialProduct = "" }) {
 
   const router = useRouter();
@@ -472,6 +569,35 @@ export default function ColorPickerTool({ initialBrand = "", initialProduct = ""
     });
   };
 
+    const autoCategorizeFaceShades = () => {
+    // Only for foundation / concealer as you requested
+    if (!["foundation", "concealer"].includes(category)) {
+      alert("Auto-categorize works only for foundation and concealer.");
+      return;
+    }
+
+    setShades((prevShades) =>
+      prevShades.map((shade) => {
+        if (!shade.hex) return shade;
+
+        const rgb = hexToRgb(shade.hex);
+        if (!rgb) return shade;
+
+        const [h, s, b] = rgbToHsb(rgb.r, rgb.g, rgb.b); // s,b in 0–100
+        const skintone = classifySkinToneFromSB(s, b);
+        const undertone = classifyUndertoneFromHue(h, s, b);
+
+        return {
+          ...shade,
+          // Only overwrite if we actually classified something
+          skintone: skintone || shade.skintone || "",
+          undertone: undertone || shade.undertone || "",
+        };
+      })
+    );
+  };
+
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-pink-50 to-rose-100 font-sans p-6">
       <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@500;700&family=Roboto+Mono:wght@500&display=swap" rel="stylesheet" />
@@ -584,6 +710,17 @@ export default function ColorPickerTool({ initialBrand = "", initialProduct = ""
           />
 
           <h2 className="text-lg font-semibold mt-6 text-[#ab1f10]">Shades</h2>
+
+          {["foundation", "concealer"].includes(category) && (
+            <button
+              type="button"
+              onClick={autoCategorizeFaceShades}
+              className="mb-3 w-full px-4 py-2 rounded border border-rose-300 bg-white text-sm font-medium text-[#ab1f10] hover:bg-rose-100"
+            >
+              Auto-detect skin tone & undertone from hex
+            </button>
+          )}
+
 
           {shades.map((shade, i) => (
             <div key={i} className="space-y-1">
