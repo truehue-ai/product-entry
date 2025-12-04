@@ -71,7 +71,7 @@ function classifySkinToneFromSB(s, b) {
   // --- D1 ---
   // B > 55 and S >= 50
   // OR if 45 <= S <= 50 then B < 55
-  if ((b > 60 && s >= 55) || (s >= 45 && s <= 50 && b > 50)) {
+  if ((b > 65 && s >= 55) || (s >= 45 && s <= 50 && b > 50)) {
     return "D1";
   }
 
