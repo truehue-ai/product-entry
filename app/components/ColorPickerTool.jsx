@@ -50,28 +50,28 @@ function hexToRgb(hex) {
 function classifySkinToneFromSB(s, b) {
   // --- F ---
   // F: B > 85 AND S <= 50
-  if (b > 90 && s <= 50) {
+  if (b >= 90 && s <= 50) {
     return "F";
   }
 
   // --- FM ---
   // if B > 80 and S >= 50
   // otherwise B > 75 and S <= 60
-  if ((b > 85 && s >= 50 && s < 60) || (b > 80 && s <= 50)) {
+  if ((b >= 85 && s >= 50 && s < 60) || (b >= 80 && s <= 50)) {
     return "FM";
   }
 
   // --- MD ---
   // B > 70 and S >= 50
   // OR B < 70 and S <= 50 and S >= 40
-  if ((b > 75 && s >= 40) || (b > 70 && s <= 50 && s >= 40)) {
+  if ((b >= 75 && s >= 40) || (b >= 70 && s <= 50 && s >= 40)) {
     return "MD";
   }
 
   // --- D1 ---
   // B > 55 and S >= 50
   // OR if 45 <= S <= 50 then B < 55
-  if ((b > 65 && s >= 55) || (s >= 45 && s <= 50 && b > 50)) {
+  if ((b >= 65 && s >= 55) || (s >= 45 && s <= 50 && b >= 50)) {
     return "D1";
   }
 
@@ -83,7 +83,7 @@ function classifySkinToneFromSB(s, b) {
 
   // --- VD ---
   // B < 40
-  if (b < 48) {
+  if (b <= 48) {
     return "VD";
   }
 
