@@ -64,7 +64,7 @@ function classifySkinToneFromSB(s, b) {
   // --- MD ---
   // B > 70 and S >= 50
   // OR B < 70 and S <= 50 and S >= 40
-  if ((b >= 75 && s >= 40) || (b >= 70 && s <= 50 && s >= 40)) {
+  if ((b >= 78 && s >= 40 && s < 68) || (b >= 70 && s <= 50 && s >= 40)) {
     return "MD";
   }
 
