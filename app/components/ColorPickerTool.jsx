@@ -50,40 +50,40 @@ function hexToRgb(hex) {
 function classifySkinToneFromSB(s, b) {
   // --- F ---
   // F: B > 85 AND S <= 50
-  if (b >= 90 && s <= 50) {
+  if ((b >= 90 && s <= 50) || (b >= 80 && s <= 40)) {
     return "F";
   }
 
   // --- FM ---
   // if B > 80 and S >= 50
   // otherwise B > 75 and S <= 60
-  if ((b >= 85 && s >= 50 && s < 60) || (b >= 80 && s <= 50)) {
+  if ((b >= 85 && s >= 50 && s < 60) || (b >= 80 && s <= 50) || (b >= 70 && s <= 40)) {
     return "FM";
   }
 
   // --- MD ---
   // B > 70 and S >= 50
   // OR B < 70 and S <= 50 and S >= 40
-  if ((b >= 78 && s >= 40 && s < 68) || (b >= 70 && s <= 50 && s >= 40)) {
+  if ((b >= 78 && s >= 40 && s < 68) || (b >= 70 && s <= 50 && s >= 40) || (b >= 60 && s <= 40)) {
     return "MD";
   }
 
   // --- D1 ---
   // B > 55 and S >= 50
   // OR if 45 <= S <= 50 then B < 55
-  if ((b >= 65 && s >= 55) || (s >= 45 && s <= 50 && b >= 50)) {
+  if ((b >= 68 && s >= 55 && s < 68) || (s >= 45 && s <= 50 && b >= 50)) {
     return "D1";
   }
 
   // --- D2 ---
   // 40 < B < 55   (unchanged because you only asked to adjust S)
-  if (b >= 48) {
+  if (b >= 50) {
     return "D2";
   }
 
   // --- VD ---
   // B < 40
-  if (b <= 48) {
+  if (b <= 50) {
     return "VD";
   }
 
