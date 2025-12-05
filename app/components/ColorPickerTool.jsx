@@ -57,7 +57,7 @@ function classifySkinToneFromSB(s, b) {
   // --- FM ---
   // if B > 80 and S >= 50
   // otherwise B > 75 and S <= 60
-  if ((b > 85 && s >= 50) || (b > 80 && s <= 50)) {
+  if ((b > 85 && s >= 50 && s < 60) || (b > 80 && s <= 50)) {
     return "FM";
   }
 
