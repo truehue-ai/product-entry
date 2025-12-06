@@ -50,7 +50,7 @@ function hexToRgb(hex) {
 function classifySkinToneFromSB(s, b) {
   // --- F ---
   // F: B > 85 AND S <= 50
-  if ((b >= 90 && s <= 50) || (b >= 80 && s <= 40)) {
+  if ((b >= 90 && s <= 50) || (b >= 87 && s <= 40)) {
     return "F";
   }
 
