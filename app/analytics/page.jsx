@@ -125,6 +125,8 @@ export default function AnalyticsPage() {
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     let arr = usersList || [];
+
+    // Text search
     if (q) {
       arr = arr.filter((u) => {
         const hay = [
@@ -137,7 +139,42 @@ export default function AnalyticsPage() {
         return hay.includes(q);
       });
     }
-    return [...arr].sort((a, b) => (a.name || "").localeCompare(b.name || ""));
+
+    // Helper to convert lastLogin / createdAt into a timestamp
+    const getTimestamp = (u) => {
+      const v = u?.lastLogin ?? u?.createdAt;
+      if (v == null || v === "") return null;
+
+      const n =
+        typeof v === "number"
+          ? v
+          : isNaN(Date.parse(String(v)))
+          ? null
+          : Date.parse(String(v));
+
+      return n && !Number.isNaN(n) ? n : null;
+    };
+
+    // Sort:
+    // 1. Users with a date first (newest → oldest)
+    // 2. Then users without any date, by name
+    return [...arr].sort((a, b) => {
+      const ta = getTimestamp(a);
+      const tb = getTimestamp(b);
+
+      const hasA = ta != null;
+      const hasB = tb != null;
+
+      // Users WITH a date come first
+      if (hasA && !hasB) return -1;
+      if (!hasA && hasB) return 1;
+
+      // Both have dates → newest first
+      if (hasA && hasB && ta !== tb) return tb - ta;
+
+      // Neither has a date (or same date) → fallback to name
+      return (a.name || "").localeCompare(b.name || "");
+    });
   }, [usersList, query]);
 
   return (

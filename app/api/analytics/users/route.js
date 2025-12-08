@@ -324,6 +324,7 @@ async function fetchUserMinimal(id) {
   const base = `${ROOT_PREFIX}${id}/`;
   const infoCandidates = [`${base}user_info.json`, `${base}user_info`];
   let info = null;
+
   for (const k of infoCandidates) {
     const v = await getJSON(k);
     if (v) {
@@ -331,12 +332,17 @@ async function fetchUserMinimal(id) {
       break;
     }
   }
+
   return {
     id,
     name: info?.name || "",
     number: info?.number || "",
+    // NEW: pass timestamps through for sorting
+    lastLogin: info?.lastLogin ?? info?.last_login ?? null,
+    createdAt: info?.createdAt ?? null,
   };
 }
+
 
 async function fetchUserFull(id) {
   const base = `${ROOT_PREFIX}${id}/`;
