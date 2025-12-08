@@ -16,16 +16,19 @@ const BUCKET = process.env.X_AWS_BUCKET_NAME;
 
 // util: extract shade names from incoming array
 const getNamesFromIncoming = (arr) =>
-  Array.isArray(arr) ? arr.map(s => s?.name).filter(Boolean) : [];
+  Array.isArray(arr) ? arr.map((s) => s?.name).filter(Boolean) : [];
 
 export async function POST(req) {
   try {
     const { brand, product, shades, category } = await req.json();
     if (!brand || !product || !Array.isArray(shades) || !category) {
-      return NextResponse.json({ success: false, error: 'Missing fields' }, { status: 400 });
+      return NextResponse.json(
+        { success: false, error: 'Missing fields' },
+        { status: 400 }
+      );
     }
 
-    // 1) Build the shades.json payload (same structure you had)
+    // 1) Build the shades.json payload
     let shadeDict = {};
     if (['foundation', 'contour', 'concealer', 'skin-tint'].includes(category)) {
       // nested: { skintone: { undertone: { shade_name: hex } } }
@@ -56,7 +59,9 @@ export async function POST(req) {
     );
 
     // 3) Write meta.json (who/when/type) for “Saved by” in Logs
-    const user = cookies().get('th_auth')?.value || 'unknown';
+    const cookieStore = await cookies(); // cookies() is async now
+    const user = cookieStore.get('th_auth')?.value || 'unknown';
+
     const nowISO = new Date().toISOString();
     const meta = {
       brand,
@@ -65,6 +70,7 @@ export async function POST(req) {
       lastSavedBy: user,
       lastSavedAt: nowISO,
     };
+
     await s3.send(
       new PutObjectCommand({
         Bucket: BUCKET,
@@ -85,23 +91,24 @@ export async function POST(req) {
 
     const savedNames = getNamesFromIncoming(shades);
 
-    // append-only write (we don’t fetch/merge; simple overwrite pattern)
-    // safest is to read-modify-write, but since we removed comparisons,
-    // we can just fetch once; if fetch fails, start with [].
+    // append-only pattern: read if exists, else []
     let existing = [];
     try {
       const { GetObjectCommand } = await import('@aws-sdk/client-s3');
-      const r = await s3.send(new GetObjectCommand({ Bucket: BUCKET, Key: auditKey }));
+      const r = await s3.send(
+        new GetObjectCommand({ Bucket: BUCKET, Key: auditKey })
+      );
       const text = await r.Body.transformToString();
       existing = JSON.parse(text) || [];
     } catch {
       existing = [];
     }
+
     existing.push({
       brand,
       product,
       productType: category,
-      added: savedNames,   // ← now represents ALL shades saved in this request
+      added: savedNames, // all shades from this save
       at: nowISO,
     });
 
@@ -117,6 +124,9 @@ export async function POST(req) {
     return NextResponse.json({ success: true, added: savedNames });
   } catch (error) {
     console.error('S3 upload failed:', error);
-    return NextResponse.json({ success: false, error: error?.message || 'Upload failed' }, { status: 500 });
+    return NextResponse.json(
+      { success: false, error: error?.message || 'Upload failed' },
+      { status: 500 }
+    );
   }
 }
