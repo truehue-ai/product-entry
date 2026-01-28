@@ -306,6 +306,34 @@ function normalizePerfectProductGlobal(raw) {
   return result;
 }
 
+// steps_taken.json: flexible parsing
+// supports:
+// 1) ["step1", "step2"]
+// 2) [{ step: "x", at: 123 }, ...]
+// 3) { steps: [...] } or { steps_taken: [...] }
+function normalizeSteps(raw) {
+  if (!raw) return [];
+
+  const arr =
+    Array.isArray(raw) ? raw :
+    (Array.isArray(raw.steps) ? raw.steps :
+    (Array.isArray(raw.steps_taken) ? raw.steps_taken : null));
+
+  if (!arr) return [];
+
+  return arr
+    .map((x) => {
+      if (typeof x === "string") return { step: x, at: null };
+      if (!x || typeof x !== "object") return { step: String(x ?? ""), at: null };
+      return {
+        step: String(x.step ?? x.name ?? x.event ?? ""),
+        at: x.at ?? x.ts ?? x.time ?? x.createdAt ?? null,
+      };
+    })
+    .filter((s) => s.step);
+}
+
+
 
 
 /* -------------------- Helpers -------------------- */
@@ -393,6 +421,23 @@ async function fetchUserFull(id) {
   }
 
   const userInfo = infoRaw.data || {};
+
+    // Try number-path first, then fallback to id-path
+  const stepsCandidates = [
+    id ? `${base}steps_taken.json` : null,
+    `${base}steps_taken.json`,
+  ].filter(Boolean);
+
+  const stepsRaw = await (async () => {
+    for (const k of stepsCandidates) {
+      const val = await getJSON(k);
+      if (val) return { data: val, key: k };
+    }
+    return { data: null, key: null };
+  })();
+
+  const steps = normalizeSteps(stepsRaw.data);
+  
   const premiumList = normalizePremium(premiumRaw.data);
   const favourites = normalizeFavourites(favRaw.data);
 
@@ -432,11 +477,13 @@ async function fetchUserFull(id) {
     wallet: { coins, subscriber },
     premium: { count: paidCount, lastPurchase, products: premiumList },
     favourites: { count: favourites.length, items: favourites },
+    steps: { count: steps.length, items: steps },
     matchedKeys: {
       infoKey: infoRaw.key,
       premiumKey: premiumRaw.key,
       favouritesKey: favRaw.key,
       paidKey: paidRaw.key,
+      stepsKey: stepsRaw.key,
     },
   };
 }

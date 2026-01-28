@@ -350,6 +350,41 @@ export default function AnalyticsPage() {
                   </div>
                 )}
 
+                {/* Steps Taken */}
+                {/* Steps Taken */}
+                <div className="border rounded-lg bg-rose-50 p-3">
+                  <div className="text-sm font-semibold text-[#ab1f10] mb-2">
+                    Steps Taken ({detail.steps?.count || 0})
+                  </div>
+
+                  {(detail.steps?.items?.length || 0) === 0 ? (
+                    <div className="text-sm text-gray-600">No steps recorded.</div>
+                  ) : (
+                    <div className="max-h-60 overflow-y-auto space-y-1 pr-1">
+                      {detail.steps.items.map((s, idx) => (
+                        <div
+                          key={idx}
+                          className="grid grid-cols-1 md:grid-cols-3 gap-3 items-center bg-white rounded p-2"
+                        >
+                          <div className="text-sm font-semibold text-black">
+                            {s.step}
+                          </div>
+
+                          <div className="text-xs text-gray-600">
+                            {/* reserved for future metadata */}
+                          </div>
+
+                          <div className="text-xs text-gray-500 text-right">
+                            {fmtDate(s.at)}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+
+
                 {/* Premium products */}
                 <div className="border rounded-lg bg-rose-50 p-3">
                   <div className="text-sm font-semibold text-[#ab1f10] mb-2">
