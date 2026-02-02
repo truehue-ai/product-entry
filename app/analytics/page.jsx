@@ -43,6 +43,9 @@ export default function AnalyticsPage() {
   const [loadingDetail, setLoadingDetail] = useState(false);
   const [detail, setDetail] = useState(null); // { info, wallet, premium, favourites }
   const [showImages, setShowImages] = useState(false);
+  const [stepsLoading, setStepsLoading] = useState(false);
+  const [stepsInsights, setStepsInsights] = useState(null);
+
 
   // bottom analytics tab
   const [activeTab, setActiveTab] = useState("views"); // "views" | "premium" | "perfect"
@@ -191,6 +194,25 @@ export default function AnalyticsPage() {
               {usersList.length}
             </span>
           </div>
+          <button
+            type="button"
+            onClick={async () => {
+              setStepsLoading(true);
+              try {
+                const r = await fetch("/api/analytics/steps", { cache: "no-store" });
+                const j = await r.json();
+                setStepsInsights(j.insights || null);
+              } catch {
+                setStepsInsights(null);
+              } finally {
+                setStepsLoading(false);
+              }
+            }}
+            className="px-4 py-2 text-sm rounded-lg border border-rose-200 text-[#ab1f10] hover:bg-rose-50 transition"
+          >
+            {stepsLoading ? "Analysing…" : "Analyse steps"}
+          </button>
+
         </div>
 
         {/* Search */}
@@ -202,6 +224,85 @@ export default function AnalyticsPage() {
             onChange={(e) => setQuery(e.target.value)}
           />
         </div>
+
+        {stepsInsights && (
+          <div className="mb-6 border border-rose-200 rounded-2xl bg-rose-50 p-4">
+            <div className="flex flex-wrap items-baseline justify-between gap-2 mb-3">
+              <h2 className="text-lg font-semibold text-[#ab1f10]">
+                Steps Insights
+              </h2>
+              <div className="text-xs text-gray-600">
+                Users included: <span className="font-semibold">{stepsInsights.usersWithSteps}</span>
+                {stepsInsights.timedUsers ? (
+                  <> · Timed users: <span className="font-semibold">{stepsInsights.timedUsers}</span></>
+                ) : null}
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {/* Most time spent */}
+              <div className="bg-white rounded-xl border border-rose-100 p-3">
+                <div className="text-sm font-semibold text-[#ab1f10] mb-2">Most time spent</div>
+                <div className="max-h-56 overflow-y-auto space-y-2 pr-1">
+                  {(stepsInsights.mostTimeSpent || []).length ? (
+                    stepsInsights.mostTimeSpent.map((r, i) => (
+                      <div key={i} className="flex justify-between text-sm text-black">
+                        <span className="font-medium">{r.step}</span>
+                        <span className="text-gray-700">{r.median} median</span>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="text-sm text-gray-600">
+                      No timestamps found in steps (can’t compute time spent yet).
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Dropoffs */}
+              <div className="bg-white rounded-xl border border-rose-100 p-3">
+                <div className="text-sm font-semibold text-[#ab1f10] mb-2">Top dropoffs (last step)</div>
+                <div className="max-h-56 overflow-y-auto space-y-2 pr-1">
+                  {(stepsInsights.topDropoffs || []).map((r, i) => (
+                    <div key={i} className="flex justify-between text-sm text-black">
+                      <span className="font-medium">{r.step}</span>
+                      <span className="text-gray-700">{r.count}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Transitions */}
+              <div className="bg-white rounded-xl border border-rose-100 p-3">
+                <div className="text-sm font-semibold text-[#ab1f10] mb-2">Most common transitions</div>
+                <div className="max-h-56 overflow-y-auto space-y-2 pr-1">
+                  {(stepsInsights.topTransitions || []).map((r, i) => (
+                    <div key={i} className="flex justify-between text-sm text-black">
+                      <span className="font-medium">{r.transition}</span>
+                      <span className="text-gray-700">{r.count}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="bg-white rounded-xl border border-rose-100 p-3">
+                <div className="text-sm font-semibold text-[#ab1f10] mb-2">
+                  Returning Users
+                </div>
+
+                <div className="text-sm text-black mb-1">
+                  {stepsInsights.retention.returningUsers} returning users
+                </div>
+
+                <div className="text-xs text-gray-600">
+                  {stepsInsights.retention.returningRate}% of users logged in on multiple days
+                </div>
+              </div>
+
+            </div>
+          </div>
+        )}
+
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           {/* Left panel - users (name + number only) */}
