@@ -97,6 +97,18 @@ function analyze(allUsersSteps) {
   const transitionCounts = new Map();    // "A -> B" -> count
   const returningUsers = [];
   const loginDateCounts = []; // for distribution
+  const globalUseCoins = {
+  totalUsers: 0,
+  totalEvents: 0,
+  types: new Map(),
+};
+
+    let globalModelFineTune = {
+    totalUsersReached: 0,
+    totalEvents: 0,
+    };
+
+
 
 
   // Time stats: step -> [durationsMs] (time spent "on step" until next step)
@@ -109,6 +121,57 @@ function analyze(allUsersSteps) {
   for (const u of allUsersSteps) {
     const steps = (u.steps || []).slice();
     if (!steps.length) continue;
+
+    // --- Model Fine-Tune Tracking ---
+    if (!globalModelFineTune) {
+    globalModelFineTune = {
+        totalUsersReached: 0,
+        totalEvents: 0,
+    };
+    }
+
+    // Check if user reached this step
+    let hasFineTuned = false;
+
+    for (const s of steps) {
+    if (s.step === "model-fine-tune") {
+        hasFineTuned = true;
+        globalModelFineTune.totalEvents++;
+    }
+    }
+
+    if (hasFineTuned) {
+    globalModelFineTune.totalUsersReached++;
+    }
+
+
+    // --- Use-Coins Tracking ---
+    let userUseCoinsCount = 0;
+    const userUseCoinsTypes = new Map();
+
+    for (const s of steps) {
+    if (s.step.startsWith("use-coins-")) {
+        userUseCoinsCount++;
+
+        const type = s.step.substring("use-coins-".length) || "unknown";
+        userUseCoinsTypes.set(type, (userUseCoinsTypes.get(type) || 0) + 1);
+    }
+    }
+
+    // Aggregate globally
+    if (!globalUseCoins.totalUsers) globalUseCoins.totalUsers = 0;
+    if (!globalUseCoins.totalEvents) globalUseCoins.totalEvents = 0;
+    if (!globalUseCoins.types) globalUseCoins.types = new Map();
+
+    if (userUseCoinsCount > 0) {
+    globalUseCoins.totalUsers++;      // user who used coins at least once
+    globalUseCoins.totalEvents += userUseCoinsCount;
+
+    for (const [type, count] of userUseCoinsTypes.entries()) {
+        globalUseCoins.types.set(type, (globalUseCoins.types.get(type) || 0) + count);
+    }
+    }
+
 
     const loginDates = new Set();
 
@@ -245,6 +308,18 @@ function analyze(allUsersSteps) {
         returningRate, // %
         breakdown: returningUsers.slice(0, 20), // optional: top repeat users
     },
+    useCoins: {
+        totalUsers: globalUseCoins.totalUsers,
+        totalEvents: globalUseCoins.totalEvents,
+        topTypes: Array.from(globalUseCoins.types.entries())
+        .map(([type, count]) => ({ type, count }))
+        .sort((a, b) => b.count - a.count)
+        .slice(0, 10),
+    },
+    modelFineTune: {
+        totalUsersReached: globalModelFineTune.totalUsersReached,
+        totalEvents: globalModelFineTune.totalEvents,
+        },
   };
 }
 

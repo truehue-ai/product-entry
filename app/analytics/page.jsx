@@ -299,6 +299,88 @@ export default function AnalyticsPage() {
                 </div>
               </div>
 
+              {/* Use Coins Analytics */}
+              <div>
+                <h2 className="text-lg font-semibold text-[#ab1f10] mb-3">
+                  Use-Coins Analytics
+                </h2>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+
+                  {/* Users who used coins */}
+                  <div className="bg-white rounded-xl border border-rose-100 p-3">
+                    <div className="text-sm font-semibold text-[#ab1f10] mb-1">
+                      Users Who Used Coins
+                    </div>
+                    <div className="text-2xl font-bold text-black">
+                      {stepsInsights.useCoins?.totalUsers || 0}
+                    </div>
+                    <div className="text-xs text-gray-600 mt-1">
+                      Number of users who pressed a use-coins button
+                    </div>
+                  </div>
+
+                  {/* Total use-coins events */}
+                  <div className="bg-white rounded-xl border border-rose-100 p-3">
+                    <div className="text-sm font-semibold text-[#ab1f10] mb-1">
+                      Total Use-Coins Actions
+                    </div>
+                    <div className="text-2xl font-bold text-black">
+                      {stepsInsights.useCoins?.totalEvents || 0}
+                    </div>
+                    <div className="text-xs text-gray-600 mt-1">
+                      Total number of times users attempted to use coins
+                    </div>
+                  </div>
+
+                  {/* Top use-coins types */}
+                  <div className="bg-white rounded-xl border border-rose-100 p-3">
+                    <div className="text-sm font-semibold text-[#ab1f10] mb-2">
+                      Most Common Use-Coins Actions
+                    </div>
+
+                    <div className="max-h-56 overflow-y-auto space-y-2 pr-1">
+                      {(stepsInsights.useCoins?.topTypes || []).length > 0 ? (
+                        stepsInsights.useCoins.topTypes.map((t, i) => (
+                          <div
+                            key={i}
+                            className="flex justify-between text-sm text-black bg-rose-50 rounded px-2 py-1"
+                          >
+                            <span className="font-medium">{t.type}</span>
+                            <span className="font-semibold">{t.count}</span>
+                          </div>
+                        ))
+                      ) : (
+                        <div className="text-sm text-gray-600">No use-coins actions yet.</div>
+                      )}
+                    </div>
+                  </div>
+
+                </div>
+              </div>
+
+              {/* Model Fine-Tune Analytics */}
+              <div className="bg-white rounded-xl border border-rose-100 p-3">
+                <div className="text-sm font-semibold text-[#ab1f10] mb-1">
+                  Users Who Reached Model Fine-Tune
+                </div>
+                <div className="text-2xl font-bold text-black">
+                  {stepsInsights.modelFineTune?.totalUsersReached || 0}
+                </div>
+                <div className="text-xs text-gray-600 mt-1">
+                  Users who made it to the refinement step
+                </div>
+
+                <div className="mt-2 text-sm">
+                  Total fine-tune actions:{" "}
+                  <span className="font-semibold">
+                    {stepsInsights.modelFineTune?.totalEvents || 0}
+                  </span>
+                </div>
+              </div>
+
+
+
             </div>
           </div>
         )}
