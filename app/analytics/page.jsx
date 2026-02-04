@@ -379,6 +379,75 @@ export default function AnalyticsPage() {
                 </div>
               </div>
 
+              {/* Shade Guide Actions */}
+              <div>
+                <h2 className="text-lg font-semibold text-[#ab1f10] mb-3">
+                  Shade Guide Actions
+                </h2>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+
+                  {/* Scroll Stats */}
+                  <div className="bg-white rounded-xl border border-rose-100 p-3">
+                    <div className="text-sm font-semibold text-[#ab1f10] mb-1">
+                      Users Who Scrolled Shade Guide
+                    </div>
+                    <div className="text-2xl font-bold text-black">
+                      {stepsInsights.shadeGuideActions?.scroll?.totalUsers || 0}
+                    </div>
+                    <div className="text-xs text-gray-600 mt-1">
+                      Total scroll events:{" "}
+                      <span className="font-semibold">
+                        {stepsInsights.shadeGuideActions?.scroll?.totalEvents || 0}
+                      </span>
+                    </div>
+                  </div>
+
+                    {/* Click Stats */}
+                    <div className="bg-white rounded-xl border border-rose-100 p-3">
+                      <div className="text-sm font-semibold text-[#ab1f10] mb-1">
+                        Users Who Clicked Shade Guide
+                      </div>
+                      <div className="text-2xl font-bold text-black">
+                        {stepsInsights.shadeGuideActions?.clicked?.totalUsers || 0}
+                      </div>
+                      <div className="text-xs text-gray-600 mt-1">
+                        Total click events:{" "}
+                        <span className="font-semibold">
+                          {stepsInsights.shadeGuideActions?.clicked?.totalEvents || 0}
+                        </span>
+                      </div>
+                    </div>
+
+                  </div>
+                </div>
+
+              {/* Users Who Clicked – List of User IDs */}
+              <div className="bg-white rounded-xl border border-rose-100 p-3 md:col-span-2 lg:col-span-1">
+                <div className="text-sm font-semibold text-[#ab1f10] mb-1">
+                  Users Who Clicked (Details)
+                </div>
+
+                {stepsInsights.shadeGuideActions?.clicked?.userIds?.length > 0 ? (
+                  <div className="max-h-40 overflow-y-auto px-1 space-y-1">
+                    {stepsInsights.shadeGuideActions.clicked.userIds.map((num, idx) => (
+                      <div
+                        key={idx}
+                        className="flex justify-between bg-rose-50 rounded px-2 py-1 text-sm text-black"
+                      >
+                        <span className="font-medium">{num}</span>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-sm text-gray-600">
+                    No users have clicked the shade guide yet.
+                  </div>
+                )}
+              </div>
+
+
+
 
 
             </div>

@@ -58,14 +58,14 @@ function normalizeSteps(raw) {
     .map((row) => {
       if (typeof row !== "string") return null;
 
-      // "step-name : DD/MM/YYYY, HH:mm:ss"
-      const parts = row.split(" : ");
-      if (parts.length < 2) return null;
+      // Split on first colon no matter spacing: "a:b", "a : b", etc.
+      const idx = row.indexOf(":");
+      if (idx === -1) return null;
 
-      const step = parts[0].trim();
-      const timeStr = parts.slice(1).join(" : ").trim();
+      const step = row.substring(0, idx).trim();
+      const timeStr = row.substring(idx + 1).trim();
 
-      // Convert "30/01/2026, 14:03:14" → Date
+      // timeStr example: "04/02/2026, 13:44:34"
       const [datePart, timePart] = timeStr.split(", ");
       if (!datePart || !timePart) return { step, at: null };
 
@@ -78,6 +78,7 @@ function normalizeSteps(raw) {
     })
     .filter(Boolean);
 }
+
 
 
 function toMs(v) {
@@ -108,6 +109,19 @@ function analyze(allUsersSteps) {
     totalEvents: 0,
     };
 
+    let globalShadeGuideScroll = {
+  totalUsers: 0,
+  totalEvents: 0,
+};
+
+let globalShadeGuideClicked = {
+  totalUsers: 0,
+  totalEvents: 0,
+  userIds: new Set(),   // NEW
+};
+
+
+
 
 
 
@@ -121,6 +135,42 @@ function analyze(allUsersSteps) {
   for (const u of allUsersSteps) {
     const steps = (u.steps || []).slice();
     if (!steps.length) continue;
+
+     // --- Shade Guide Action Tracking ---
+    let hasScroll = false;
+    let hasClicked = false;
+    let scrollCount = 0;
+    let clickCount = 0;
+
+    for (const s of steps) {
+        const stepName = s.step;
+
+        if (stepName === "shade-guide-action-scroll") {
+            scrollCount++;
+            hasScroll = true;
+        }
+
+        if (stepName === "shade-guide-action-clicked") {
+            clickCount++;
+            hasClicked = true;
+        }
+        }
+
+
+    // Aggregate for global stats
+    if (hasScroll) {
+    globalShadeGuideScroll.totalUsers++;
+    globalShadeGuideScroll.totalEvents += scrollCount;
+    }
+
+    if (hasClicked) {
+        globalShadeGuideClicked.totalUsers++;
+        globalShadeGuideClicked.totalEvents += clickCount;
+        globalShadeGuideClicked.userIds.add(u.id);  // NEW
+    }
+
+
+
 
     // --- Model Fine-Tune Tracking ---
     if (!globalModelFineTune) {
@@ -320,6 +370,19 @@ function analyze(allUsersSteps) {
         totalUsersReached: globalModelFineTune.totalUsersReached,
         totalEvents: globalModelFineTune.totalEvents,
         },
+          shadeGuideActions: {
+    scroll: {
+      totalUsers: globalShadeGuideScroll.totalUsers,
+      totalEvents: globalShadeGuideScroll.totalEvents,
+    },
+    clicked: {
+        totalUsers: globalShadeGuideClicked.totalUsers,
+        totalEvents: globalShadeGuideClicked.totalEvents,
+        userIds: Array.from(globalShadeGuideClicked.userIds), // NEW
+        },
+
+  },
+
   };
 }
 
