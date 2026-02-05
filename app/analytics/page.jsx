@@ -446,6 +446,39 @@ export default function AnalyticsPage() {
                 )}
               </div>
 
+              {/* Subscribers */}
+            <div className="bg-white rounded-xl border border-rose-100 p-3">
+              <div className="text-sm font-semibold text-[#ab1f10] mb-1">
+                Subscribers
+              </div>
+
+              <div className="text-2xl font-bold text-black">
+                {stepsInsights.subscribers?.total || 0}
+              </div>
+
+              <div className="text-xs text-gray-600 mt-1">
+                Users subscribed to TrueHue
+              </div>
+
+              {stepsInsights.subscribers?.userIds?.length > 0 ? (
+                <div className="max-h-40 overflow-y-auto mt-2 space-y-1 pr-1">
+                  {stepsInsights.subscribers.userIds.map((num, idx) => (
+                    <div
+                      key={idx}
+                      className="bg-rose-50 rounded px-2 py-1 text-sm text-black"
+                    >
+                      {num}
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-sm text-gray-600 mt-2">No subscribers yet.</div>
+              )}
+            </div>
+
+              
+
+
 
 
 

@@ -93,6 +93,10 @@ function toMs(v) {
 function analyze(allUsersSteps) {
   // allUsersSteps: [{ id, steps: [{step,at}] }]
   const stepCounts = new Map();          // step -> occurrences
+  const subscribers = {
+    total: 0,
+    userIds: new Set(),
+    };
   const firstStepCounts = new Map();     // step -> users starting here
   const lastStepCounts = new Map();      // step -> users ending here (dropoffs)
   const transitionCounts = new Map();    // "A -> B" -> count
@@ -133,6 +137,13 @@ let globalShadeGuideClicked = {
   let timedUsers = 0;
 
   for (const u of allUsersSteps) {
+
+    if (u.subscribed) {
+        subscribers.total++;
+        subscribers.userIds.add(u.id);
+        }
+
+
     const steps = (u.steps || []).slice();
     if (!steps.length) continue;
 
@@ -370,7 +381,7 @@ let globalShadeGuideClicked = {
         totalUsersReached: globalModelFineTune.totalUsersReached,
         totalEvents: globalModelFineTune.totalEvents,
         },
-          shadeGuideActions: {
+    shadeGuideActions: {
     scroll: {
       totalUsers: globalShadeGuideScroll.totalUsers,
       totalEvents: globalShadeGuideScroll.totalEvents,
@@ -380,8 +391,11 @@ let globalShadeGuideClicked = {
         totalEvents: globalShadeGuideClicked.totalEvents,
         userIds: Array.from(globalShadeGuideClicked.userIds), // NEW
         },
-
   },
+      subscribers: {
+        total: subscribers.total,
+        userIds: Array.from(subscribers.userIds),
+        },
 
   };
 }
@@ -394,12 +408,17 @@ export async function GET() {
 
     // pull steps for each user id (id == number in your storage layout)
     const usersSteps = await Promise.all(
-      ids.map(async (id) => {
-        const raw = await getJSON(`${ROOT_PREFIX}${id}/steps_taken.json`);
-        const steps = normalizeSteps(raw);
-        return { id, steps };
-      })
-    );
+        ids.map(async (id) => {
+            const raw = await getJSON(`${ROOT_PREFIX}${id}/steps_taken.json`);
+            const subs = await getJSON(`${ROOT_PREFIX}${id}/subscribed.json`);
+
+            const steps = normalizeSteps(raw);
+            const subscribed = subs?.subscribed === true;
+
+            return { id, steps, subscribed };
+        })
+        );
+
 
     const nonEmpty = usersSteps.filter((u) => (u.steps || []).length > 0);
     const insights = analyze(nonEmpty);
