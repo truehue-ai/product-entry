@@ -106,7 +106,18 @@ function analyze(allUsersSteps) {
   totalUsers: 0,
   totalEvents: 0,
   types: new Map(),
-};
+    };
+
+    const usersWithCoins = {
+        total: 0,
+        userIds: new Set(),
+        };
+
+    const usersWithShadeGuide = {
+        total: 0,
+        userIds: new Set(),
+        };
+
 
     let globalModelFineTune = {
     totalUsersReached: 0,
@@ -137,6 +148,19 @@ let globalShadeGuideClicked = {
   let timedUsers = 0;
 
   for (const u of allUsersSteps) {
+    
+
+    if (u.coins > 15) {
+        usersWithCoins.total++;
+        usersWithCoins.userIds.add(u.id);
+    }
+
+    if (u.hasShadeGuide) {
+        usersWithShadeGuide.total++;
+        usersWithShadeGuide.userIds.add(u.id);
+    }
+
+
 
     if (u.subscribed) {
         subscribers.total++;
@@ -382,20 +406,30 @@ let globalShadeGuideClicked = {
         totalEvents: globalModelFineTune.totalEvents,
         },
     shadeGuideActions: {
-    scroll: {
-      totalUsers: globalShadeGuideScroll.totalUsers,
-      totalEvents: globalShadeGuideScroll.totalEvents,
-    },
-    clicked: {
-        totalUsers: globalShadeGuideClicked.totalUsers,
-        totalEvents: globalShadeGuideClicked.totalEvents,
-        userIds: Array.from(globalShadeGuideClicked.userIds), // NEW
+        scroll: {
+        totalUsers: globalShadeGuideScroll.totalUsers,
+        totalEvents: globalShadeGuideScroll.totalEvents,
         },
-  },
+        clicked: {
+            totalUsers: globalShadeGuideClicked.totalUsers,
+            totalEvents: globalShadeGuideClicked.totalEvents,
+            userIds: Array.from(globalShadeGuideClicked.userIds), // NEW
+            },
+    },
       subscribers: {
         total: subscribers.total,
         userIds: Array.from(subscribers.userIds),
-        },
+    },
+    usersWithCoins: {
+        total: usersWithCoins.total,
+        userIds: Array.from(usersWithCoins.userIds),
+    },
+
+    usersWithShadeGuide: {
+        total: usersWithShadeGuide.total,
+        userIds: Array.from(usersWithShadeGuide.userIds),
+    },
+
 
   };
 }
@@ -411,13 +445,33 @@ export async function GET() {
         ids.map(async (id) => {
             const raw = await getJSON(`${ROOT_PREFIX}${id}/steps_taken.json`);
             const subs = await getJSON(`${ROOT_PREFIX}${id}/subscribed.json`);
+            const paidData = await getJSON(`${ROOT_PREFIX}${id}/paid_data.json`);
+            const coinsRaw = paidData?.paid_data?.coins;
+            const coins =
+            typeof coinsRaw === "number"
+                ? coinsRaw
+                : coinsRaw
+                ? Number(coinsRaw)
+                : 0;
+
+
+            // shade guide exists?
+            const shadeGuide = await getJSON(`${ROOT_PREFIX}${id}/shade_guide.json`);
+            const hasShadeGuide = !!shadeGuide;
 
             const steps = normalizeSteps(raw);
             const subscribed = subs?.subscribed === true;
 
-            return { id, steps, subscribed };
+            return {
+            id,
+            steps,
+            subscribed,
+            coins,
+            hasShadeGuide,
+            };
         })
         );
+
 
 
     const nonEmpty = usersSteps.filter((u) => (u.steps || []).length > 0);

@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import StepsAnalyticsGraph from "../analytics/stepsAnalyticsGraph";
+
 
 function fmtDate(value) {
   if (value == null || value === "") return "-";
@@ -50,48 +52,51 @@ export default function AnalyticsPage() {
   // bottom analytics tab
   const [activeTab, setActiveTab] = useState("views"); // "views" | "premium" | "perfect"
 
+  const [graphData, setGraphData] = useState(null);
+  const [graphLoading, setGraphLoading] = useState(false);
+
+
   // fetch list + global analytics on mount
   useEffect(() => {
-    let active = true;
-    (async () => {
-      setLoadingList(true);
-      try {
-        const r = await fetch("/api/analytics/users", { cache: "no-store" });
-        const j = await r.json();
-        if (!active) return;
+  let active = true;
 
-        setUsersList(j.users || []);
-        setTopViewedBrands(j.topViewedBrands || []);
-        setTopViewedProducts(j.topViewedProducts || []);
+  (async () => {
+    setLoadingList(true);
+    try {
+      const r = await fetch("/api/analytics/users", { cache: "no-store" });
+      const j = await r.json();
+      if (!active) return;
 
-        setTopPremiumBrands(j.topPremiumBrands || []);
-        setTopPremiumProducts(j.topPremiumProducts || []);
-        setPremiumUpdatedAt(j.premiumUpdatedAt || null);
+      setUsersList(j.users || []);
+      setTopViewedBrands(j.topViewedBrands || []);
+      setTopViewedProducts(j.topViewedProducts || []);
+      setTopPremiumBrands(j.topPremiumBrands || []);
+      setTopPremiumProducts(j.topPremiumProducts || []);
+      setPremiumUpdatedAt(j.premiumUpdatedAt || null);
 
-        setTopPerfect5(j.topPerfectProduct5Categories || []);
-        setTopPerfect24(j.topPerfectProduct24Categories || []);
-        setPerfect5UpdatedAt(j.perfectProduct5UpdatedAt || null);
-        setPerfect24UpdatedAt(j.perfectProduct24UpdatedAt || null);
-      } catch {
-        if (!active) return;
-        setUsersList([]);
-        setTopViewedBrands([]);
-        setTopViewedProducts([]);
-        setTopPremiumBrands([]);
-        setTopPremiumProducts([]);
-        setPremiumUpdatedAt(null);
-        setTopPerfect5([]);
-        setTopPerfect24([]);
-        setPerfect5UpdatedAt(null);
-        setPerfect24UpdatedAt(null);
-      } finally {
-        if (active) setLoadingList(false);
+      setTopPerfect5(j.topPerfectProduct5Categories || []);
+      setTopPerfect24(j.topPerfectProduct24Categories || []);
+      setPerfect5UpdatedAt(j.perfectProduct5UpdatedAt || null);
+      setPerfect24UpdatedAt(j.perfectProduct24UpdatedAt || null);
+
+      // 🔥 FETCH GRAPH DATA HERE
+      setGraphLoading(true);
+      const g = await fetch("/api/analytics/steps-graph", { cache: "no-store" });
+      const gjson = await g.json();
+      setGraphData(gjson.graph || null);
+    } catch {
+      if (!active) return;
+    } finally {
+      if (active) {
+        setLoadingList(false);
+        setGraphLoading(false);
       }
-    })();
-    return () => {
-      active = false;
-    };
-  }, []);
+    }
+  })();
+
+  return () => (active = false);
+}, []);
+
 
   // reset images toggle when switching user
   useEffect(() => {
@@ -183,6 +188,28 @@ export default function AnalyticsPage() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-pink-50 to-rose-100 p-6">
       <div className="mx-auto max-w-7xl bg-white rounded-2xl shadow-xl p-6">
+
+        {/* ---- DAILY STEPS GRAPH ---- */}
+          <div className="mb-10">
+            <h2 className="text-xl font-bold text-[#ab1f10] mb-3">
+              Daily User Funnel & Coin Actions
+            </h2>
+
+            {graphLoading && (
+              <div className="text-gray-500 text-sm">Loading graph…</div>
+            )}
+
+            {graphData && (
+              <div className="bg-white border border-rose-200 rounded-xl p-4 shadow">
+                <StepsAnalyticsGraph data={graphData} />
+              </div>
+            )}
+
+            {!graphLoading && !graphData && (
+              <div className="text-gray-600 text-sm">No graph data available.</div>
+            )}
+</div>
+
         {/* Header */}
         <div className="mb-6 flex flex-wrap justify-between items-center gap-2">
           <h1 className="text-2xl font-bold text-[#ab1f10]">
@@ -240,51 +267,6 @@ export default function AnalyticsPage() {
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {/* Most time spent */}
-              <div className="bg-white rounded-xl border border-rose-100 p-3">
-                <div className="text-sm font-semibold text-[#ab1f10] mb-2">Most time spent</div>
-                <div className="max-h-56 overflow-y-auto space-y-2 pr-1">
-                  {(stepsInsights.mostTimeSpent || []).length ? (
-                    stepsInsights.mostTimeSpent.map((r, i) => (
-                      <div key={i} className="flex justify-between text-sm text-black">
-                        <span className="font-medium">{r.step}</span>
-                        <span className="text-gray-700">{r.median} median</span>
-                      </div>
-                    ))
-                  ) : (
-                    <div className="text-sm text-gray-600">
-                      No timestamps found in steps (can’t compute time spent yet).
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* Dropoffs */}
-              <div className="bg-white rounded-xl border border-rose-100 p-3">
-                <div className="text-sm font-semibold text-[#ab1f10] mb-2">Top dropoffs (last step)</div>
-                <div className="max-h-56 overflow-y-auto space-y-2 pr-1">
-                  {(stepsInsights.topDropoffs || []).map((r, i) => (
-                    <div key={i} className="flex justify-between text-sm text-black">
-                      <span className="font-medium">{r.step}</span>
-                      <span className="text-gray-700">{r.count}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* Transitions */}
-              <div className="bg-white rounded-xl border border-rose-100 p-3">
-                <div className="text-sm font-semibold text-[#ab1f10] mb-2">Most common transitions</div>
-                <div className="max-h-56 overflow-y-auto space-y-2 pr-1">
-                  {(stepsInsights.topTransitions || []).map((r, i) => (
-                    <div key={i} className="flex justify-between text-sm text-black">
-                      <span className="font-medium">{r.transition}</span>
-                      <span className="text-gray-700">{r.count}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
               <div className="bg-white rounded-xl border border-rose-100 p-3">
                 <div className="text-sm font-semibold text-[#ab1f10] mb-2">
                   Returning Users
@@ -476,6 +458,63 @@ export default function AnalyticsPage() {
               )}
             </div>
 
+            {/* Users With Coins */}
+            <div className="bg-white rounded-xl border border-rose-100 p-3">
+              <div className="text-sm font-semibold text-[#ab1f10] mb-1">
+                Users With more than 0 Coins
+              </div>
+
+              <div className="text-2xl font-bold text-black">
+                {stepsInsights.usersWithCoins?.total || 0}
+              </div>
+
+              {stepsInsights.usersWithCoins?.userIds?.length > 0 ? (
+                <div className="max-h-40 overflow-y-auto mt-2 space-y-1 pr-1">
+                  {stepsInsights.usersWithCoins.userIds.map((num, idx) => (
+                    <div
+                      key={idx}
+                      className="bg-rose-50 rounded px-2 py-1 text-sm text-black"
+                    >
+                      {num}
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-sm text-gray-600 mt-2">
+                  No users have coins.
+                </div>
+              )}
+            </div>
+
+            {/* Users Who Bought Shade Guide */}
+            <div className="bg-white rounded-xl border border-rose-100 p-3">
+              <div className="text-sm font-semibold text-[#ab1f10] mb-1">
+                Shade Guide Purchases
+              </div>
+
+              <div className="text-2xl font-bold text-black">
+                {stepsInsights.usersWithShadeGuide?.total || 0}
+              </div>
+
+              {stepsInsights.usersWithShadeGuide?.userIds?.length > 0 ? (
+                <div className="max-h-40 overflow-y-auto mt-2 space-y-1 pr-1">
+                  {stepsInsights.usersWithShadeGuide.userIds.map((num, idx) => (
+                    <div
+                      key={idx}
+                      className="bg-rose-50 rounded px-2 py-1 text-sm text-black"
+                    >
+                      {num}
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-sm text-gray-600 mt-2">
+                  No shade guide purchases yet.
+                </div>
+              )}
+            </div>
+
+
               
 
 
@@ -515,10 +554,7 @@ export default function AnalyticsPage() {
                       onClick={() => setSelectedId(u.id)}
                     >
                       <div className="text-sm font-semibold text-black">
-                        {u.name || "Unnamed"}
-                      </div>
-                      <div className="text-xs text-gray-700">
-                        {u.number || "-"}
+                        {u.number}
                       </div>
                     </li>
                   );
