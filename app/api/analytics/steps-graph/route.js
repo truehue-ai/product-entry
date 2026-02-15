@@ -150,8 +150,16 @@ function fillMissingTimestamps(steps) {
 
 function dateKey(ms) {
   if (!ms) return null;
-  return new Date(ms).toISOString().slice(0, 10);
+
+  const d = new Date(ms);
+
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+
+  return `${year}-${month}-${day}`;
 }
+
 
 /* --------------------------------------------------------------------- */
 /*                         DAILY GRAPH METRICS                            */
@@ -164,6 +172,7 @@ function dailyGraphMetrics(users) {
     if (!daily[day]) {
       daily[day] = {
         logins: 0,
+        returningUsers: 0,   // 👈 NEW
         fineTune: 0,
         shadeFinder: 0,
         productFinder: 0,
@@ -171,17 +180,19 @@ function dailyGraphMetrics(users) {
         useCoinsShadeFinder: 0,
         useCoinsProductFinder: 0,
         shadeGuideQ3: 0,
-
         boughtCoins: 0,
         boughtPremium: 0,
         boughtShadeGuide: 0,
-      };
+        };
+
     }
   }
 
   for (const u of users) {
     const steps = u.steps || [];
     if (!steps.length) continue;
+
+    const counted = new Set(); // 👈 ensures each user counted once/day
 
     for (const s of steps) {
       const day = dateKey(s.at);
@@ -190,9 +201,25 @@ function dailyGraphMetrics(users) {
       ensure(day);
 
       switch (s.step) {
-        case "login":
-          daily[day].logins++;
-          break;
+        case "login": {
+            if (!counted.has(day)) {
+            daily[day].logins++;
+
+
+            const createdAt = u.info?.createdAt ? dateKey(u.info.createdAt) : null;
+
+            console.log(createdAt)
+            const lastLogin = u.info?.lastLogin ? dateKey(u.info.lastLogin) : null;
+
+            // Returning user if created earlier AND logged-in today
+            if (createdAt && lastLogin && createdAt < day && lastLogin === day) {
+                daily[day].returningUsers++;
+            }
+
+            counted.add(day);
+            }
+            break;
+        }
 
         case "model-fine-tune":
           daily[day].fineTune++;
@@ -250,16 +277,31 @@ export async function GET() {
     const ids = await listUserIds();
 
     const users = await Promise.all(
-      ids.map(async (id) => {
+    ids.map(async (id) => {
         const base = `${ROOT_PREFIX}${id}/`;
 
+        // Load steps
         const rawSteps = await getJSON(`${base}steps_taken.json`);
         const stepsRaw = normalizeSteps(rawSteps);
         const steps = fillMissingTimestamps(stepsRaw);
 
-        return { id, steps };
-      })
+        // Load user info (createdAt, lastLogin)
+        const info =
+        (await getJSON(`${base}user_info.json`)) ||
+        (await getJSON(`${base}user_info`)) ||
+        {};
+
+        return {
+        id,
+        steps,
+        info: {
+            createdAt: info.createdAt ?? null,
+            lastLogin: info.lastLogin ?? null,
+        },
+        };
+    })
     );
+
 
     const withSteps = users.filter((u) => u.steps.length > 0);
     const graph = dailyGraphMetrics(withSteps);

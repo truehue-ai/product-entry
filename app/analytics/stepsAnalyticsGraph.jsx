@@ -85,16 +85,8 @@ const Section = ({ title, children }) => (
   </div>
 );
 
-
-
 const Row = ({ label, value, extra }) => (
-  <div
-    style={{
-      marginBottom: 14,
-      display: "flex",
-      flexDirection: "column",
-    }}
-  >
+  <div style={{ marginBottom: 14, display: "flex", flexDirection: "column" }}>
     <div
       style={{
         display: "flex",
@@ -102,51 +94,27 @@ const Row = ({ label, value, extra }) => (
         alignItems: "baseline",
       }}
     >
-      <span
-        style={{
-          fontSize: 14,
-          fontWeight: 600,
-          color: "#1F2937",
-        }}
-      >
+      <span style={{ fontSize: 14, fontWeight: 600, color: "#1F2937" }}>
         {label}
       </span>
-
-      <span
-        style={{
-          fontSize: 16,
-          fontWeight: 800,
-          color: "#111827",
-        }}
-      >
+      <span style={{ fontSize: 16, fontWeight: 800, color: "#111827" }}>
         {value}
       </span>
     </div>
 
     {extra && (
-      <div
-        style={{
-          marginTop: 4,
-          fontSize: 12,
-          color: "#4B5563",
-          lineHeight: 1.4,
-        }}
-      >
+      <div style={{ marginTop: 4, fontSize: 12, color: "#4B5563" }}>
         {extra}
       </div>
     )}
   </div>
 );
 
-
-
 const CustomTooltip = ({ active, payload, label }) => {
   if (!active || !payload?.length) return null;
 
   const map = {};
-  payload.forEach((p) => {
-    map[p.dataKey] = p.value ?? 0;
-  });
+  payload.forEach((p) => (map[p.dataKey] = p.value ?? 0));
 
   const logins = map.logins || 0;
   const fineTune = map.fineTune || 0;
@@ -171,7 +139,6 @@ const CustomTooltip = ({ active, payload, label }) => {
         minWidth: 360,
       }}
     >
-      {/* Date Header */}
       <div
         style={{
           fontWeight: 900,
@@ -183,12 +150,17 @@ const CustomTooltip = ({ active, payload, label }) => {
         {formatDate(label)}
       </div>
 
-      {/* LOGINS */}
       <Section title="LOGINS">
         <Row label="Logins" value={logins} />
       </Section>
 
-      {/* FINE TUNE */}
+      <Row
+        label="Returning Users"
+        value={map.returningUsers || 0}
+        extra={`${percent(map.returningUsers, map.logins)} of Logins`}
+        />
+
+
       <Section title="FINE TUNE">
         <Row
           label="Model Fine Tune"
@@ -197,18 +169,23 @@ const CustomTooltip = ({ active, payload, label }) => {
         />
       </Section>
 
-      {/* COINS FUNNEL */}
       <Section title="COINS FUNNEL">
         <Row
           label="Product Finder"
           value={productFinder}
-          extra={`${percent(productFinder, logins)} of Logins | ${percent(productFinder, fineTune)} of Fine-Tune`}
+          extra={`${percent(productFinder, logins)} of Logins | ${percent(
+            productFinder,
+            fineTune
+          )} of Fine-Tune`}
         />
 
         <Row
           label="Use Coins (Product)"
           value={useCoinsPF}
-          extra={`${percent(useCoinsPF, productFinder)} of PF | ${percent(useCoinsPF, fineTune)} of FT | ${percent(useCoinsPF, logins)} of Login`}
+          extra={`${percent(useCoinsPF, productFinder)} of PF | ${percent(
+            useCoinsPF,
+            fineTune
+          )} of FT | ${percent(useCoinsPF, logins)} of Login`}
         />
 
         <div style={{ height: 8 }} />
@@ -216,57 +193,75 @@ const CustomTooltip = ({ active, payload, label }) => {
         <Row
           label="Shade Finder"
           value={shadeFinder}
-          extra={`${percent(shadeFinder, logins)} of Login | ${percent(shadeFinder, fineTune)} of FT`}
+          extra={`${percent(shadeFinder, logins)} of Login | ${percent(
+            shadeFinder,
+            fineTune
+          )} of FT`}
         />
 
         <Row
           label="Use Coins (Shade)"
           value={useCoinsSF}
-          extra={`${percent(useCoinsSF, shadeFinder)} of SF | ${percent(useCoinsSF, fineTune)} of FT | ${percent(useCoinsSF, logins)} of Login`}
+          extra={`${percent(useCoinsSF, shadeFinder)} of SF | ${percent(
+            useCoinsSF,
+            fineTune
+          )} of FT | ${percent(useCoinsSF, logins)} of Login`}
         />
 
         <Row
           label="Bought Coins"
           value={boughtCoins}
-          extra={`${percent(boughtCoins, logins)} of Login | ${percent(boughtCoins, fineTune)} of FT | ${percent(boughtCoins, useCoinsPF)} of UCPF | ${percent(boughtCoins, useCoinsSF)} of UCSF`}
+          extra={`${percent(boughtCoins, logins)} of Login | ${percent(
+            boughtCoins,
+            fineTune
+          )} of FT | ${percent(boughtCoins, useCoinsPF)} of UCPF | ${percent(
+            boughtCoins,
+            useCoinsSF
+          )} of UCSF`}
         />
       </Section>
 
-      {/* SHADE GUIDE */}
       <Section title="SHADE GUIDE">
         <Row
           label="Shade Guide Quiz"
           value={shadeGuide}
-          extra={`${percent(shadeGuide, logins)} of Login | ${percent(shadeGuide, fineTune)} of FT`}
+          extra={`${percent(shadeGuide, logins)} of Login | ${percent(
+            shadeGuide,
+            fineTune
+          )} of FT`}
         />
 
         <Row
           label="Bought Shade Guide"
           value={boughtShadeGuide}
-          extra={`${percent(boughtShadeGuide, shadeGuide)} of SG | ${percent(boughtShadeGuide, fineTune)} of FT | ${percent(boughtShadeGuide, logins)} of Login`}
+          extra={`${percent(boughtShadeGuide, shadeGuide)} of SG | ${percent(
+            boughtShadeGuide,
+            fineTune
+          )} of FT | ${percent(
+            boughtShadeGuide,
+            logins
+          )} of Login`}
         />
       </Section>
 
-      {/* PREMIUM */}
       <Section title="BOUGHT PREMIUM">
         <Row
           label="Premium"
           value={boughtPremium}
-          extra={`${percent(boughtPremium, fineTune)} of FT | ${percent(boughtPremium, logins)} of Login`}
+          extra={`${percent(boughtPremium, fineTune)} of FT | ${percent(
+            boughtPremium,
+            logins
+          )} of Login`}
         />
       </Section>
     </div>
   );
 };
 
-
-
 export default function StepsAnalyticsGraph({ data }) {
-  const FEB1 = new Date("2026-02-01").getTime();
-
+  /* FIX 1 — removed Feb 1 filter */
   const sortedData = useMemo(() => {
     return Object.entries(data)
-      .filter(([date]) => new Date(date).getTime() >= FEB1)
       .sort(([a], [b]) => new Date(a) - new Date(b))
       .map(([date, metrics]) => ({ date, ...metrics }));
   }, [data]);
@@ -284,16 +279,41 @@ export default function StepsAnalyticsGraph({ data }) {
     return d;
   }, [weekStart]);
 
+  /* FIX 2 — use local YYYY-MM-DD (NO UTC SHIFT) */
   const weeklyData = useMemo(() => {
-    return sortedData.filter((entry) => {
-      const t = new Date(entry.date).getTime();
-      return t >= weekStart.getTime() && t <= weekEnd.getTime();
-    });
-  }, [sortedData, weekStart, weekEnd]);
+    const result = [];
 
-  /* -----------------------------------------------------------------------
-     Clean, Distinguishable Palette
-  ------------------------------------------------------------------------ */
+    for (let i = 0; i < 7; i++) {
+      const d = new Date(weekStart);
+      d.setDate(d.getDate() + i);
+
+      const key =
+        `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(
+          d.getDate()
+        ).padStart(2, "0")}`;
+
+      const existing = sortedData.find((e) => e.date === key);
+
+      result.push(
+        existing || {
+          date: key,
+          logins: 0,
+          fineTune: 0,
+          shadeFinder: 0,
+          productFinder: 0,
+          shadeGuide: 0,
+          useCoinsShadeFinder: 0,
+          useCoinsProductFinder: 0,
+          boughtCoins: 0,
+          boughtPremium: 0,
+          boughtShadeGuide: 0,
+        }
+      );
+    }
+
+    return result;
+  }, [sortedData, weekStart]);
+
   const LINES = {
     fineTune: { label: "Model Fine Tune", color: "#1E3A8A" },
     productFinder: { label: "Product Finder", color: "#047857" },
@@ -335,7 +355,6 @@ export default function StepsAnalyticsGraph({ data }) {
         boxShadow: "0 20px 40px rgba(0,0,0,0.08)",
       }}
     >
-      {/* WEEK NAVIGATION */}
       <div
         style={{
           display: "flex",
@@ -353,7 +372,6 @@ export default function StepsAnalyticsGraph({ data }) {
         <button onClick={goNextWeek}>Next ▶</button>
       </div>
 
-      {/* TOGGLES RESTORED */}
       <div
         style={{
           display: "flex",
@@ -388,7 +406,6 @@ export default function StepsAnalyticsGraph({ data }) {
         ))}
       </div>
 
-      {/* GRAPH */}
       <ResponsiveContainer width="100%" height={650}>
         <BarChart data={weeklyData}>
           <CartesianGrid stroke="rgba(0,0,0,0.06)" />
@@ -403,6 +420,15 @@ export default function StepsAnalyticsGraph({ data }) {
             name="Logins"
             radius={[8, 8, 0, 0]}
           />
+
+          <Bar
+            dataKey="returningUsers"
+            fill="#9CA3AF"     // light grey layer
+            stackId="logins"   // STACKS on the same bar
+            name="Returning Users"
+            radius={[8, 8, 0, 0]}
+            />
+
 
           {Object.entries(LINES).map(([key, info]) =>
             visibleLines[key] ? (
