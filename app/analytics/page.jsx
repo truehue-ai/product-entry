@@ -239,6 +239,23 @@ export default function AnalyticsPage() {
           >
             {stepsLoading ? "Analysing…" : "Analyse steps"}
           </button>
+          <button
+          onClick={async () => {
+            setLoadingList(true);
+            try {
+              const r = await fetch("/api/analytics/users?mode=full", { cache: "no-store" });
+              const j = await r.json();
+              setUsersList(j.users || []);
+            } catch (e) {
+              console.error("Failed to load sorted users", e);
+            } finally {
+              setLoadingList(false);
+            }
+          }}
+          className="px-4 py-2 text-sm rounded-lg border border-rose-200 text-[#ab1f10] hover:bg-rose-50 transition"
+        >
+          Sort by Activity
+        </button>
 
         </div>
 

@@ -489,6 +489,58 @@ export async function GET(req) {
       );
     }
 
+    // NEW: /api/analytics/users?mode=full  → fetch minimal info WITH name + timestamps (slow)
+    if (searchParams.get("mode") === "full") {
+      const ids = await listUserIds();
+
+      const users = await Promise.all(
+        ids.map(async (id) => {
+          const base = `${ROOT_PREFIX}${id}/`;
+          const infoCandidates = [`${base}user_info.json`, `${base}user_info`];
+
+          let info = null;
+          for (const k of infoCandidates) {
+            const v = await getJSON(k);
+            if (v) {
+              info = v;
+              break;
+            }
+          }
+
+          return {
+            id,
+            name: info?.name || "",
+            number: info?.number || "",
+            lastLogin: info?.lastLogin ?? info?.last_login ?? null,
+            createdAt: info?.createdAt ?? null,
+          };
+        })
+      );
+
+      // ---- SMART SORT ----
+      const toTs = (v) => {
+        if (!v) return null;
+        const n = typeof v === "number" ? v : Date.parse(String(v));
+        return isNaN(n) ? null : n;
+      };
+
+      users.sort((a, b) => {
+        const ta = toTs(a.lastLogin ?? a.createdAt);
+        const tb = toTs(b.lastLogin ?? b.createdAt);
+
+        if (ta && !tb) return -1;
+        if (!ta && tb) return 1;
+        if (ta && tb && ta !== tb) return tb - ta;
+
+        return (a.name || "").localeCompare(b.name || "");
+      });
+
+      return new Response(JSON.stringify({ users }), {
+        headers: { "Content-Type": "application/json", "Cache-Control": "no-store" },
+      });
+}
+
+
     // List mode: lightweight name + number only
     const ids = await listUserIds();
     const users = await Promise.all(ids.map(fetchUserMinimal));
