@@ -276,8 +276,10 @@ export async function GET() {
   try {
     const ids = await listUserIds();
 
+    const excludedIds = ['7383231612', '7862917606'];
+
     const users = await Promise.all(
-    ids.map(async (id) => {
+    ids.filter(id => !excludedIds.includes(id)).map(async (id) => {
         const base = `${ROOT_PREFIX}${id}/`;
 
         // Load steps
