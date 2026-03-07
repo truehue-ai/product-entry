@@ -137,6 +137,7 @@ export default function AnalyticsPage() {
   const [activeTab, setActiveTab] = useState("views");
   const [graphData, setGraphData] = useState(null);
   const [graphLoading, setGraphLoading] = useState(false);
+  const [usersWithPushTokens, setUsersWithPushTokens] = useState([]);
 
   useEffect(() => {
     let active = true;
@@ -156,6 +157,7 @@ export default function AnalyticsPage() {
         setTopPerfect24(j.topPerfectProduct24Categories || []);
         setPerfect5UpdatedAt(j.perfectProduct5UpdatedAt || null);
         setPerfect24UpdatedAt(j.perfectProduct24UpdatedAt || null);
+        setUsersWithPushTokens(j.usersWithPushTokens || []);
         setGraphLoading(true);
         const g = await fetch("/api/analytics/steps-graph", { cache: "no-store" });
         const gjson = await g.json();
@@ -489,6 +491,34 @@ export default function AnalyticsPage() {
               )}
             </div>
           </div>
+        </div>
+
+        {/* ── Push Notifications ── */}
+        <div style={{ ...GL.card, padding: 28 }}>
+          <div style={{ ...GL.sectionHeader, marginBottom: 18 }}>Push Notification Tokens</div>
+          <p style={{ fontSize: 14, color: "#7b241c", marginBottom: 20, marginTop: -10, opacity: 0.8 }}>
+            Users who have a <code style={{ background: "rgba(171,31,16,0.07)", borderRadius: 5, padding: "2px 6px", fontSize: 13 }}>push_token.json</code> file — eligible for push notifications.
+            <span style={{ marginLeft: 10, fontWeight: 700, color: "#ab1f10" }}>{usersWithPushTokens.length} user{usersWithPushTokens.length !== 1 ? "s" : ""}</span>
+          </p>
+          {usersWithPushTokens.length === 0 ? (
+            <div style={{ fontSize: 14, color: "#9b4a42" }}>No users with push tokens found.</div>
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              {/* Header */}
+              <div style={{ display: "grid", gridTemplateColumns: "160px 1fr", gap: 14, padding: "0 14px", fontSize: 11, fontWeight: 700, color: "#9b4a42", letterSpacing: "0.06em", textTransform: "uppercase" }}>
+                <span>User</span>
+                <span>Token</span>
+              </div>
+              {usersWithPushTokens.map((u, idx) => (
+                <div key={idx} style={{ display: "grid", gridTemplateColumns: "160px 1fr", gap: 14, alignItems: "center", background: "rgba(255,255,255,0.65)", borderRadius: 11, padding: "12px 16px", border: "1px solid rgba(171,31,16,0.06)" }}>
+                  <span style={{ fontSize: 14, fontWeight: 600, color: "#1a0a09" }}>{u.number}</span>
+                  <span style={{ fontSize: 12, fontFamily: "monospace", color: "#7b241c", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    {u.token || <span style={{ color: "#c0b0b0", fontStyle: "italic" }}>file exists, token not parsed</span>}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* ── Bottom Analytics Tabs ── */}

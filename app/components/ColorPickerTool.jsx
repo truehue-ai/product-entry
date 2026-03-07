@@ -263,10 +263,40 @@ export default function ColorPickerTool({ initialBrand = "", initialProduct = ""
     }
 
     if (result.success) {
-      alert("Shades uploaded to S3 successfully!");
-      await fetch('/api/update-all-data', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ brand, product, type: category }) });
+      alert("Saved to S3 successfully!");
     } else {
       alert("Upload failed: " + (result.error || "Unknown error"));
+    }
+  };
+
+  const handleMakeLive = async () => {
+    if (!brand || !product || !category) {
+      alert("Brand, Product, and Category are required!");
+      return;
+    }
+    const filteredShades = shades.filter(s => s.name && s.hex);
+    if (filteredShades.length === 0) {
+      alert("No shades with both a name and hex colour to make live.");
+      return;
+    }
+    const confirmed = window.confirm(
+      `Make "${product}" by ${brand} live for users?\n\nThis will run update-all-data and push ${filteredShades.length} shade(s) to the product database.`
+    );
+    if (!confirmed) return;
+    try {
+      const res = await fetch('/api/update-all-data', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ brand, product, type: category })
+      });
+      const result = await res.json();
+      if (result.success || res.ok) {
+        alert(`✓ "${product}" is now live!`);
+      } else {
+        alert("Make live failed: " + (result.error || "Unknown error"));
+      }
+    } catch (e) {
+      alert("Make live failed: " + (e?.message || "Unknown error"));
     }
   };
 
@@ -340,6 +370,12 @@ export default function ColorPickerTool({ initialBrand = "", initialProduct = ""
       return { ...shade, skintone: classifySkinToneFromSB(s, b) || shade.skintone || "", undertone: classifyUndertoneFromHue(h, s, b) || shade.undertone || "" };
     }));
   };
+
+  const [currentUser, setCurrentUser] = useState("");
+    useEffect(() => {
+      const m = document.cookie.match(/(?:^|;\s*)th_auth=([^;]+)/);
+      if (m) setCurrentUser(decodeURIComponent(m[1]));
+    }, []);
 
   const isFaceCategory = ["foundation","contour","concealer","skin-tint"].includes(category);
 
@@ -568,12 +604,23 @@ export default function ColorPickerTool({ initialBrand = "", initialProduct = ""
           </div>
 
           {/* Actions */}
+          {/* Actions */}
           <div style={{ ...GL.card, padding: 26, display: "flex", flexDirection: "column", gap: 12 }}>
             <div style={{ fontSize: 12, fontWeight: 700, color: "#7b241c", letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: 4 }}>Actions</div>
 
             <button className="th-btn-primary" onClick={handleSave} style={GL.btnPrimary}>
-              Send to S3
+              Save to S3
             </button>
+
+            {currentUser === "dhruvi" && (
+              <button
+                className="th-btn-outline"
+                onClick={handleMakeLive}
+                style={{ ...GL.btnOutline, borderColor: "rgba(22,163,74,0.4)", color: "#15803d", background: "rgba(22,163,74,0.06)" }}
+              >
+                ✓ Make Product Live
+              </button>
+            )}
           </div>
 
           {/* Export — lip only */}

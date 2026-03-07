@@ -564,6 +564,22 @@ export async function GET(req) {
     const topPerfectProduct5Categories = perfect5.categories.slice(0, 20);
     const perfectProduct5UpdatedAt = perfect5.updatedAt || null;
 
+    // Push notification tokens — check which users have push_token.json
+    const usersWithPushTokens = [];
+    await Promise.all(
+      ids.map(async (uid) => {
+        const key = `${ROOT_PREFIX}${uid}/push_token.json`;
+        const val = await getJSON(key);
+        if (val) {
+          // grab the token string from whatever shape the file is
+          const token =
+            typeof val === "string" ? val :
+            val.token ?? val.push_token ?? val.fcmToken ?? val.deviceToken ?? null;
+          usersWithPushTokens.push({ id: uid, number: uid, token: token ? String(token) : null });
+        }
+      })
+    );
+
     // Perfect Product premium (24-hour)
     const perfect24Raw = await getJSON("perfect_product_premium_24.json");
     const perfect24 = normalizePerfectProductGlobal(perfect24Raw);
@@ -583,6 +599,7 @@ export async function GET(req) {
         perfectProduct5UpdatedAt,
         topPerfectProduct24Categories,
         perfectProduct24UpdatedAt,
+        usersWithPushTokens,
       }),
       { headers: { "Content-Type": "application/json", "Cache-Control": "no-store" } }
     );
