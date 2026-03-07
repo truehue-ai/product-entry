@@ -10,51 +10,30 @@ import {
   Tooltip,
   CartesianGrid,
   ResponsiveContainer,
+  Legend,
 } from "recharts";
 
-/* -----------------------------------------------------------------------
-   Helper: Get start & end of a week (Mon–Sun)
------------------------------------------------------------------------- */
 function getWeekRange(date) {
   const d = new Date(date);
   const day = d.getDay();
   const diffToMonday = day === 0 ? -6 : 1 - day;
-
   const monday = new Date(d);
   monday.setDate(d.getDate() + diffToMonday);
   monday.setHours(0, 0, 0, 0);
-
   const sunday = new Date(monday);
   sunday.setDate(monday.getDate() + 6);
   sunday.setHours(23, 59, 59, 999);
-
   return { monday, sunday };
 }
 
-/* -----------------------------------------------------------------------
-   Funnel Order
------------------------------------------------------------------------- */
-const funnelOrder = [
-  "logins",
-  "fineTune",
-  "productFinder",
-  "useCoinsProductFinder",
-  "shadeFinder",
-  "useCoinsShadeFinder",
-  "shadeGuide",
-  "boughtCoins",
-  "boughtShadeGuide",
-  "boughtPremium",
-];
-
 const formatDate = (dateStr) => {
   const d = new Date(dateStr);
-  return d.toLocaleDateString("en-US", {
-    weekday: "short",
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  });
+  return d.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", year: "numeric" });
+};
+
+const formatShort = (dateStr) => {
+  const d = new Date(dateStr);
+  return d.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
 };
 
 const percent = (a, b) => {
@@ -62,57 +41,41 @@ const percent = (a, b) => {
   return ((a / b) * 100).toFixed(1) + "%";
 };
 
-const Section = ({ title, children }) => (
-  <div
-    style={{
-      marginBottom: 24,
-      paddingBottom: 18,
-      borderBottom: "1px solid rgba(0,0,0,0.06)",
-    }}
-  >
-    <div
-      style={{
-        fontSize: 12,
-        letterSpacing: 2,
-        fontWeight: 800,
-        color: "#111827",
-        marginBottom: 12,
-      }}
-    >
-      {title}
-    </div>
-    {children}
+// ── Distinct, readable colour palette ──
+const LINES = {
+  fineTune:               { label: "Model Fine Tune",           color: "#2563EB" }, // blue
+  productFinder:          { label: "Product Finder",            color: "#16A34A" }, // green
+  useCoinsProductFinder:  { label: "Use Coins (Product)",       color: "#EA580C" }, // orange
+  shadeFinder:            { label: "Shade Finder",              color: "#DC2626" }, // red
+  useCoinsShadeFinder:    { label: "Use Coins (Shade)",         color: "#CA8A04" }, // amber
+  shadeGuide:             { label: "Shade Guide",               color: "#7C3AED" }, // purple
+  boughtCoins:            { label: "Bought Coins",              color: "#0891B2" }, // cyan
+  boughtShadeGuide:       { label: "Bought Shade Guide",        color: "#BE185D" }, // pink
+  boughtPremium:          { label: "Bought Premium",            color: "#065F46" }, // dark green
+};
+
+// Tooltip Section header
+const TSection = ({ title }) => (
+  <div style={{ fontSize: 10, fontWeight: 800, letterSpacing: "0.12em", color: "#9CA3AF", textTransform: "uppercase", margin: "16px 0 8px", paddingTop: 14, borderTop: "1px solid rgba(0,0,0,0.07)" }}>
+    {title}
   </div>
 );
 
-const Row = ({ label, value, extra }) => (
-  <div style={{ marginBottom: 14, display: "flex", flexDirection: "column" }}>
-    <div
-      style={{
-        display: "flex",
-        justifyContent: "space-between",
-        alignItems: "baseline",
-      }}
-    >
-      <span style={{ fontSize: 14, fontWeight: 600, color: "#1F2937" }}>
-        {label}
-      </span>
-      <span style={{ fontSize: 16, fontWeight: 800, color: "#111827" }}>
-        {value}
-      </span>
-    </div>
-
-    {extra && (
-      <div style={{ marginTop: 4, fontSize: 12, color: "#4B5563" }}>
-        {extra}
+const TRow = ({ label, value, extra, color }) => (
+  <div style={{ marginBottom: 10 }}>
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 16 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
+        {color && <div style={{ width: 10, height: 10, borderRadius: "50%", background: color, flexShrink: 0 }} />}
+        <span style={{ fontSize: 13, fontWeight: 500, color: "#374151" }}>{label}</span>
       </div>
-    )}
+      <span style={{ fontSize: 15, fontWeight: 800, color: "#111827", flexShrink: 0 }}>{value}</span>
+    </div>
+    {extra && <div style={{ fontSize: 11, color: "#9CA3AF", marginTop: 2, paddingLeft: color ? 17 : 0 }}>{extra}</div>}
   </div>
 );
 
 const CustomTooltip = ({ active, payload, label }) => {
   if (!active || !payload?.length) return null;
-
   const map = {};
   payload.forEach((p) => (map[p.dataKey] = p.value ?? 0));
 
@@ -128,148 +91,51 @@ const CustomTooltip = ({ active, payload, label }) => {
   const boughtPremium = map.boughtPremium || 0;
 
   return (
-    <div
-      style={{
-        background: "#ffffff",
-        borderRadius: 22,
-        padding: 26,
-        boxShadow: "0 30px 60px rgba(0,0,0,0.18)",
-        border: "1px solid rgba(0,0,0,0.06)",
-        fontSize: 14,
-        minWidth: 360,
-      }}
-    >
-      <div
-        style={{
-          fontWeight: 900,
-          fontSize: 16,
-          marginBottom: 28,
-          color: "#111827",
-        }}
-      >
-        {formatDate(label)}
-      </div>
+    <div style={{ background: "#ffffff", borderRadius: 18, padding: "20px 24px", boxShadow: "0 24px 48px rgba(0,0,0,0.16)", border: "1px solid rgba(0,0,0,0.06)", fontSize: 13, minWidth: 320, maxHeight: "80vh", overflowY: "auto" }}>
+      <div style={{ fontWeight: 800, fontSize: 15, marginBottom: 4, color: "#111827" }}>{formatDate(label)}</div>
 
-      <Section title="LOGINS">
-        <Row label="Logins" value={logins} />
-      </Section>
+      <TSection title="Logins" />
+      <TRow label="Total Logins" value={logins} color="#111827" />
+      <TRow label="Returning Users" value={map.returningUsers || 0} color="#9CA3AF"
+        extra={`${percent(map.returningUsers, logins)} of logins`} />
 
-      <Row
-        label="Returning Users"
-        value={map.returningUsers || 0}
-        extra={`${percent(map.returningUsers, map.logins)} of Logins`}
-        />
+      <TSection title="Fine Tune" />
+      <TRow label="Model Fine Tune" value={fineTune} color={LINES.fineTune.color}
+        extra={`${percent(fineTune, logins)} of logins`} />
 
+      <TSection title="Coins Funnel" />
+      <TRow label="Product Finder" value={productFinder} color={LINES.productFinder.color}
+        extra={`${percent(productFinder, logins)} of logins · ${percent(productFinder, fineTune)} of FT`} />
+      <TRow label="Use Coins (Product)" value={useCoinsPF} color={LINES.useCoinsProductFinder.color}
+        extra={`${percent(useCoinsPF, productFinder)} of PF · ${percent(useCoinsPF, logins)} of logins`} />
+      <TRow label="Shade Finder" value={shadeFinder} color={LINES.shadeFinder.color}
+        extra={`${percent(shadeFinder, logins)} of logins · ${percent(shadeFinder, fineTune)} of FT`} />
+      <TRow label="Use Coins (Shade)" value={useCoinsSF} color={LINES.useCoinsShadeFinder.color}
+        extra={`${percent(useCoinsSF, shadeFinder)} of SF · ${percent(useCoinsSF, logins)} of logins`} />
+      <TRow label="Bought Coins" value={boughtCoins} color={LINES.boughtCoins.color}
+        extra={`${percent(boughtCoins, logins)} of logins · ${percent(boughtCoins, useCoinsPF)} of UCPF`} />
 
-      <Section title="FINE TUNE">
-        <Row
-          label="Model Fine Tune"
-          value={fineTune}
-          extra={`${percent(fineTune, logins)} of Logins`}
-        />
-      </Section>
+      <TSection title="Shade Guide" />
+      <TRow label="Shade Guide Quiz" value={shadeGuide} color={LINES.shadeGuide.color}
+        extra={`${percent(shadeGuide, logins)} of logins · ${percent(shadeGuide, fineTune)} of FT`} />
+      <TRow label="Bought Shade Guide" value={boughtShadeGuide} color={LINES.boughtShadeGuide.color}
+        extra={`${percent(boughtShadeGuide, shadeGuide)} of SG · ${percent(boughtShadeGuide, logins)} of logins`} />
 
-      <Section title="COINS FUNNEL">
-        <Row
-          label="Product Finder"
-          value={productFinder}
-          extra={`${percent(productFinder, logins)} of Logins | ${percent(
-            productFinder,
-            fineTune
-          )} of Fine-Tune`}
-        />
-
-        <Row
-          label="Use Coins (Product)"
-          value={useCoinsPF}
-          extra={`${percent(useCoinsPF, productFinder)} of PF | ${percent(
-            useCoinsPF,
-            fineTune
-          )} of FT | ${percent(useCoinsPF, logins)} of Login`}
-        />
-
-        <div style={{ height: 8 }} />
-
-        <Row
-          label="Shade Finder"
-          value={shadeFinder}
-          extra={`${percent(shadeFinder, logins)} of Login | ${percent(
-            shadeFinder,
-            fineTune
-          )} of FT`}
-        />
-
-        <Row
-          label="Use Coins (Shade)"
-          value={useCoinsSF}
-          extra={`${percent(useCoinsSF, shadeFinder)} of SF | ${percent(
-            useCoinsSF,
-            fineTune
-          )} of FT | ${percent(useCoinsSF, logins)} of Login`}
-        />
-
-        <Row
-          label="Bought Coins"
-          value={boughtCoins}
-          extra={`${percent(boughtCoins, logins)} of Login | ${percent(
-            boughtCoins,
-            fineTune
-          )} of FT | ${percent(boughtCoins, useCoinsPF)} of UCPF | ${percent(
-            boughtCoins,
-            useCoinsSF
-          )} of UCSF`}
-        />
-      </Section>
-
-      <Section title="SHADE GUIDE">
-        <Row
-          label="Shade Guide Quiz"
-          value={shadeGuide}
-          extra={`${percent(shadeGuide, logins)} of Login | ${percent(
-            shadeGuide,
-            fineTune
-          )} of FT`}
-        />
-
-        <Row
-          label="Bought Shade Guide"
-          value={boughtShadeGuide}
-          extra={`${percent(boughtShadeGuide, shadeGuide)} of SG | ${percent(
-            boughtShadeGuide,
-            fineTune
-          )} of FT | ${percent(
-            boughtShadeGuide,
-            logins
-          )} of Login`}
-        />
-      </Section>
-
-      <Section title="BOUGHT PREMIUM">
-        <Row
-          label="Premium"
-          value={boughtPremium}
-          extra={`${percent(boughtPremium, fineTune)} of FT | ${percent(
-            boughtPremium,
-            logins
-          )} of Login`}
-        />
-      </Section>
+      <TSection title="Premium" />
+      <TRow label="Bought Premium" value={boughtPremium} color={LINES.boughtPremium.color}
+        extra={`${percent(boughtPremium, logins)} of logins · ${percent(boughtPremium, fineTune)} of FT`} />
     </div>
   );
 };
 
 export default function StepsAnalyticsGraph({ data }) {
-  /* FIX 1 — removed Feb 1 filter */
   const sortedData = useMemo(() => {
     return Object.entries(data)
       .sort(([a], [b]) => new Date(a) - new Date(b))
       .map(([date, metrics]) => ({ date, ...metrics }));
   }, [data]);
 
-  const latestDate = sortedData.length
-    ? new Date(sortedData[sortedData.length - 1].date)
-    : new Date();
-
+  const latestDate = sortedData.length ? new Date(sortedData[sortedData.length - 1].date) : new Date();
   const { monday: defaultWeekStart } = getWeekRange(latestDate);
   const [weekStart, setWeekStart] = useState(defaultWeekStart);
 
@@ -279,172 +145,113 @@ export default function StepsAnalyticsGraph({ data }) {
     return d;
   }, [weekStart]);
 
-  /* FIX 2 — use local YYYY-MM-DD (NO UTC SHIFT) */
   const weeklyData = useMemo(() => {
     const result = [];
-
     for (let i = 0; i < 7; i++) {
       const d = new Date(weekStart);
       d.setDate(d.getDate() + i);
-
-      const key =
-        `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(
-          d.getDate()
-        ).padStart(2, "0")}`;
-
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
       const existing = sortedData.find((e) => e.date === key);
-
-      result.push(
-        existing || {
-          date: key,
-          logins: 0,
-          fineTune: 0,
-          shadeFinder: 0,
-          productFinder: 0,
-          shadeGuide: 0,
-          useCoinsShadeFinder: 0,
-          useCoinsProductFinder: 0,
-          boughtCoins: 0,
-          boughtPremium: 0,
-          boughtShadeGuide: 0,
-        }
-      );
+      result.push(existing || {
+        date: key, logins: 0, fineTune: 0, shadeFinder: 0, productFinder: 0,
+        shadeGuide: 0, useCoinsShadeFinder: 0, useCoinsProductFinder: 0,
+        boughtCoins: 0, boughtPremium: 0, boughtShadeGuide: 0, returningUsers: 0,
+      });
     }
-
     return result;
   }, [sortedData, weekStart]);
-
-  const LINES = {
-    fineTune: { label: "Model Fine Tune", color: "#1E3A8A" },
-    productFinder: { label: "Product Finder", color: "#047857" },
-    useCoinsProductFinder: { label: "Use Coins (Product Finder)", color: "#D97706" },
-    shadeFinder: { label: "Shade Finder", color: "#DC2626" },
-    useCoinsShadeFinder: { label: "Use Coins (Shade Finder)", color: "#F59E0B" },
-    shadeGuide: { label: "Shade Guide", color: "#7C3AED" },
-    boughtCoins: { label: "Bought Coins", color: "#059669" },
-    boughtShadeGuide: { label: "Bought Shade Guide", color: "#9333EA" },
-    boughtPremium: { label: "Bought Premium", color: "#0EA5E9" },
-  };
 
   const [visibleLines, setVisibleLines] = useState(
     Object.fromEntries(Object.keys(LINES).map((k) => [k, true]))
   );
 
-  const goPrevWeek = () => {
-    const d = new Date(weekStart);
-    d.setDate(d.getDate() - 7);
-    setWeekStart(d);
-  };
+  const toggleLine = (key) => setVisibleLines((prev) => ({ ...prev, [key]: !prev[key] }));
 
-  const goNextWeek = () => {
-    const d = new Date(weekStart);
-    d.setDate(d.getDate() + 7);
-    setWeekStart(d);
-  };
+  const goPrevWeek = () => { const d = new Date(weekStart); d.setDate(d.getDate() - 7); setWeekStart(d); };
+  const goNextWeek = () => { const d = new Date(weekStart); d.setDate(d.getDate() + 7); setWeekStart(d); };
+
+  // Group toggles by category
+  const GROUPS = [
+    { label: "Core", keys: ["fineTune"] },
+    { label: "Product & Shade", keys: ["productFinder", "shadeFinder"] },
+    { label: "Coin Events", keys: ["useCoinsProductFinder", "useCoinsShadeFinder", "boughtCoins"] },
+    { label: "Shade Guide", keys: ["shadeGuide", "boughtShadeGuide"] },
+    { label: "Premium", keys: ["boughtPremium"] },
+  ];
 
   return (
-    <div
-      style={{
-        width: "100%",
-        marginTop: 30,
-        padding: 30,
-        borderRadius: 24,
-        background: "rgba(255,255,255,0.6)",
-        backdropFilter: "blur(20px)",
-        border: "1px solid rgba(255,255,255,0.3)",
-        boxShadow: "0 20px 40px rgba(0,0,0,0.08)",
-      }}
-    >
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "center",
-          gap: 24,
-          marginBottom: 30,
-          fontWeight: 600,
-          color: "#111827",
-        }}
-      >
-        <button onClick={goPrevWeek}>◀ Previous</button>
-        <strong>
-          {weekStart.toDateString()} → {weekEnd.toDateString()}
-        </strong>
-        <button onClick={goNextWeek}>Next ▶</button>
-      </div>
+    <div style={{ width: "100%", fontFamily: "'Inter', sans-serif" }}>
 
-      <div
-        style={{
-          display: "flex",
-          flexWrap: "wrap",
-          gap: 16,
-          marginBottom: 30,
-        }}
-      >
-        <span style={{ fontWeight: 600, width: "100%" }}>
-          Show metrics:
+      {/* Week navigation */}
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 20, marginBottom: 24 }}>
+        <button onClick={goPrevWeek} style={{ background: "rgba(171,31,16,0.08)", border: "none", borderRadius: 9, padding: "8px 16px", fontSize: 14, fontWeight: 600, color: "#ab1f10", cursor: "pointer" }}>
+          ← Prev
+        </button>
+        <span style={{ fontSize: 15, fontWeight: 700, color: "#1a0a09" }}>
+          {weekStart.toLocaleDateString("en-US", { month: "short", day: "numeric" })} – {weekEnd.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
         </span>
-
-        <label>
-          <input type="checkbox" checked disabled /> Logins
-        </label>
-
-        {Object.entries(LINES).map(([key, info]) => (
-          <label key={key}>
-            <input
-              type="checkbox"
-              checked={visibleLines[key]}
-              onChange={() =>
-                setVisibleLines((prev) => ({
-                  ...prev,
-                  [key]: !prev[key],
-                }))
-              }
-              style={{ accentColor: info.color }}
-            />{" "}
-            <span style={{ color: info.color }}>{info.label}</span>
-          </label>
-        ))}
+        <button onClick={goNextWeek} style={{ background: "rgba(171,31,16,0.08)", border: "none", borderRadius: 9, padding: "8px 16px", fontSize: 14, fontWeight: 600, color: "#ab1f10", cursor: "pointer" }}>
+          Next →
+        </button>
       </div>
 
-      <ResponsiveContainer width="100%" height={650}>
-        <BarChart data={weeklyData}>
-          <CartesianGrid stroke="rgba(0,0,0,0.06)" />
-          <XAxis dataKey="date" stroke="#6B7280" />
-          <YAxis stroke="#6B7280" />
-          <Tooltip content={<CustomTooltip />} />
+      {/* Toggle groups */}
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 10, marginBottom: 24, padding: "16px 20px", background: "rgba(255,255,255,0.5)", borderRadius: 14, border: "1px solid rgba(171,31,16,0.08)" }}>
+        <div style={{ fontSize: 11, fontWeight: 700, color: "#7b241c", letterSpacing: "0.07em", textTransform: "uppercase", width: "100%", marginBottom: 6 }}>Show metrics</div>
+        {/* Logins always on */}
+        <div style={{ display: "flex", alignItems: "center", gap: 6, background: "rgba(17,24,39,0.07)", borderRadius: 8, padding: "6px 12px", fontSize: 13, fontWeight: 600, color: "#111827" }}>
+          <div style={{ width: 10, height: 10, borderRadius: "50%", background: "#111827" }} />
+          Logins (always on)
+        </div>
+        {Object.entries(LINES).map(([key, info]) => {
+          const on = visibleLines[key];
+          return (
+            <button key={key} onClick={() => toggleLine(key)}
+              style={{ display: "flex", alignItems: "center", gap: 6, background: on ? `${info.color}15` : "rgba(0,0,0,0.04)", border: `1.5px solid ${on ? info.color : "transparent"}`, borderRadius: 8, padding: "6px 12px", fontSize: 13, fontWeight: 600, color: on ? info.color : "#9CA3AF", cursor: "pointer", transition: "all 0.15s" }}>
+              <div style={{ width: 10, height: 10, borderRadius: "50%", background: on ? info.color : "#D1D5DB" }} />
+              {info.label}
+            </button>
+          );
+        })}
+      </div>
 
-          <Bar
-            dataKey="logins"
-            fill="#111827"
-            opacity={0.9}
-            name="Logins"
-            radius={[8, 8, 0, 0]}
-          />
+      {/* Chart */}
+      <ResponsiveContainer width="100%" height={560}>
+        <BarChart data={weeklyData} margin={{ top: 8, right: 16, left: 0, bottom: 8 }}>
+          <CartesianGrid stroke="rgba(0,0,0,0.05)" vertical={false} />
+          <XAxis dataKey="date" tickFormatter={formatShort} stroke="#9CA3AF" tick={{ fontSize: 12, fontWeight: 500 }} />
+          <YAxis stroke="#9CA3AF" tick={{ fontSize: 12 }} width={36} />
+          <Tooltip content={<CustomTooltip />} cursor={{ fill: "rgba(171,31,16,0.04)" }} />
 
-          <Bar
-            dataKey="returningUsers"
-            fill="#9CA3AF"     // light grey layer
-            stackId="logins"   // STACKS on the same bar
-            name="Returning Users"
-            radius={[8, 8, 0, 0]}
-            />
+          {/* Logins bar — always shown */}
+          <Bar dataKey="logins" fill="#1F2937" opacity={0.85} name="Logins" radius={[6, 6, 0, 0]} maxBarSize={56} />
+          <Bar dataKey="returningUsers" fill="#9CA3AF" name="Returning Users" radius={[6, 6, 0, 0]} maxBarSize={56} />
 
-
+          {/* Lines for all other metrics */}
           {Object.entries(LINES).map(([key, info]) =>
             visibleLines[key] ? (
-              <Line
-                key={key}
-                type="monotone"
-                strokeWidth={2.5}
-                dot={{ r: 4 }}
-                dataKey={key}
-                stroke={info.color}
-                name={info.label}
-              />
+              <Line key={key} type="monotone" strokeWidth={2.5} dot={{ r: 5, strokeWidth: 2, fill: "#fff", stroke: info.color }}
+                activeDot={{ r: 7 }} dataKey={key} stroke={info.color} name={info.label} />
             ) : null
           )}
         </BarChart>
       </ResponsiveContainer>
+
+      {/* Legend */}
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 14, marginTop: 18, padding: "14px 18px", background: "rgba(255,255,255,0.4)", borderRadius: 12 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 7, fontSize: 12, color: "#374151" }}>
+          <div style={{ width: 28, height: 10, borderRadius: 3, background: "#1F2937" }} /> Logins (bar)
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 7, fontSize: 12, color: "#374151" }}>
+          <div style={{ width: 28, height: 10, borderRadius: 3, background: "#9CA3AF" }} /> Returning Users (bar)
+        </div>
+        {Object.entries(LINES).map(([key, info]) => (
+          <div key={key} style={{ display: "flex", alignItems: "center", gap: 7, fontSize: 12, color: visibleLines[key] ? "#374151" : "#D1D5DB" }}>
+            <div style={{ width: 28, height: 2.5, background: info.color, opacity: visibleLines[key] ? 1 : 0.3 }} />
+            {info.label}
+          </div>
+        ))}
+      </div>
     </div>
   );
 }

@@ -45,6 +45,13 @@ export default function AuditPage() {
           <button
             className="px-4 py-2 bg-white text-[#ab1f10] border border-[#ab1f10] rounded hover:bg-rose-100"
             onClick={() => router.push('/')}
+            type="button"
+          >
+            Home
+          </button>
+          <button
+            className="px-4 py-2 bg-white text-[#ab1f10] border border-[#ab1f10] rounded hover:bg-rose-100"
+            onClick={() => router.push('/color-picker')}
           >
             Back to Editor
           </button>

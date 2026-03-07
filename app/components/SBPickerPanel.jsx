@@ -1,5 +1,3 @@
-// SBPickerPanel.jsx — bigger grid + bigger preview swatch
-
 import React, { useRef, useEffect, useState } from "react";
 
 export function rgbToHsb(r, g, b) {
@@ -36,10 +34,9 @@ export default function SBPickerPanel({
   activeShadeIndex,
   shades,
   setShades,
-  // 🔧 Bigger defaults:
-  pickerSize = 384,       // square SB grid (was 256)
-  panelWidth = 420,       // popup panel width (was 320)
-  swatchSize = 48         // bottom preview swatch (was 24)
+  pickerSize = 384,
+  panelWidth = 460,
+  swatchSize = 52,
 }) {
   const canvasRef = useRef();
   const [hoverHex, setHoverHex] = useState(null);
@@ -48,12 +45,10 @@ export default function SBPickerPanel({
 
   useEffect(() => {
     if (!show || !canvasRef.current) return;
-
     const ctx = canvasRef.current.getContext("2d");
     const width = canvasRef.current.width;
     const height = canvasRef.current.height;
 
-    // Paint the SB field
     for (let y = 0; y < height; y++) {
       const b = 100 - (y / height) * 100;
       for (let x = 0; x < width; x++) {
@@ -63,20 +58,19 @@ export default function SBPickerPanel({
       }
     }
 
-    // Draw persistent marker (bigger ring)
     if (initialSB) {
       const [s, b] = initialSB;
       const x = (s / 100) * width;
       const y = ((100 - b) / 100) * height;
       ctx.beginPath();
-      ctx.arc(x, y, 8, 0, 2 * Math.PI);
-      ctx.strokeStyle = "#000";
-      ctx.lineWidth = 2;
+      ctx.arc(x, y, 9, 0, 2 * Math.PI);
+      ctx.strokeStyle = "rgba(0,0,0,0.5)";
+      ctx.lineWidth = 2.5;
       ctx.stroke();
       ctx.beginPath();
-      ctx.arc(x, y, 5, 0, 2 * Math.PI);
+      ctx.arc(x, y, 6, 0, 2 * Math.PI);
       ctx.strokeStyle = "#fff";
-      ctx.lineWidth = 1.5;
+      ctx.lineWidth = 2;
       ctx.stroke();
     }
   }, [hue, show, initialSB]);
@@ -96,18 +90,14 @@ export default function SBPickerPanel({
   const handleCanvasClick = (e) => {
     const canvas = canvasRef.current;
     const rect = canvas.getBoundingClientRect();
-    // because canvas.width === CSS width, no DPR scaling needed here
     const x = e.clientX - rect.left;
     const y = e.clientY - rect.top;
-
     const s = (x / canvas.width) * 100;
     const b = 100 - (y / canvas.height) * 100;
     const hex = hsbToHex(hue, s, b);
-
     const next = [...shades];
     next[activeShadeIndex].hex = hex;
     setShades(next);
-
     setInitialSB(null);
     onClose();
   };
@@ -118,70 +108,102 @@ export default function SBPickerPanel({
     const rect = canvas.getBoundingClientRect();
     const x = e.clientX - rect.left;
     const y = e.clientY - rect.top;
-
     const s = (x / canvas.width) * 100;
     const b = 100 - (y / canvas.height) * 100;
-    const hex = hsbToHex(hue, s, b);
-
-    setHoverHex(hex);
+    setHoverHex(hsbToHex(hue, s, b));
     setHoverHSB([Math.round(hue), Math.round(s), Math.round(b)]);
   };
 
   if (!show || hue === null) return null;
 
+  const currentHex = shades?.[activeShadeIndex]?.hex;
+  const currentName = shades?.[activeShadeIndex]?.name;
+
   return (
-    <div className="fixed inset-0 z-50 flex justify-end">
-      {/* Slightly darker click-away backdrop */}
-      <div
-        className="absolute inset-0 bg-black/30"
-        onClick={onClose}
-      />
-      <div
-        className="relative h-full bg-white shadow-lg border-l p-4 overflow-auto z-50"
-        style={{ width: panelWidth }}
-      >
-        <div className="flex justify-between items-center mb-4">
-          <h2 className="text-lg font-bold text-[#ab1f10]">Adjust Shade</h2>
-          <button
-            className="text-[#ab1f10] font-bold text-xl"
-            onClick={onClose}
-          >
-            &times;
-          </button>
-        </div>
+    <div style={{ position: "fixed", inset: 0, zIndex: 50, display: "flex", justifyContent: "flex-end" }}>
+      {/* Backdrop */}
+      <div onClick={onClose} style={{ position: "absolute", inset: 0, background: "rgba(26,10,9,0.25)", backdropFilter: "blur(2px)" }} />
 
-        <div className="text-sm text-gray-600 mb-3">
-          Select brightness & saturation for hue{" "}
-          <span className="font-mono">{hue}°</span>
-        </div>
+      {/* Panel */}
+      <div style={{
+        position: "relative",
+        height: "100%",
+        width: panelWidth,
+        background: "rgba(255,255,255,0.72)",
+        backdropFilter: "blur(28px)",
+        WebkitBackdropFilter: "blur(28px)",
+        borderLeft: "1.5px solid rgba(255,255,255,0.85)",
+        boxShadow: "-12px 0 48px rgba(171,31,16,0.1)",
+        overflowY: "auto",
+        display: "flex",
+        flexDirection: "column",
+        gap: 0,
+        fontFamily: "'Inter', sans-serif",
+      }}>
+        <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+        <style>{`* { font-family: 'Inter', sans-serif !important; box-sizing: border-box; }`}</style>
 
-        <canvas
-          ref={canvasRef}
-          width={pickerSize}
-          height={pickerSize}
-          className="border rounded cursor-crosshair"
-          onClick={handleCanvasClick}
-          onMouseMove={handleMouseMove}
-        />
-
-        {hoverHex && hoverHSB && (
-          <div className="mt-5 text-sm">
-            <div className="mb-2 font-mono text-gray-700">
-              H: {hoverHSB[0]}° &nbsp; S: {hoverHSB[1]}% &nbsp; B: {hoverHSB[2]}%
-            </div>
-            <div className="flex items-center gap-3">
-              <div
-                className="rounded border-2"
-                style={{
-                  width: swatchSize,
-                  height: swatchSize,
-                  backgroundColor: hoverHex
-                }}
-              />
-              <span className="font-mono text-gray-700 text-base">{hoverHex}</span>
-            </div>
+        {/* Header */}
+        <div style={{ padding: "20px 24px 16px", borderBottom: "1px solid rgba(171,31,16,0.08)", display: "flex", alignItems: "center", justifyContent: "space-between", flexShrink: 0 }}>
+          <div>
+            <div style={{ fontSize: 15, fontWeight: 700, color: "#1a0a09" }}>Adjust Shade</div>
+            {currentName && <div style={{ fontSize: 11, color: "#7b241c", marginTop: 2 }}>{currentName}</div>}
           </div>
-        )}
+          <button onClick={onClose} style={{ background: "rgba(171,31,16,0.08)", border: "none", borderRadius: 8, width: 32, height: 32, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, color: "#ab1f10", fontWeight: 700, lineHeight: 1 }}>×</button>
+        </div>
+
+        {/* Hue badge */}
+        <div style={{ padding: "12px 24px 0" }}>
+          <span style={{ fontSize: 11, fontWeight: 600, color: "#7b241c", background: "rgba(171,31,16,0.08)", padding: "4px 10px", borderRadius: 20, letterSpacing: "0.04em" }}>
+            HUE {hue}°
+          </span>
+        </div>
+
+        {/* Canvas */}
+        <div style={{ padding: "14px 24px 0" }}>
+          <canvas
+            ref={canvasRef}
+            width={pickerSize}
+            height={pickerSize}
+            style={{ width: "100%", height: "auto", display: "block", borderRadius: 14, cursor: "crosshair", boxShadow: "0 4px 20px rgba(0,0,0,0.12)" }}
+            onClick={handleCanvasClick}
+            onMouseMove={handleMouseMove}
+          />
+        </div>
+
+        {/* Preview */}
+        <div style={{ padding: "18px 24px 24px" }}>
+          <div style={{ background: "rgba(255,255,255,0.6)", borderRadius: 14, border: "1.5px solid rgba(255,255,255,0.9)", padding: "16px", display: "flex", gap: 14, alignItems: "center" }}>
+            {/* Hover swatch */}
+            <div style={{ display: "flex", flexDirection: "column", gap: 8, alignItems: "center" }}>
+              <div style={{ width: swatchSize, height: swatchSize, borderRadius: 12, background: hoverHex || "rgba(171,31,16,0.08)", boxShadow: hoverHex ? "0 4px 12px rgba(0,0,0,0.2)" : "none", border: hoverHex ? "none" : "1.5px dashed rgba(171,31,16,0.2)", transition: "background 0.1s" }} />
+              <div style={{ fontSize: 9, fontWeight: 600, color: "#9b4a42", letterSpacing: "0.04em", textTransform: "uppercase" }}>Hover</div>
+            </div>
+
+            {/* Arrow */}
+            <div style={{ color: "rgba(171,31,16,0.3)", fontSize: 18 }}>→</div>
+
+            {/* Current swatch */}
+            <div style={{ display: "flex", flexDirection: "column", gap: 8, alignItems: "center" }}>
+              <div style={{ width: swatchSize, height: swatchSize, borderRadius: 12, background: currentHex || "rgba(171,31,16,0.08)", boxShadow: currentHex ? "0 4px 12px rgba(0,0,0,0.2)" : "none", border: currentHex ? "none" : "1.5px dashed rgba(171,31,16,0.2)" }} />
+              <div style={{ fontSize: 9, fontWeight: 600, color: "#9b4a42", letterSpacing: "0.04em", textTransform: "uppercase" }}>Current</div>
+            </div>
+
+            {/* Values */}
+            {hoverHSB && (
+              <div style={{ marginLeft: "auto", textAlign: "right" }}>
+                <div style={{ fontFamily: "monospace", fontSize: 13, color: "#1a0a09", fontWeight: 600 }}>{hoverHex}</div>
+                <div style={{ fontSize: 11, color: "#7b241c", marginTop: 4 }}>
+                  H {hoverHSB[0]}° · S {hoverHSB[1]}% · B {hoverHSB[2]}%
+                </div>
+              </div>
+            )}
+          </div>
+
+          <div style={{ marginTop: 12, fontSize: 11, color: "#9b4a42", textAlign: "center" }}>
+            Click anywhere on the gradient to apply the colour
+          </div>
+        </div>
       </div>
     </div>
   );

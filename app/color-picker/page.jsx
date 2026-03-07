@@ -2,7 +2,7 @@
 
 import { Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
-import ColorPickerTool from './components/ColorPickerTool.jsx';
+import ColorPickerTool from '../components/ColorPickerTool';
 
 function EditorShell() {
   const sp = useSearchParams();
