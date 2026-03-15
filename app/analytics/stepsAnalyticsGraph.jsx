@@ -1,5 +1,7 @@
 "use client";
 
+import { createPortal } from "react-dom";
+
 import React, { useState, useMemo } from "react";
 import {
   Line,
@@ -74,8 +76,8 @@ const TRow = ({ label, value, extra, color }) => (
   </div>
 );
 
-const CustomTooltip = ({ active, payload, label }) => {
-  if (!active || !payload?.length) return null;
+const CustomTooltip = ({ active, payload, label, coordinate, viewBox }) => {
+  if (!active || !payload?.length || typeof window === "undefined") return null;
   const map = {};
   payload.forEach((p) => (map[p.dataKey] = p.value ?? 0));
 
@@ -90,8 +92,48 @@ const CustomTooltip = ({ active, payload, label }) => {
   const boughtShadeGuide = map.boughtShadeGuide || 0;
   const boughtPremium = map.boughtPremium || 0;
 
-  return (
-    <div style={{ background: "#ffffff", borderRadius: 18, padding: "20px 24px", boxShadow: "0 24px 48px rgba(0,0,0,0.16)", border: "1px solid rgba(0,0,0,0.06)", fontSize: 13, minWidth: 320, maxHeight: "80vh", overflowY: "auto" }}>
+  const tooltipWidth = 340;
+  const tooltipHeight = 520; // approximate full height
+  const margin = 16;
+
+  // coordinate is relative to the chart container — we need viewport position
+  // viewBox gives us the chart's position within ResponsiveContainer
+  // Use viewBox to get the bar's absolute position on screen
+  // viewBox.left/top is the chart offset within the page
+  const barX = (viewBox?.left ?? 0) + (coordinate?.x ?? 0);
+  const screenW = window.innerWidth;
+  const screenH = window.innerHeight;
+
+  let left = barX + 20;
+  if (left + tooltipWidth > screenW - margin) {
+    left = barX - tooltipWidth - 20;
+  }
+
+  // Flip up if tooltip would overflow bottom edge
+  const rawTop = (coordinate?.y ?? 100) - 40;
+  let top = rawTop;
+  if (top + tooltipHeight > screenH - margin) {
+    top = screenH - tooltipHeight - margin;
+  }
+  if (top < margin) top = margin;
+
+  return createPortal(
+    <div style={{
+      position: "fixed",
+      left,
+      top,
+      background: "#ffffff",
+      borderRadius: 18,
+      padding: "20px 24px",
+      boxShadow: "0 24px 48px rgba(0,0,0,0.16)",
+      border: "1px solid rgba(0,0,0,0.06)",
+      fontSize: 13,
+      width: tooltipWidth,
+      maxHeight: `calc(100vh - ${margin * 2}px)`,
+      overflowY: "auto",
+      zIndex: 99999,
+      pointerEvents: "none",
+    }}>
       <div style={{ fontWeight: 800, fontSize: 15, marginBottom: 4, color: "#111827" }}>{formatDate(label)}</div>
 
       <TSection title="Logins" />
@@ -124,7 +166,8 @@ const CustomTooltip = ({ active, payload, label }) => {
       <TSection title="Premium" />
       <TRow label="Bought Premium" value={boughtPremium} color={LINES.boughtPremium.color}
         extra={`${percent(boughtPremium, logins)} of logins · ${percent(boughtPremium, fineTune)} of FT`} />
-    </div>
+    </div>,
+    document.body
   );
 };
 
@@ -180,7 +223,7 @@ export default function StepsAnalyticsGraph({ data }) {
   ];
 
   return (
-    <div style={{ width: "100%", fontFamily: "'Inter', sans-serif" }}>
+    <div style={{ width: "100%", fontFamily: "'Inter', sans-serif", overflow: "visible" }}>
 
       {/* Week navigation */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 20, marginBottom: 24 }}>
@@ -216,12 +259,12 @@ export default function StepsAnalyticsGraph({ data }) {
       </div>
 
       {/* Chart */}
-      <ResponsiveContainer width="100%" height={560}>
+      <ResponsiveContainer width="100%" height={560} style={{ overflow: "visible" }}>
         <BarChart data={weeklyData} margin={{ top: 8, right: 16, left: 0, bottom: 8 }}>
           <CartesianGrid stroke="rgba(0,0,0,0.05)" vertical={false} />
           <XAxis dataKey="date" tickFormatter={formatShort} stroke="#9CA3AF" tick={{ fontSize: 12, fontWeight: 500 }} />
           <YAxis stroke="#9CA3AF" tick={{ fontSize: 12 }} width={36} />
-          <Tooltip content={<CustomTooltip />} cursor={{ fill: "rgba(171,31,16,0.04)" }} />
+          <Tooltip content={<CustomTooltip />} cursor={{ fill: "rgba(171,31,16,0.04)" }} wrapperStyle={{ zIndex: 9999 }} isAnimationActive={false} position={{ x: 0, y: 0 }} />
 
           {/* Logins bar — always shown */}
           <Bar dataKey="logins" fill="#1F2937" opacity={0.85} name="Logins" radius={[6, 6, 0, 0]} maxBarSize={56} />

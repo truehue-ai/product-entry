@@ -65,11 +65,31 @@ async function listAllBrandProducts() {
 const LIP_CATEGORIES = new Set([
   "matte-lipstick",
   "satin-lipstick",
-  "lip-gloss",
-  "lip-tint",
-  "lip-balm",
-  "lip-oil",
 ]);
+
+const BLUSH_EYESHADOW_CATEGORIES = new Set([
+  "powder-blush",
+  "cream-blush",
+  "powder-eyeshadow",
+  "cream-eyeshadow",
+  "bronzer",
+  "highlighter",
+]);
+
+const GLOSS_CATEGORIES = new Set([
+  "lip-gloss",
+  "lip-oil",
+  "lip-balm",
+  "lip-tint",
+]);
+
+function isGlossCategory(cat) {
+  return GLOSS_CATEGORIES.has(String(cat || "").toLowerCase());
+}
+
+function isBlushEyeshadowCategory(cat) {
+  return BLUSH_EYESHADOW_CATEGORIES.has(String(cat || "").toLowerCase());
+}
 
 function isLipCategory(cat) {
   return LIP_CATEGORIES.has(String(cat || "").toLowerCase());
@@ -202,21 +222,13 @@ async function loadMergedShades(brand, product) {
 
 // ---------- Bucketing rules (same thresholds + name map) ----------
 const CATEGORY_KEY_MAP = {
-  "daily-neutrals": "neutrals",
-  "perfect-pinks": "pinks",
-  "bold-and-deep": "bold",
-  "bright-and-fun": "bright",
-  "reds-and-browns": "reds_browns",
   "random": "random",
 };
 
 const brightnessThresholds = {
-  neutrals: [[40, 59, "D"], [60, 74, "M"], [75, 100, "L"]],
-  pinks: [[40, 59, "D"], [60, 74, "M"], [75, 100, "L"]],
-  bold: [[0, 25, "D"], [26, 35, "M"], [36, 50, "L"]],
-  bright: [[75, 80, "D"], [81, 90, "M"], [91, 100, "L"]],
-  reds_browns: [[0, 35, "D"], [36, 60, "M"], [61, 80, "L"]],
-  random: [[0, 50, "D"], [50, 70, "M"], [70, 100, "L"]],
+  random:        [[0, 51, "D"], [51, 73, "M"], [73, 100, "L"]],
+  random_bright: [[0, 80, "D"], [80, 90, "M"], [90, 100, "L"]],
+  random_gloss:  [[0, 72, "D"], [72, 85, "M"], [85, 100, "L"]],
 };
 
 function getPriceBucket(price, size = 500, max = 5000) {
@@ -232,15 +244,231 @@ function getLMDBucketFromSkintone(skintone) {
   return null;
 }
 
-function getCategoriesFromHSV(h, s, v) {
-  const categories = [];
-  if (s > 40 && s < 65 && v > 35 && v < 70) categories.push("daily-neutrals");
-  if (((h <= 8 || h >= 350) && s >= 45 && s <= 75 && v >= 40) || (h >= 325 && h < 350 && s >= 40 && v >= 50)) categories.push("perfect-pinks");
-  if (s > 55 && v < 50) categories.push("bold-and-deep");
-  if (s > 75 && v > 75) categories.push("bright-and-fun");
-  if (h >= 0 && h <= 15 && s > 70 && v < 70) categories.push("reds-and-browns");
-  categories.push("random");
-  return categories;
+function getCategoriesWithDepth(h, s, v) {
+  const results = [];
+  const hInRange = (h, ...ranges) => ranges.some(([lo, hi]) => h >= lo && h <= hi);
+  const lmd = getLMDFromSV(s, v, "lip");
+
+  if (hInRange(h, [0,10],[350,359]) && s>=45 && s<=60)
+    results.push({ category: "daily-neutrals", lmd });
+
+  if (hInRange(h, [0,5],[345,359]) && s>=40 && s<65)
+    results.push({ category: "perfect-pinks", lmd });
+
+  if (hInRange(h, [0,7],[353,359]) && s>=65 && s<=85)
+    results.push({ category: "reds-and-browns", lmd });
+
+  if (hInRange(h, [0,25],[330,359]) && s>65)
+    results.push({ category: "bold-and-deep", lmd });
+
+  if (hInRange(h, [0,25],[330,359]) && s>70)
+    results.push({ category: "bright-and-fun", lmd });
+
+  return results;
+}
+
+// Blush/eyeshadow variant — v thresholds shifted up by ~15 to account for
+// Blush/eyeshadow variant — uses centroid-based S+V boundary for LMD
+function getCategoriesWithDepth_bright(h, s, v) {
+  const results = [];
+  const hInRange = (h, ...ranges) => ranges.some(([lo, hi]) => h >= lo && h <= hi);
+  const lmd = getLMDFromSV(s, v, "bright");
+
+  if (hInRange(h, [0,10],[350,359]) && s>=30 && s<=60)
+    results.push({ category: "daily-neutrals", lmd });
+
+  if (hInRange(h, [0,5],[345,359]) && s>=40 && s<65)
+    results.push({ category: "perfect-pinks", lmd });
+
+  if (hInRange(h, [0,7],[353,359]) && s>=65 && s<=85)
+    results.push({ category: "reds-and-browns", lmd });
+
+  if (hInRange(h, [0,25],[330,359]) && s>=65)
+    results.push({ category: "bold-and-deep", lmd });
+
+  if (hInRange(h, [0,25],[330,359]) && s>65)
+    results.push({ category: "bright-and-fun", lmd });
+
+  return results;
+}
+
+// Gloss variant — v thresholds shifted up vs matte/satin since glosses are
+// inherently high-v products. D=v<78, M=v78-89, L=v>=89 (data-driven from actual gloss distribution)
+// Gloss variant — uses centroid-based S+V boundary for LMD
+function getCategoriesWithDepth_gloss(h, s, v) {
+  const results = [];
+  const hInRange = (h, ...ranges) => ranges.some(([lo, hi]) => h >= lo && h <= hi);
+  const lmd = getLMDFromSV(s, v, "gloss");
+
+  if (hInRange(h, [0,10],[350,359]) && s>=45 && s<=62)
+    results.push({ category: "daily-neutrals", lmd });
+
+  if (hInRange(h, [0,5],[345,359]) && s>=40 && s<65)
+    results.push({ category: "perfect-pinks", lmd });
+
+  if (hInRange(h, [0,7],[353,359]) && s>=65 && s<=85)
+    results.push({ category: "reds-and-browns", lmd });
+
+  if (hInRange(h, [0,25],[330,359]) && s>65)
+    results.push({ category: "bold-and-deep", lmd });
+
+  if (hInRange(h, [0,25],[330,359]) && s>70)
+    results.push({ category: "bright-and-fun", lmd });
+
+  return results;
+}
+
+// Centroids for each category per depth — midpoint of H, S, V ranges
+const CATEGORY_CENTROIDS = {
+  L: {
+    "daily-neutrals":  { h: 5,    s: 45,   v: 85 },
+    "perfect-pinks":   { h: 2.5,  s: 55,   v: 85 },
+    "reds-and-browns": { h: 3.5,  s: 70,   v: 88 },
+    "bold-and-deep":   { h: 12.5, s: 75,   v: 88 },
+    "bright-and-fun":  { h: 12.5, s: 82,   v: 89 },
+  },
+  M: {
+    "daily-neutrals":  { h: 5,    s: 45,   v: 60 },
+    "perfect-pinks":   { h: 2.5,  s: 55,   v: 60 },
+    "reds-and-browns": { h: 3.5,  s: 70,   v: 60 },
+    "bold-and-deep":   { h: 12.5, s: 75,   v: 60 },
+    "bright-and-fun":  { h: 12.5, s: 82,   v: 60 },
+  },
+  D: {
+    "daily-neutrals":  { h: 5,    s: 45,   v: 42 },
+    "perfect-pinks":   { h: 2.5,  s: 55,   v: 42 },
+    "reds-and-browns": { h: 3.5,  s: 70,   v: 42 },
+    "bold-and-deep":   { h: 12.5, s: 75,   v: 42 },
+    "bright-and-fun":  { h: 12.5, s: 82,   v: 42 },
+  },
+};
+
+// Blush/eyeshadow centroids — v values shifted up by ~15
+const CATEGORY_CENTROIDS_BRIGHT = {
+  L: {
+    "daily-neutrals":  { h: 5,    s: 45, v: 87 },
+    "perfect-pinks":   { h: 2.5,  s: 52, v: 90 },
+    "reds-and-browns": { h: 3.5,  s: 75, v: 97 },
+    "bold-and-deep":   { h: 12.5, s: 75, v: 97 },
+    "bright-and-fun":  { h: 12.5, s: 70, v: 97 },
+  },
+  M: {
+    "daily-neutrals":  { h: 5,    s: 45, v: 73 },
+    "perfect-pinks":   { h: 2.5,  s: 52, v: 78 },
+    "reds-and-browns": { h: 3.5,  s: 75, v: 90 },
+    "bold-and-deep":   { h: 12.5, s: 75, v: 90 },
+    "bright-and-fun":  { h: 12.5, s: 70, v: 89 },
+  },
+  D: {
+    "daily-neutrals":  { h: 5,    s: 45, v: 65 },
+    "perfect-pinks":   { h: 2.5,  s: 52, v: 65 },
+    "reds-and-browns": { h: 3.5,  s: 75, v: 65 },
+    "bold-and-deep":   { h: 12.5, s: 75, v: 65 },
+    "bright-and-fun":  { h: 12.5, s: 70, v: 65 },
+  },
+};
+
+// Gloss centroids — midpoints of v78/89 bands, s from actual data
+const CATEGORY_CENTROIDS_GLOSS = {
+  L: {
+    "daily-neutrals":  { h: 5,    s: 53, v: 93  },
+    "perfect-pinks":   { h: 2.5,  s: 52, v: 93  },
+    "reds-and-browns": { h: 3.5,  s: 75, v: 93  },
+    "bold-and-deep":   { h: 12.5, s: 73, v: 93  },
+    "bright-and-fun":  { h: 12.5, s: 78, v: 93  },
+  },
+  M: {
+    "daily-neutrals":  { h: 5,    s: 53, v: 79  },
+    "perfect-pinks":   { h: 2.5,  s: 52, v: 79  },
+    "reds-and-browns": { h: 3.5,  s: 75, v: 79  },
+    "bold-and-deep":   { h: 12.5, s: 73, v: 79  },
+    "bright-and-fun":  { h: 12.5, s: 78, v: 79  },
+  },
+  D: {
+    "daily-neutrals":  { h: 5,    s: 53, v: 55  },
+    "perfect-pinks":   { h: 2.5,  s: 52, v: 55  },
+    "reds-and-browns": { h: 5,    s: 75, v: 55  },
+    "bold-and-deep":   { h: 12.5, s: 73, v: 48  },
+    "bright-and-fun":  { h: 12.5, s: 78, v: 48  },
+  },
+};
+
+// Hue rule definitions — mirrors the conditions in getCategoriesWithDepth/_bright
+const CATEGORY_HUE_RULES = [
+  { category: "daily-neutrals", hRanges: [[0,10],[350,359]] },
+  { category: "perfect-pinks",  hRanges: [[0,5],[345,359]]  },
+  { category: "reds-and-browns",hRanges: [[0,10],[355,359]] },
+  { category: "bold-and-deep",  hRanges: [[0,25],[330,359]] },
+  { category: "bright-and-fun", hRanges: [[0,25],[330,359]] },
+];
+
+function hInRange(h, ranges) {
+  return ranges.some(([lo, hi]) => h >= lo && h <= hi);
+}
+
+function getNearestCategoryAndDepth(h, s, v, centroidsTable) {
+  // 1) Find which categories this shade's hue qualifies for
+  const hueMatches = CATEGORY_HUE_RULES
+    .filter(rule => hInRange(h, rule.hRanges))
+    .map(rule => rule.category);
+
+  const candidates = hueMatches.length > 0 ? hueMatches : null;
+  if (!candidates) return { category: "random", lmd: null };
+
+  // 2) Search across all L/M/D tiers for those candidates — pick best by s+v only
+  let nearest = candidates[0];
+  let nearestLmd = "L";
+  let minDist = Infinity;
+
+  for (const lmd of ["L", "M", "D"]) {
+    const tierCentroids = centroidsTable[lmd];
+    for (const category of candidates) {
+      const c = tierCentroids[category];
+      if (!c) continue;
+      const dist = Math.sqrt((s - c.s) ** 2 + (v - c.v) ** 2);
+      if (dist < minDist) {
+        minDist = dist;
+        nearest = category;
+      }
+    }
+  }
+
+  // Use getLMDFromSV for consistent lmd assignment instead of centroid-derived lmd
+  const type = centroidsTable === CATEGORY_CENTROIDS_BRIGHT
+    ? "bright"
+    : centroidsTable === CATEGORY_CENTROIDS_GLOSS
+      ? "gloss"
+      : "lip";
+  return { category: nearest, lmd: getLMDFromSV(s, v, type) };
+}
+
+// Centroid-based S+V classifier — derived from perpendicular bisectors of
+// ideal skintone centroids. Replaces flat v-only thresholds in depth functions.
+function getLMDFromSV(s, v, type = "lip") {
+  if (type === "bright") {
+    // Blush/eyeshadow centroids derived from actual data (v-thirds):
+    // D=(s=43.4, v=46.0)  M=(s=44.6, v=71.8)  L=(s=32.8, v=88.3)
+    // L/M boundary: v = 0.7152*s + 52.37
+    // M/D boundary: v = -0.0465*s + 60.95
+    if (v >= 0.7152 * s + 52.37) return "L";
+    if (v >= -0.0465 * s + 60.95) return "M";
+    return "D";
+} else if (type === "gloss") {
+    // Gloss ideals derived from actual gloss data centroids:
+    // D=(s=62.5, v=67.5)  M=(s=56.3, v=84.6)  L=(s=50.8, v=94.7)
+    // L/M boundary: v = 0.5446*s + 60.49
+    // M/D boundary: v = 0.3626*s + 54.51
+    if (v >= 0.5446 * s + 60.49) return "L";
+    if (v >= 0.3626 * s + 54.51) return "M";
+    return "D";
+} else {
+    // Lip (matte/satin) ideals: L=(57,81) M=(62,63) D=(65,40)
+    // L/M boundary: v = (10s + 1997) / 36
+    // M/D boundary: v = (6s + 1988) / 46
+    if (v >= (10 * s + 1997) / 36) return "L";
+    if (v >= (6  * s + 1988) / 46) return "M";
+    return "D";
+  }
 }
 
 function getLMDBucketFromBrightness(v, categoryKeyForThresholds) {
@@ -278,38 +506,98 @@ function insertShadeIntoDict(shade, dict, requestedCategory) {
   const isContour = requestedCategory === "contour";
 
   // *** CHANGE: coverage buckets for base categories
-  const categoryList = baseCategory
-    ? ["low", "medium", "full"] // force all 3 coverages
-    : isContour
-    ? [shade.finish || "any"]
-    : getCategoriesFromHSV(h, s, v);
-
-  const lmd = baseCategory || isContour
-    ? getLMDBucketFromSkintone(shade.skintone)
-    : categoryList.map((cat) => {
-        const key = CATEGORY_KEY_MAP[cat] || cat; // map hyphen names -> threshold keys
-        return getLMDBucketFromBrightness(v_scaled, key);
+  if (baseCategory) {
+    // Base products: coverage buckets x skintone-based LMD
+    const coverageList = ["low", "medium", "full"];
+    const lmdLabel = getLMDBucketFromSkintone(shade.skintone);
+    if (lmdLabel) {
+      for (const coverage of coverageList) {
+        if (!dict[coverage]) dict[coverage] = {};
+        if (!dict[coverage][priceBucket]) dict[coverage][priceBucket] = { L: [], M: [], D: [] };
+        dict[coverage][priceBucket][lmdLabel].push({
+          [`#${hex}`]: {
+            brand: shade.brand,
+            product_name: shade.product_name,
+            shade_name: shade.shade_name,
+            shade_hex_code: shade.shade_hex_code,
+            price: shade.price,
+            link: shade.link || "",
+            type: requestedCategory,
+          },
+        });
+      }
+    }
+  } else if (isContour) {
+    // Contour: finish-based category x skintone-based LMD
+    const category = shade.finish || "any";
+    const lmdLabel = getLMDBucketFromSkintone(shade.skintone);
+    if (lmdLabel) {
+      if (!dict[category]) dict[category] = {};
+      if (!dict[category][priceBucket]) dict[category][priceBucket] = { L: [], M: [], D: [] };
+      dict[category][priceBucket][lmdLabel].push({
+        [`#${hex}`]: {
+          brand: shade.brand,
+          product_name: shade.product_name,
+          shade_name: shade.shade_name,
+          shade_hex_code: shade.shade_hex_code,
+          price: shade.price,
+          link: shade.link || "",
+          type: requestedCategory,
+        },
       });
+    }
+  } else {
+    // Lip/colour products: depth-aware category matching
+    // Blush/eyeshadow use brightness-shifted thresholds and centroids
+    const useBright = isBlushEyeshadowCategory(requestedCategory);
+    const useGloss  = isGlossCategory(requestedCategory);
 
-  for (let i = 0; i < categoryList.length; i++) {
-    const category = categoryList[i];
-    const lmdLabel = baseCategory || isContour ? lmd : lmd[i];
-    if (!lmdLabel) continue;
+    let categoryDepthPairs = useBright
+      ? getCategoriesWithDepth_bright(h, s, v)
+      : useGloss
+        ? getCategoriesWithDepth_gloss(h, s, v)
+        : getCategoriesWithDepth(h, s, v);
 
-    if (!dict[category]) dict[category] = {};
-    if (!dict[category][priceBucket]) dict[category][priceBucket] = { L: [], M: [], D: [] };
+    // If shade matched nothing except random, find nearest category for its depth
+    const realMatches = categoryDepthPairs.filter(p => p.category !== "random");
 
-    dict[category][priceBucket][lmdLabel].push({
-      [`#${hex}`]: {
-        brand: shade.brand,
-        product_name: shade.product_name,
-        shade_name: shade.shade_name,
-        shade_hex_code: shade.shade_hex_code,
-        price: shade.price,
-        link: shade.link || "",
-        type: requestedCategory,
-      },
-    });
+    if (realMatches.length === 0) {
+      const centroidsTable = useBright
+        ? CATEGORY_CENTROIDS_BRIGHT
+        : useGloss
+          ? CATEGORY_CENTROIDS_GLOSS
+          : CATEGORY_CENTROIDS;
+      const { category: nearest, lmd } = getNearestCategoryAndDepth(h, s, v_scaled, centroidsTable);
+      if (nearest === "random") {
+        categoryDepthPairs = []; // skip named categories; random will still be added below
+      } else {
+        categoryDepthPairs = [{ category: nearest, lmd }];
+      }
+    }
+
+    // Always add to random using brightness-based LMD (existing behavior)
+    const randomKey = useBright ? "random_bright" : useGloss ? "random_gloss" : (CATEGORY_KEY_MAP["random"] || "random");
+    const randomLmd = getLMDBucketFromBrightness(v_scaled, randomKey);
+    if (randomLmd) {
+      categoryDepthPairs.push({ category: "random", lmd: randomLmd });
+    }
+
+    for (const { category, lmd: lmdLabel } of categoryDepthPairs) {
+      if (!lmdLabel) continue;
+      if (!dict[category]) dict[category] = {};
+      if (!dict[category][priceBucket]) dict[category][priceBucket] = { L: [], M: [], D: [] };
+      dict[category][priceBucket][lmdLabel].push({
+        [`#${hex}`]: {
+          brand: shade.brand,
+          product_name: shade.product_name,
+          shade_name: shade.shade_name,
+          shade_hex_code: shade.shade_hex_code,
+          price: shade.price,
+          link: shade.link || "",
+          type: requestedCategory,
+        },
+      });
+    }
   }
   return dict;
 }
@@ -449,12 +737,14 @@ function deepMergeDicts(baseDict, addDict) {
 // ---------- POST: build + return (no upload) ----------
 export async function POST(req) {
   try {
-    const { category } = await req.json();
+    const { category, mode = "rebuild" } = await req.json();
     if (!category) {
       return new Response(JSON.stringify({ success: false, error: "Missing 'category'" }), {
         status: 400, headers: { "Content-Type": "application/json" },
       });
     }
+    // mode: "incremental" = skip products already in existing dict (default)
+    //        "rebuild"     = ignore existing dict, build from scratch
 
     // 1) load existing dict + index products inside it
     const existingDict = await loadExistingCategoryDict(category);
@@ -471,13 +761,14 @@ export async function POST(req) {
       if (productType !== category) continue;
 
       // Lip-only: must have edited_final_shades
-      if (isLipCategory(category)) {
+      if (isLipCategory(category) || isGlossCategory(category)) {
         const ok = await hasEditedFinalShades(brand, product);
         if (!ok) continue;
       }
 
       // Skip if this product already exists in the current CategorisedLMD
-      if (existingIndex.has(`${brand}:::${product}`)) continue;
+      // Skip if this product already exists in the current CategorisedLMD (incremental mode only)
+      if (mode === "incremental" && existingIndex.has(`${brand}:::${product}`)) continue;
 
       considered.push({ brand, product, count: rows.length });
 
@@ -499,8 +790,8 @@ export async function POST(req) {
       }
     }
 
-    // 3) merge new build into existing (so the returned dict includes both)
-    const merged = deepMergeDicts(existingDict || {}, built);
+    // 3) merge new build into existing (incremental) or use fresh build only (rebuild)
+    const merged = mode === "rebuild" ? built : deepMergeDicts(existingDict || {}, built);
 
     // 4) enforce at least 6 items per L/M/D per price bucket
     const finalDict = ensureMinPerBucket(merged, 6);

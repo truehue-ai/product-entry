@@ -260,7 +260,7 @@ export default function AnalyticsPage() {
       <div style={{ padding: "28px 28px", display: "flex", flexDirection: "column", gap: 24 }}>
 
         {/* ── Funnel Graph ── */}
-        <div style={{ ...GL.card, padding: 28 }}>
+        <div style={{ ...GL.card, padding: 28, overflow: "visible" }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
             <div style={GL.sectionHeader}>Daily User Funnel & Coin Actions</div>
             {graphLoading && <span style={{ fontSize: 13, color: "#9b4a42" }}>Loading…</span>}
@@ -522,7 +522,7 @@ export default function AnalyticsPage() {
         </div>
 
         {/* ── Bottom Analytics Tabs ── */}
-        <div style={{ ...GL.card, padding: 28 }}>
+        <div style={{ ...GL.card, padding: 28, overflow: "visible" }}>
           {/* Tabs */}
           <div style={{ display: "flex", borderBottom: "1.5px solid rgba(171,31,16,0.1)", marginBottom: 24, gap: 4 }}>
             {[{ id: "views", label: "Views" }, { id: "premium", label: "Premium Products" }, { id: "perfect", label: "Perfect Product Premium" }].map((tab) => (

@@ -29,6 +29,12 @@ const CARDS = {
       description: 'User funnel, coin actions, premium products, and steps graph.',
       icon: '📊',
     },
+    {
+      href: '/notifications',
+      label: 'Notifications',
+      description: 'Send push notifications to all users with a registered device token.',
+      icon: '🔔',
+    },
   ],
   aastha: [
     {
