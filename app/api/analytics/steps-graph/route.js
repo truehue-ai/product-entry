@@ -192,7 +192,12 @@ function dailyGraphMetrics(users) {
     const steps = u.steps || [];
     if (!steps.length) continue;
 
-    const counted = new Set(); // 👈 ensures each user counted once/day
+    const counted = new Set(); // ensures each user counted once/day
+
+    // Pre-collect all active days for this user (any step with a date)
+    const activeDays = new Set(
+      steps.map((s) => dateKey(s.at)).filter(Boolean)
+    );
 
     for (const s of steps) {
       const day = dateKey(s.at);
@@ -261,6 +266,22 @@ function dailyGraphMetrics(users) {
         case "bought-shade-guide":
           daily[day].boughtShadeGuide++;
           break;
+      }
+    }
+    // Fallback: for any active day where login step wasn't fired,
+    // still count the user as having a session that day
+    for (const day of activeDays) {
+      if (!counted.has(day)) {
+        ensure(day);
+        daily[day].logins++;
+
+        const createdAt = u.info?.createdAt ? dateKey(u.info.createdAt) : null;
+
+        if (createdAt && createdAt < day) {
+          daily[day].returningUsers++;
+        }
+
+        counted.add(day);
       }
     }
   }

@@ -33,8 +33,9 @@ async function listAllKeys(prefix) {
 }
 
 export async function GET(req) { 
+  console.log("REQ URL:", req.url);
   try {
-    const { searchParams } = new URL(req.url);
+    const { searchParams } = new URL(req.url, "http://localhost");
     const q = (searchParams.get("q") || "").trim().toLowerCase();
 
     // 1) List all brand/product shades.json keys
@@ -47,10 +48,14 @@ export async function GET(req) {
     for (const k of allKeys) {
       const m = k.match(re);
       if (!m) continue;
-      const brand = decodeURIComponent(m[1]);
-      const product = decodeURIComponent(m[2]);
-      const pairKey = `${brand}:::${product}`;
-      if (!set.has(pairKey)) set.add(pairKey);
+      try {
+        const brand = decodeURIComponent(m[1]);
+        const product = decodeURIComponent(m[2]);
+        const pairKey = `${brand}:::${product}`;
+        if (!set.has(pairKey)) set.add(pairKey);
+      } catch {
+        console.log("Failed to decode key:", k);
+      }
     }
 
     // 2) Build items array

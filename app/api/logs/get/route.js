@@ -77,7 +77,7 @@ function normalizeTone(v) {
 // ---- handler ---------------------------------------------------------------
 
 export async function GET(req) {
-  const { searchParams } = new URL(req.url);
+  const { searchParams } = new URL(req.url, "http://localhost");
   const brand = searchParams.get("brand");
   const product = searchParams.get("product");
   if (!brand || !product) {
