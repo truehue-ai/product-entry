@@ -138,6 +138,8 @@ export default function AnalyticsPage() {
   const [graphData, setGraphData] = useState(null);
   const [graphLoading, setGraphLoading] = useState(false);
   const [usersWithPushTokens, setUsersWithPushTokens] = useState([]);
+  const [backfilling, setBackfilling] = useState(false);
+  const [backfillResult, setBackfillResult] = useState(null);
 
   useEffect(() => {
     let active = true;
@@ -158,16 +160,27 @@ export default function AnalyticsPage() {
         setPerfect5UpdatedAt(j.perfectProduct5UpdatedAt || null);
         setPerfect24UpdatedAt(j.perfectProduct24UpdatedAt || null);
         setUsersWithPushTokens(j.usersWithPushTokens || []);
-        setGraphLoading(true);
-        const g = await fetch("/api/analytics/steps-graph", { cache: "no-store" });
-        const gjson = await g.json();
-        setGraphData(gjson.graph || null);
-      } catch {
+        } catch {
         if (!active) return;
       } finally {
-        if (active) { setLoadingList(false); setGraphLoading(false); }
+        if (active) setLoadingList(false);
       }
     })();
+
+    // graph fetch runs in parallel — not chained after users
+    (async () => {
+      setGraphLoading(true);
+      try {
+        const g = await fetch("/api/analytics/steps-graph", { cache: "no-store" });
+        const gjson = await g.json();
+        if (active) setGraphData(gjson.graph || null);
+      } catch {
+        if (active) setGraphData(null);
+      } finally {
+        if (active) setGraphLoading(false);
+      }
+    })();
+
     return () => (active = false);
   }, []);
 
@@ -254,10 +267,42 @@ export default function AnalyticsPage() {
             }}>
             Sort by Activity
           </button>
+          <button className="th-btn-outline" style={{ ...GL.btnOutline, opacity: backfilling ? 0.6 : 1 }}
+            disabled={backfilling}
+            onClick={async () => {
+              if (!confirm("This will scan all users and overwrite daily_graph.json. Continue?")) return;
+              setBackfilling(true);
+              setBackfillResult(null);
+              try {
+                const r = await fetch("/api/analytics/backfill-graph", { method: "POST", cache: "no-store" });
+                const j = await r.json();
+                if (j.ok) {
+                  setBackfillResult(`✓ Backfill done — ${j.days} days written`);
+                  // refresh graph display
+                  const g = await fetch("/api/analytics/steps-graph", { cache: "no-store" });
+                  const gjson = await g.json();
+                  setGraphData(gjson.graph || null);
+                } else {
+                  setBackfillResult(`✗ Error: ${j.error}`);
+                }
+              } catch (e) {
+                setBackfillResult(`✗ ${e.message}`);
+              } finally {
+                setBackfilling(false);
+              }
+            }}>
+            {backfilling ? "Backfilling…" : "Backfill Graph"}
+          </button>
         </div>
       </div>
 
       <div style={{ padding: "28px 28px", display: "flex", flexDirection: "column", gap: 24 }}>
+        {backfillResult && (
+          <div style={{ background: backfillResult.startsWith("✓") ? "rgba(22,163,74,0.1)" : "rgba(220,38,38,0.1)", border: `1px solid ${backfillResult.startsWith("✓") ? "rgba(22,163,74,0.3)" : "rgba(220,38,38,0.3)"}`, borderRadius: 12, padding: "14px 20px", fontSize: 14, fontWeight: 600, color: backfillResult.startsWith("✓") ? "#15803d" : "#dc2626", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            {backfillResult}
+            <button onClick={() => setBackfillResult(null)} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 16, color: "inherit", opacity: 0.6 }}>✕</button>
+          </div>
+        )}
 
         {/* ── Funnel Graph ── */}
         <div style={{ ...GL.card, padding: 28, overflow: "visible" }}>
