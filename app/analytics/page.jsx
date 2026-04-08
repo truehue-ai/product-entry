@@ -279,7 +279,7 @@ export default function AnalyticsPage() {
                 if (j.ok) {
                   setBackfillResult(`✓ Backfill done — ${j.days} days written`);
                   // refresh graph display
-                  const g = await fetch("/api/analytics/steps-graph", { cache: "no-store" });
+                  const g = await fetch(`/api/analytics/steps-graph?t=${Date.now()}`, { cache: "no-store" });
                   const gjson = await g.json();
                   setGraphData(gjson.graph || null);
                 } else {

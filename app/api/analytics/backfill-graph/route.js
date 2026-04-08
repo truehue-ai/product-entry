@@ -109,8 +109,8 @@ function dailyGraphMetrics(users) {
       daily[day] = {
         logins: 0, returningUsers: 0, fineTune: 0, shadeFinder: 0,
         productFinder: 0, shadeGuide: 0, shadeGuideQ3: 0,
-        useCoinsShadeFinder: 0, useCoinsProductFinder: 0,
         boughtCoins: 0, boughtPremium: 0, boughtShadeGuide: 0,
+        paymentPopupOpen: 0, useCoinsLastRemaining: 0, usingCustomerCoins: 0,
       };
     }
   }
@@ -146,11 +146,12 @@ function dailyGraphMetrics(users) {
         case "product-finder":           daily[day].productFinder++;          break;
         case "shade-guide":              daily[day].shadeGuide++;             break;
         case "shade-guide-q3":           daily[day].shadeGuideQ3++;           break;
-        case "use-coins-shade-finder":   daily[day].useCoinsShadeFinder++;    break;
-        case "use-coins-product-finder": daily[day].useCoinsProductFinder++;  break;
         case "bought-coins":             daily[day].boughtCoins++;            break;
         case "bought-premium":           daily[day].boughtPremium++;          break;
         case "bought-shade-guide":       daily[day].boughtShadeGuide++;       break;
+        case "payment-popup-open":        daily[day].paymentPopupOpen++;        break;
+        case "use-coins-last-remaining":  daily[day].useCoinsLastRemaining++;   break;
+        case "using-customer-coins":      daily[day].usingCustomerCoins++;      break;
       }
     }
 

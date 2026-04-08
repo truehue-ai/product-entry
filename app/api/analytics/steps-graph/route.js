@@ -1,4 +1,5 @@
 export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 
 import { S3Client, GetObjectCommand } from "@aws-sdk/client-s3";
 

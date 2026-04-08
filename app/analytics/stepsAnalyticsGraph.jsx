@@ -45,15 +45,16 @@ const percent = (a, b) => {
 
 // ── Distinct, readable colour palette ──
 const LINES = {
-  fineTune:               { label: "Model Fine Tune",           color: "#2563EB" }, // blue
-  productFinder:          { label: "Product Finder",            color: "#16A34A" }, // green
-  useCoinsProductFinder:  { label: "Use Coins (Product)",       color: "#EA580C" }, // orange
-  shadeFinder:            { label: "Shade Finder",              color: "#DC2626" }, // red
-  useCoinsShadeFinder:    { label: "Use Coins (Shade)",         color: "#CA8A04" }, // amber
-  shadeGuide:             { label: "Shade Guide",               color: "#7C3AED" }, // purple
-  boughtCoins:            { label: "Bought Coins",              color: "#0891B2" }, // cyan
-  boughtShadeGuide:       { label: "Bought Shade Guide",        color: "#BE185D" }, // pink
-  boughtPremium:          { label: "Bought Premium",            color: "#065F46" }, // dark green
+  fineTune:               { label: "Model Fine Tune",           color: "#1e92a9" }, // blue
+  productFinder:          { label: "Product Finder",            color: "#da5439" }, // green
+  shadeFinder:            { label: "Shade Finder",              color: "#fe9525" }, // red
+  shadeGuide:             { label: "Shade Guide",               color: "#9464e7" }, // purple
+  boughtCoins:            { label: "Bought Coins",              color: "#579b56" }, // cyan
+  boughtShadeGuide:       { label: "Bought Shade Guide",        color: "#41a22e" }, // pink
+  boughtPremium:          { label: "Bought Premium",            color: "#43d400" }, // dark green
+  paymentPopupOpen:        { label: "Payment Popup Open",        color: "#ffd736" }, // violet
+  useCoinsLastRemaining:   { label: "Use Coins (Last Remaining)", color: "#ff85c2" }, // amber-600
+  usingCustomerCoins:      { label: "Using Customer Coins",      color: "#bb3463" }, // teal
 };
 
 // Tooltip Section header
@@ -84,13 +85,14 @@ const CustomTooltip = ({ active, payload, label, coordinate, viewBox }) => {
   const logins = map.logins || 0;
   const fineTune = map.fineTune || 0;
   const productFinder = map.productFinder || 0;
-  const useCoinsPF = map.useCoinsProductFinder || 0;
   const shadeFinder = map.shadeFinder || 0;
-  const useCoinsSF = map.useCoinsShadeFinder || 0;
   const boughtCoins = map.boughtCoins || 0;
   const shadeGuide = map.shadeGuide || 0;
   const boughtShadeGuide = map.boughtShadeGuide || 0;
   const boughtPremium = map.boughtPremium || 0;
+  const paymentPopupOpen = map.paymentPopupOpen || 0;
+  const useCoinsLastRemaining = map.useCoinsLastRemaining || 0;
+  const usingCustomerCoins = map.usingCustomerCoins || 0;
 
   const tooltipWidth = 340;
   const tooltipHeight = 520; // approximate full height
@@ -148,14 +150,16 @@ const CustomTooltip = ({ active, payload, label, coordinate, viewBox }) => {
       <TSection title="Coins Funnel" />
       <TRow label="Product Finder" value={productFinder} color={LINES.productFinder.color}
         extra={`${percent(productFinder, logins)} of logins · ${percent(productFinder, fineTune)} of FT`} />
-      <TRow label="Use Coins (Product)" value={useCoinsPF} color={LINES.useCoinsProductFinder.color}
-        extra={`${percent(useCoinsPF, productFinder)} of PF · ${percent(useCoinsPF, logins)} of logins`} />
       <TRow label="Shade Finder" value={shadeFinder} color={LINES.shadeFinder.color}
         extra={`${percent(shadeFinder, logins)} of logins · ${percent(shadeFinder, fineTune)} of FT`} />
-      <TRow label="Use Coins (Shade)" value={useCoinsSF} color={LINES.useCoinsShadeFinder.color}
-        extra={`${percent(useCoinsSF, shadeFinder)} of SF · ${percent(useCoinsSF, logins)} of logins`} />
       <TRow label="Bought Coins" value={boughtCoins} color={LINES.boughtCoins.color}
-        extra={`${percent(boughtCoins, logins)} of logins · ${percent(boughtCoins, useCoinsPF)} of UCPF`} />
+        extra={`${percent(boughtCoins, logins)} of logins`} />
+      <TRow label="Payment Popup Open" value={paymentPopupOpen} color={LINES.paymentPopupOpen.color}
+        extra={`${percent(paymentPopupOpen, logins)} of logins`} />
+      <TRow label="Use Coins (Last Remaining)" value={useCoinsLastRemaining} color={LINES.useCoinsLastRemaining.color}
+        extra={`${percent(useCoinsLastRemaining, logins)} of logins`} />
+      <TRow label="Using Customer Coins" value={usingCustomerCoins} color={LINES.usingCustomerCoins.color}
+        extra={`${percent(usingCustomerCoins, logins)} of logins`} />
 
       <TSection title="Shade Guide" />
       <TRow label="Shade Guide Quiz" value={shadeGuide} color={LINES.shadeGuide.color}
