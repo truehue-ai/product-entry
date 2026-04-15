@@ -82,7 +82,8 @@ function parseTimestamp(t) {
     const [datePart, timePart] = t.split(", ");
     const [dd, mm, yyyy] = datePart.split("/").map(Number);
     const [hh, min, ss] = timePart.split(":").map(Number);
-    return new Date(yyyy, mm - 1, dd, hh, min, ss).getTime();
+    // treat as IST (UTC+5:30), subtract 5.5hrs to get UTC ms
+    return Date.UTC(yyyy, mm - 1, dd, hh, min, ss) - (5.5 * 60 * 60 * 1000);
   } catch { return null; }
 }
 
@@ -97,8 +98,8 @@ function fillMissingTimestamps(steps) {
 
 function dateKey(ms) {
   if (!ms) return null;
-  const d = new Date(ms);
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  const d = new Date(ms + 5.5 * 60 * 60 * 1000);
+  return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}-${String(d.getUTCDate()).padStart(2, "0")}`;
 }
 
 function dailyGraphMetrics(users) {
@@ -132,9 +133,8 @@ function dailyGraphMetrics(users) {
         case "login": {
           if (!counted.has(day)) {
             daily[day].logins++;
-            const createdAt = info.createdAt ? dateKey(info.createdAt) : null;
-            const lastLogin = info.lastLogin ? dateKey(info.lastLogin) : null;
-            if (createdAt && lastLogin && createdAt < day && lastLogin === day) {
+            const createdAt = info.createdAt ? dateKey(new Date(info.createdAt).getTime()) : null;
+            if (createdAt && createdAt < day) {
               daily[day].returningUsers++;
             }
             counted.add(day);
@@ -150,8 +150,13 @@ function dailyGraphMetrics(users) {
         case "bought-premium":           daily[day].boughtPremium++;          break;
         case "bought-shade-guide":       daily[day].boughtShadeGuide++;       break;
         case "payment-popup-open":        daily[day].paymentPopupOpen++;        break;
-        case "use-coins-last-remaining":  daily[day].useCoinsLastRemaining++;   break;
-        case "using-customer-coins":      daily[day].usingCustomerCoins++;      break;
+        case "use-coins-last-remaining":
+        case "use-coins-last-5":
+        case "use-coins-shade-name-reveal":
+        case "use-coins-similar-shade-name-reveal":
+            daily[day].useCoinsLastRemaining++;
+            break;
+        case "using-customer-coins":               daily[day].usingCustomerCoins++;             break;
       }
     }
 
@@ -159,7 +164,7 @@ function dailyGraphMetrics(users) {
       if (!counted.has(day)) {
         ensure(day);
         daily[day].logins++;
-        const createdAt = info.createdAt ? dateKey(info.createdAt) : null;
+        const createdAt = info.createdAt ? dateKey(new Date(info.createdAt).getTime()) : null;
         if (createdAt && createdAt < day) daily[day].returningUsers++;
         counted.add(day);
       }
@@ -173,16 +178,22 @@ export async function POST() {
   try {
     const ids = await listUserIds();
 
-    const users = await Promise.all(
-      ids.map(async (id) => {
-        const base = `${ROOT_PREFIX}${id}/`;
-        const rawSteps = await getJSON(`${base}steps_taken.json`);
-        const steps = fillMissingTimestamps(normalizeSteps(rawSteps));
-        const info = (await getJSON(`${base}user_info.json`)) ||
-                     (await getJSON(`${base}user_info`)) || {};
-        return { id, steps, info: { createdAt: info.createdAt ?? null, lastLogin: info.lastLogin ?? null } };
-      })
-    );
+    async function fetchUser(id) {
+      const base = `${ROOT_PREFIX}${id}/`;
+      const rawSteps = await getJSON(`${base}steps_taken.json`);
+      const steps = fillMissingTimestamps(normalizeSteps(rawSteps));
+      const info = (await getJSON(`${base}user_info.json`)) ||
+                   (await getJSON(`${base}user_info`)) || {};
+      return { id, steps, info: { createdAt: info.createdAt ?? null, lastLogin: info.lastLogin ?? null } };
+    }
+
+    const CONCURRENCY = 20;
+    const users = [];
+    for (let i = 0; i < ids.length; i += CONCURRENCY) {
+      const batch = ids.slice(i, i + CONCURRENCY);
+      const results = await Promise.all(batch.map(fetchUser));
+      users.push(...results);
+    }
 
     const graph = dailyGraphMetrics(users.filter((u) => u.steps.length > 0));
 
