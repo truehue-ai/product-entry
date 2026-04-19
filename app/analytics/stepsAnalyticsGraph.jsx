@@ -52,7 +52,7 @@ const LINES = {
   boughtCoins:            { label: "Bought Coins",              color: "#579b56" }, // cyan
   boughtShadeGuide:       { label: "Bought Shade Guide",        color: "#41a22e" }, // pink
   boughtPremium:          { label: "Bought Premium",            color: "#43d400" }, // dark green
-  paymentPopupOpen:        { label: "Payment Popup Open",        color: "#ffd736" }, // violet
+  paymentPopupClose:       { label: "Payment Popup Close",       color: "#ffd736" }, // violet
   useCoinsLastRemaining:   { label: "Use Coins (Last Remaining)", color: "#ff85c2" }, // amber-600
   usingCustomerCoins:      { label: "Using Customer Coins",      color: "#bb3463" }, // teal
 };
@@ -90,7 +90,7 @@ const CustomTooltip = ({ active, payload, label, coordinate, viewBox }) => {
   const shadeGuide = map.shadeGuide || 0;
   const boughtShadeGuide = map.boughtShadeGuide || 0;
   const boughtPremium = map.boughtPremium || 0;
-  const paymentPopupOpen = map.paymentPopupOpen || 0;
+  const paymentPopupClose = map.paymentPopupClose || 0;
   const useCoinsLastRemaining = map.useCoinsLastRemaining || 0;
   const usingCustomerCoins = map.usingCustomerCoins || 0;
 
@@ -154,8 +154,8 @@ const CustomTooltip = ({ active, payload, label, coordinate, viewBox }) => {
         extra={`${percent(shadeFinder, logins)} of logins · ${percent(shadeFinder, fineTune)} of FT`} />
       <TRow label="Bought Coins" value={boughtCoins} color={LINES.boughtCoins.color}
         extra={`${percent(boughtCoins, logins)} of logins`} />
-      <TRow label="Payment Popup Open" value={paymentPopupOpen} color={LINES.paymentPopupOpen.color}
-        extra={`${percent(paymentPopupOpen, logins)} of logins`} />
+      <TRow label="Payment Popup Close" value={paymentPopupClose} color={LINES.paymentPopupClose.color}
+        extra={`${percent(paymentPopupClose, logins)} of logins`} />
       <TRow label="Use Coins (Last Remaining)" value={useCoinsLastRemaining} color={LINES.useCoinsLastRemaining.color}
         extra={`${percent(useCoinsLastRemaining, logins)} of logins`} />
       <TRow label="Using Customer Coins" value={usingCustomerCoins} color={LINES.usingCustomerCoins.color}

@@ -111,7 +111,7 @@ function dailyGraphMetrics(users) {
         logins: 0, returningUsers: 0, fineTune: 0, shadeFinder: 0,
         productFinder: 0, shadeGuide: 0, shadeGuideQ3: 0,
         boughtCoins: 0, boughtPremium: 0, boughtShadeGuide: 0,
-        paymentPopupOpen: 0, useCoinsLastRemaining: 0, usingCustomerCoins: 0,
+        paymentPopupClose: 0, useCoinsLastRemaining: 0, usingCustomerCoins: 0,
       };
     }
   }
@@ -122,6 +122,7 @@ function dailyGraphMetrics(users) {
 
     const info = u.info || {};
     const counted = new Set();
+    const paymentPopupCloseCounted = new Set(); // Track payment-popup close per day per user
     const activeDays = new Set(steps.map((s) => dateKey(s.at)).filter(Boolean));
 
     for (const s of steps) {
@@ -149,7 +150,14 @@ function dailyGraphMetrics(users) {
         case "bought-coins":             daily[day].boughtCoins++;            break;
         case "bought-premium":           daily[day].boughtPremium++;          break;
         case "bought-shade-guide":       daily[day].boughtShadeGuide++;       break;
-        case "payment-popup-open":        daily[day].paymentPopupOpen++;        break;
+        case "payment-popup close": {
+          const key = `${u.id}-${day}`;
+          if (!paymentPopupCloseCounted.has(key)) {
+            daily[day].paymentPopupClose++;
+            paymentPopupCloseCounted.add(key);
+          }
+          break;
+        }
         case "use-coins-last-remaining":
         case "use-coins-last-5":
         case "use-coins-shade-name-reveal":

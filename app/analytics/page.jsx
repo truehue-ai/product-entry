@@ -293,6 +293,34 @@ export default function AnalyticsPage() {
             }}>
             {backfilling ? "Backfilling…" : "Backfill Graph"}
           </button>
+          <button className="th-btn-primary" style={GL.btnPrimary}
+            onClick={async () => {
+              try {
+                const r = await fetch("/api/analytics/users?export=meta", { cache: "no-store" });
+                const j = await r.json();
+                if (j.rows && j.rows.length > 0) {
+                  const headers = "phone,fn,country";
+                  const rows = j.rows.map(row => 
+                    `${row.phone},${row.fn},${row.country}`
+                  );
+                  const csv = headers + "\n" + rows.join("\n");
+                  const blob = new Blob([csv], { type: "text/csv" });
+                  const url = URL.createObjectURL(blob);
+                  const a = document.createElement("a");
+                  a.href = url;
+                  a.download = `truehue-meta-audience-${new Date().toISOString().split('T')[0]}.csv`;
+                  a.click();
+                  URL.revokeObjectURL(url);
+                  alert(`✓ Downloaded ${j.rows.length} users for Meta audience`);
+                } else {
+                  alert("No user data found");
+                }
+              } catch (e) {
+                alert(`Error: ${e.message}`);
+              }
+            }}>
+            📱 Export Meta Audience
+          </button>
         </div>
       </div>
 

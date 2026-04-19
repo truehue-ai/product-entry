@@ -480,6 +480,69 @@ export async function GET(req) {
     const { searchParams } = new URL(req.url);
     const id = searchParams.get("id");
 
+    // Export Meta audience mode: /api/analytics/users?export=meta
+    if (searchParams.get("export") === "meta") {
+      const ids = await listUserIds();
+      const rows = [];
+      
+      await Promise.all(
+        ids.map(async (uid) => {
+          const base = `${ROOT_PREFIX}${uid}/`;
+          const infoCandidates = [`${base}user_info.json`, `${base}user_info`];
+          
+          try {
+            // The user ID itself IS the phone number
+            let phone = String(uid).trim();
+            
+            // Remove any existing + or 91 prefix to avoid duplicates
+            phone = phone.replace(/^\+?91/, '');
+            // Remove any non-digit characters
+            phone = phone.replace(/\D/g, '');
+            
+            // Only process if we have a valid 10-digit phone number
+            if (phone.length === 10) {
+              // Get user info for name
+              let fn = "";
+              
+              for (const k of infoCandidates) {
+                const info = await getJSON(k);
+                if (info && info.name) {
+                  const fullName = String(info.name).trim();
+                  const nameParts = fullName.split(" ");
+                  fn = nameParts[0] || "";
+                  break;
+                }
+              }
+              
+              // Add +91 prefix
+              phone = `+91${phone}`;
+              
+              rows.push({
+                phone: phone,
+                fn: fn.toLowerCase() || "",
+                country: "in",
+              });
+            }
+          } catch (err) {
+            console.error(`Error processing user ${uid}:`, err);
+          }
+        })
+      );
+      
+      // Remove duplicates based on phone number
+      const seen = new Set();
+      const uniqueRows = rows.filter(r => {
+        if (seen.has(r.phone)) return false;
+        seen.add(r.phone);
+        return true;
+      });
+      
+      return new Response(
+        JSON.stringify({ rows: uniqueRows, count: uniqueRows.length }),
+        { headers: { "Content-Type": "application/json", "Cache-Control": "no-store" } }
+      );
+    }
+
     // Detail mode: /api/analytics/users?id=<userId>
     if (id) {
       const user = await fetchUserFull(id);
