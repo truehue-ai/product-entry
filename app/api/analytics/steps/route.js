@@ -1,6 +1,7 @@
 export const runtime = "nodejs";
 
 import { S3Client, ListObjectsV2Command, GetObjectCommand } from "@aws-sdk/client-s3";
+import { NodeHttpHandler } from "@smithy/node-http-handler";
 
 const s3 = new S3Client({
   region: process.env.X_AWS_REGION,
@@ -8,6 +9,10 @@ const s3 = new S3Client({
     accessKeyId: process.env.X_AWS_ACCESS_KEY_ID,
     secretAccessKey: process.env.X_AWS_SECRET_ACCESS_KEY,
   },
+  requestHandler: new NodeHttpHandler({
+    maxSockets: 200,
+    socketAcquisitionWarningTimeout: 15000,
+  }),
 });
 
 const BUCKET = process.env.X_AWS_BUCKET_NAME;
@@ -436,45 +441,69 @@ let globalShadeGuideClicked = {
 
 /* -------------------- Handler -------------------- */
 
-export async function GET() {
+export async function GET(req) {
   try {
+    const { searchParams } = new URL(req.url);
+    const dateFilter = searchParams.get("date"); // e.g. "2026-04-22"
     const ids = await listUserIds();
 
     // pull steps for each user id (id == number in your storage layout)
-    const usersSteps = await Promise.all(
-        ids.map(async (id) => {
-            const raw = await getJSON(`${ROOT_PREFIX}${id}/steps_taken.json`);
-            const subs = await getJSON(`${ROOT_PREFIX}${id}/subscribed.json`);
-            const paidData = await getJSON(`${ROOT_PREFIX}${id}/paid_data.json`);
-            const coinsRaw = paidData?.paid_data?.coins;
-            const coins =
-            typeof coinsRaw === "number"
-                ? coinsRaw
-                : coinsRaw
-                ? Number(coinsRaw)
-                : 0;
+    // Process in batches of 25 to avoid socket exhaustion
+    const BATCH_SIZE = 25;
+    const usersSteps = [];
 
+    for (let i = 0; i < ids.length; i += BATCH_SIZE) {
+      const batch = ids.slice(i, i + BATCH_SIZE);
+      const batchResults = await Promise.all(
+        batch.map(async (id) => {
+          const [raw, subs, paidData, shadeGuide] = await Promise.all([
+            getJSON(`${ROOT_PREFIX}${id}/steps_taken.json`),
+            getJSON(`${ROOT_PREFIX}${id}/subscribed.json`),
+            getJSON(`${ROOT_PREFIX}${id}/paid_data.json`),
+            getJSON(`${ROOT_PREFIX}${id}/shade_guide.json`),
+          ]);
 
-            // shade guide exists?
-            const shadeGuide = await getJSON(`${ROOT_PREFIX}${id}/shade_guide.json`);
-            const hasShadeGuide = !!shadeGuide;
+          const coinsRaw = paidData?.paid_data?.coins;
+          const coins = typeof coinsRaw === "number" ? coinsRaw : coinsRaw ? Number(coinsRaw) : 0;
+          const hasShadeGuide = !!shadeGuide;
+          const steps = normalizeSteps(raw);
+          const subscribed = subs?.subscribed === true;
 
-            const steps = normalizeSteps(raw);
-            const subscribed = subs?.subscribed === true;
-
-            return {
-            id,
-            steps,
-            subscribed,
-            coins,
-            hasShadeGuide,
-            };
+          return { id, steps, subscribed, coins, hasShadeGuide };
         })
-        );
+      );
+      usersSteps.push(...batchResults);
+    }
 
 
 
     const nonEmpty = usersSteps.filter((u) => (u.steps || []).length > 0);
+
+    // If a date filter is provided, return raw step sequences for that day only
+    if (dateFilter) {
+      const filtered = nonEmpty
+        .map((u) => {
+          const daySteps = u.steps.filter((s) => {
+            if (!s.at) return false;
+            const d = new Date(s.at);
+            const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+            return key === dateFilter;
+          });
+          return daySteps.length > 0 ? { id: u.id, steps: daySteps } : null;
+        })
+        .filter(Boolean);
+
+      return new Response(
+        JSON.stringify({
+          generatedAt: Date.now(),
+          date: dateFilter,
+          usersIncluded: filtered.length,
+          users: filtered,
+        }),
+        { headers: { "Content-Type": "application/json", "Cache-Control": "no-store" } }
+      );
+    }
+
     const insights = analyze(nonEmpty);
 
     return new Response(

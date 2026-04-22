@@ -5,6 +5,7 @@ import {
   ListObjectsV2Command,
   GetObjectCommand,
 } from "@aws-sdk/client-s3";
+import { NodeHttpHandler } from "@smithy/node-http-handler";
 
 const s3 = new S3Client({
   region: process.env.X_AWS_REGION,
@@ -12,6 +13,10 @@ const s3 = new S3Client({
     accessKeyId: process.env.X_AWS_ACCESS_KEY_ID,
     secretAccessKey: process.env.X_AWS_SECRET_ACCESS_KEY,
   },
+  requestHandler: new NodeHttpHandler({
+    maxSockets: 200,
+    socketAcquisitionWarningTimeout: 15000,
+  }),
 });
 const BUCKET = process.env.X_AWS_BUCKET_NAME;
 
@@ -629,19 +634,21 @@ export async function GET(req) {
 
     // Push notification tokens — check which users have push_token.json
     const usersWithPushTokens = [];
-    await Promise.all(
-      ids.map(async (uid) => {
-        const key = `${ROOT_PREFIX}${uid}/push_token.json`;
-        const val = await getJSON(key);
-        if (val) {
-          // grab the token string from whatever shape the file is
-          const token =
-            typeof val === "string" ? val :
-            val.token ?? val.push_token ?? val.fcmToken ?? val.deviceToken ?? null;
-          usersWithPushTokens.push({ id: uid, number: uid, token: token ? String(token) : null });
-        }
-      })
-    );
+    for (let i = 0; i < ids.length; i += 25) {
+      const batch = ids.slice(i, i + 25);
+      await Promise.all(
+        batch.map(async (uid) => {
+          const key = `${ROOT_PREFIX}${uid}/push_token.json`;
+          const val = await getJSON(key);
+          if (val) {
+            const token =
+              typeof val === "string" ? val :
+              val.token ?? val.push_token ?? val.fcmToken ?? val.deviceToken ?? null;
+            usersWithPushTokens.push({ id: uid, number: uid, token: token ? String(token) : null });
+          }
+        })
+      );
+    }
 
     // Perfect Product premium (24-hour)
     const perfect24Raw = await getJSON("perfect_product_premium_24.json");

@@ -72,6 +72,238 @@ const GL = {
   },
 };
 
+const AI_SECTIONS = [
+  { key: "SECTION_1", label: "Popular Flows", emoji: "🔥" },
+  { key: "SECTION_2", label: "Drop-off & Friction", emoji: "⚠️" },
+  { key: "SECTION_3", label: "Engagement Highlights", emoji: "⚡" },
+  { key: "SECTION_4", label: "Why People Aren't Buying", emoji: "💳" },
+];
+
+function renderInline(text) {
+  // Bold: **text**
+  const parts = text.split(/(\*\*[^*]+\*\*)/g);
+  return parts.map((part, i) => {
+    if (part.startsWith("**") && part.endsWith("**")) {
+      return <strong key={i} style={{ fontWeight: 700, color: "#1a0a09" }}>{part.slice(2, -2)}</strong>;
+    }
+    // inline code: `text`
+    const codeParts = part.split(/(`[^`]+`)/g);
+    return codeParts.map((cp, j) => {
+      if (cp.startsWith("`") && cp.endsWith("`")) {
+        return <code key={j} style={{ background: "rgba(171,31,16,0.08)", borderRadius: 5, padding: "1px 6px", fontSize: 12, fontFamily: "monospace", color: "#ab1f10" }}>{cp.slice(1, -1)}</code>;
+      }
+      return <span key={j}>{cp}</span>;
+    });
+  });
+}
+
+function AiAnalysisView({ text }) {
+  if (!text) return null;
+
+  // Parse into sections
+  const sectionMap = {};
+  let current = null;
+  for (const line of text.split("\n")) {
+    const match = line.match(/SECTION_(\d+)/);
+    if (match) {
+      current = `SECTION_${match[1]}`;
+      sectionMap[current] = [];
+    } else if (current) {
+      sectionMap[current].push(line);
+    }
+  }
+
+  const hasSections = Object.keys(sectionMap).length > 0;
+  if (!hasSections) {
+    return (
+      <div style={{ background: "rgba(255,255,255,0.65)", borderRadius: 14, border: "1px solid rgba(171,31,16,0.09)", padding: "20px 22px", fontSize: 14, color: "#1a0a09", lineHeight: 1.7, whiteSpace: "pre-wrap" }}>
+        {text}
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+      {AI_SECTIONS.map(({ key, label, emoji }) => {
+        const lines = (sectionMap[key] || []);
+        if (!lines.filter(l => l.trim()).length) return null;
+        const isConversion = key === "SECTION_4";
+
+        // Parse lines into blocks
+        const blocks = [];
+        let i = 0;
+        while (i < lines.length) {
+          const raw = lines[i];
+          const trimmed = raw.trim();
+
+          if (!trimmed || trimmed === "---") { i++; continue; }
+
+          // Numbered header like "1. **Heading:**" or "1. Heading"
+          const numberedMatch = trimmed.match(/^(\d+)\.\s+\*\*(.+?)\*\*:?\s*(.*)$/);
+          if (numberedMatch) {
+            blocks.push({ type: "numbered-header", num: numberedMatch[1], heading: numberedMatch[2], rest: numberedMatch[3] });
+            i++; continue;
+          }
+
+          // ### heading
+          if (trimmed.startsWith("###")) {
+            blocks.push({ type: "h3", text: trimmed.replace(/^###\s*/, "") });
+            i++; continue;
+          }
+
+          // ## heading
+          if (trimmed.startsWith("##")) {
+            blocks.push({ type: "h2", text: trimmed.replace(/^##\s*/, "") });
+            i++; continue;
+          }
+
+          // Bold-only line (subheading): **text** or **text:**
+          if (trimmed.match(/^\*\*[^*]+\*\*:?$/)) {
+            blocks.push({ type: "subheading", text: trimmed.replace(/\*\*/g, "").replace(/:$/, "") });
+            i++; continue;
+          }
+
+          // Bullet: - text or • text
+          if (trimmed.match(/^[-•]\s+/)) {
+            const content = trimmed.replace(/^[-•]\s+/, "");
+            // Indent check
+            const indent = raw.match(/^\s+/) ? raw.match(/^\s+/)[0].length : 0;
+            blocks.push({ type: "bullet", text: content, indent: indent > 2 });
+            i++; continue;
+          }
+
+          // Table row: | col | col |
+          if (trimmed.startsWith("|")) {
+            const tableLines = [];
+            while (i < lines.length && lines[i].trim().startsWith("|")) {
+              tableLines.push(lines[i].trim());
+              i++;
+            }
+            blocks.push({ type: "table", rows: tableLines });
+            continue;
+          }
+
+          // Plain text
+          blocks.push({ type: "text", text: trimmed });
+          i++;
+        }
+
+        return (
+          <div key={key} style={{
+            background: isConversion ? "rgba(171,31,16,0.03)" : "rgba(255,255,255,0.65)",
+            borderRadius: 16,
+            border: isConversion ? "1.5px solid rgba(171,31,16,0.18)" : "1px solid rgba(171,31,16,0.09)",
+            overflow: "hidden",
+          }}>
+            {/* Section header */}
+            <div style={{
+              padding: "16px 22px",
+              borderBottom: "1px solid rgba(171,31,16,0.08)",
+              display: "flex", alignItems: "center", gap: 10,
+              background: isConversion ? "rgba(171,31,16,0.06)" : "rgba(255,255,255,0.5)",
+            }}>
+              <span style={{ fontSize: 18 }}>{emoji}</span>
+              <span style={{ fontSize: 13, fontWeight: 700, color: "#ab1f10", letterSpacing: "0.07em", textTransform: "uppercase" }}>{label}</span>
+            </div>
+
+            <div style={{ padding: "18px 22px", display: "flex", flexDirection: "column", gap: 8 }}>
+              {blocks.map((block, bi) => {
+                if (block.type === "h2" || block.type === "h3") {
+                  return (
+                    <div key={bi} style={{ fontSize: 13, fontWeight: 700, color: "#7b241c", marginTop: bi > 0 ? 10 : 0, marginBottom: 2 }}>
+                      {renderInline(block.text)}
+                    </div>
+                  );
+                }
+
+                if (block.type === "subheading") {
+                  return (
+                    <div key={bi} style={{ fontSize: 13, fontWeight: 700, color: "#7b241c", marginTop: bi > 0 ? 12 : 0, marginBottom: 2, paddingBottom: 6, borderBottom: "1px solid rgba(171,31,16,0.07)" }}>
+                      {block.text}
+                    </div>
+                  );
+                }
+
+                if (block.type === "numbered-header") {
+                  return (
+                    <div key={bi} style={{ display: "flex", gap: 12, alignItems: "flex-start", marginTop: bi > 0 ? 10 : 0 }}>
+                      <div style={{ width: 24, height: 24, borderRadius: "50%", background: "rgba(171,31,16,0.1)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 700, color: "#ab1f10", flexShrink: 0, marginTop: 1 }}>
+                        {block.num}
+                      </div>
+                      <div style={{ fontSize: 14, fontWeight: 600, color: "#1a0a09", lineHeight: 1.5 }}>
+                        {renderInline(block.heading)}
+                        {block.rest && <span style={{ fontWeight: 400, color: "#4a2020" }}> — {renderInline(block.rest)}</span>}
+                      </div>
+                    </div>
+                  );
+                }
+
+                if (block.type === "bullet") {
+                  return (
+                    <div key={bi} style={{
+                      display: "flex", gap: 10, alignItems: "flex-start",
+                      background: block.indent ? "transparent" : "rgba(255,255,255,0.55)",
+                      borderRadius: 9,
+                      padding: block.indent ? "3px 14px 3px 28px" : "9px 14px",
+                      border: block.indent ? "none" : "1px solid rgba(171,31,16,0.05)",
+                    }}>
+                      <span style={{ color: "#ab1f10", fontWeight: 700, flexShrink: 0, marginTop: 2, fontSize: block.indent ? 11 : 14 }}>
+                        {block.indent ? "·" : "·"}
+                      </span>
+                      <span style={{ fontSize: 14, color: "#1a0a09", lineHeight: 1.6 }}>{renderInline(block.text)}</span>
+                    </div>
+                  );
+                }
+
+                if (block.type === "table") {
+                  const rows = block.rows
+                    .map(r => r.split("|").map(c => c.trim()).filter(Boolean))
+                    .filter(r => !r.every(c => c.match(/^[-:]+$/)));
+                  if (!rows.length) return null;
+                  const [header, ...body] = rows;
+                  return (
+                    <div key={bi} style={{ overflowX: "auto", marginTop: 6, borderRadius: 10, border: "1px solid rgba(171,31,16,0.1)" }}>
+                      <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+                        <thead>
+                          <tr style={{ background: "rgba(171,31,16,0.07)" }}>
+                            {header.map((h, hi) => (
+                              <th key={hi} style={{ padding: "9px 14px", textAlign: "left", fontWeight: 700, color: "#7b241c", letterSpacing: "0.04em", borderBottom: "1px solid rgba(171,31,16,0.1)" }}>
+                                {renderInline(h)}
+                              </th>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {body.map((row, ri) => (
+                            <tr key={ri} style={{ background: ri % 2 === 0 ? "rgba(255,255,255,0.6)" : "rgba(255,255,255,0.3)" }}>
+                              {row.map((cell, ci) => (
+                                <td key={ci} style={{ padding: "9px 14px", color: "#1a0a09", lineHeight: 1.5, borderBottom: ri < body.length - 1 ? "1px solid rgba(171,31,16,0.05)" : "none" }}>
+                                  {renderInline(cell)}
+                                </td>
+                              ))}
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  );
+                }
+
+                // plain text
+                return (
+                  <div key={bi} style={{ fontSize: 14, color: "#4a2020", lineHeight: 1.65 }}>
+                    {renderInline(block.text)}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 function fmtDate(value) {
   if (value == null || value === "") return "-";
   const n = typeof value === "number" ? value : isNaN(Date.parse(String(value))) ? null : Date.parse(String(value));
@@ -140,6 +372,10 @@ export default function AnalyticsPage() {
   const [usersWithPushTokens, setUsersWithPushTokens] = useState([]);
   const [backfilling, setBackfilling] = useState(false);
   const [backfillResult, setBackfillResult] = useState(null);
+  const [aiDate, setAiDate] = useState(() => new Date().toISOString().split("T")[0]);
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiAnalysis, setAiAnalysis] = useState(null);
+  const [aiError, setAiError] = useState(null);
 
   useEffect(() => {
     let active = true;
@@ -222,6 +458,137 @@ export default function AnalyticsPage() {
       return (a.name || "").localeCompare(b.name || "");
     });
   }, [usersList, query]);
+
+  async function runAiAnalysis() {
+    setAiLoading(true);
+    setAiAnalysis(null);
+    setAiError(null);
+    try {
+      const r = await fetch(`/api/analytics/steps?date=${encodeURIComponent(aiDate)}`, { cache: "no-store" });
+      const j = await r.json();
+      const BLACKLIST = new Set(["7383231612", "7862917606"]);
+      const users = (j.users || []).filter((u) => !BLACKLIST.has(String(u.id)));
+      
+      if (!users.length) {
+        setAiError("No users found with activity on this date.");
+        setAiLoading(false);
+        return;
+      }
+
+      // Build a compact prompt
+      const lines = users.map((u) => {
+        const seq = u.steps.map((s) => s.step).join(" → ");
+        return `User ${u.id}: ${seq}`;
+      });
+      const prompt = `You are analyzing user behavior in TrueHue, an AI-powered makeup shade-matching app. Here is full context about how the app works:
+
+      --- APP CONTEXT ---
+
+      CURRENCY: Shade passes (also called coins). New users get 10 free passes on signup. Deleted/re-registered users get 0.
+
+      HOW PASSES WORK: Nothing is ever blocked or hidden upfront. Users explore normally — tapping shades, trying on looks, comparing. Each interaction silently deducts 1 pass as they go. The paywall only appears when passes run out and they try to do something that costs a pass. A soft toast warning appears at 3 passes remaining. Subscribers bypass all deductions entirely.
+
+      WHAT COSTS 1 PASS:
+      - Tapping a shade in the Product Finder grid (session-deduped — same shade again in same session = free)
+      - "See it on you" in Similar Shades (session-deduped)
+      - Palette click or recommended tab click in Shade Selector (session-deduped by hex)
+      - Compare Shades costs min(30% of total shades, 5, remaining passes)
+
+      BUYING PASSES:
+      - 50 passes · ₹29
+      - 200 passes · ₹79 (Popular)
+      - 650 passes · ₹199
+      - Premium · ₹399/yr (unlimited, no pass counting)
+
+      --- WHAT EACH STEP MEANS ---
+
+      ONBOARDING / PHOTO FLOW:
+      - login — user opened the app and logged in
+      - how to capture- continue-button — tapped Continue on photo capture instructions (can repeat if they re-read)
+      - submit photo — submitted selfie for analysis
+      - back-preview-photo — went back from photo preview to retake
+      - skintone-before — skintone result screen loaded
+      - skintone-selected — confirmed their skintone
+      - skintone-result-next — tapped Next on skintone result
+      - back-skintone-select — went back to skintone selection
+      - skintone-adjust-from-result — manually adjusted skintone from result screen
+      - skintone-change-lighter / skintone-change-darker — tapped lighter/darker on skintone adjustment
+      - undertone-before — undertone result screen loaded
+      - undertone-selected — confirmed undertone
+      - undertone-result-next — tapped Next on undertone result
+      - back-undertone-result — went back from undertone result
+      - lip-pigmentation-before — lip pigmentation screen loaded
+      - lip-pigmentation-selected — selected lip pigmentation (can repeat if they change selection)
+      - model-before — model selection screen loaded
+      - model_select — picked a model match
+      - back-fine-tone — went back from model fine-tune screen
+      - model-fine-tune — completed model fine-tuning
+      - disclaimer — saw and accepted the disclaimer
+      - home-page — landed on home screen
+
+      CORE FEATURE NAVIGATION:
+      - shade-finder — opened Shade Finder
+      - product-finder — opened Product Finder
+      - shade-guide — visited the Shade Guide
+
+      SHADE FINDER ACTIONS:
+      - on-you-shade-finder — toggled "See it on you" inside Shade Finder
+      - lighter-shade-finder — tapped lighter shade variant
+      - darker-shade-finder — tapped darker shade variant
+      - recommended-shade-clicked-your_shade / -lighter / -darker — clicked a recommended shade tab
+      - Unlock-shade-[brand]-[product] — viewed a product in Shade Finder (e.g. Unlock-shade-Fenty Beauty-Pro Filt'r)
+
+      PRODUCT FINDER ACTIONS:
+      - on-you-product-finder — clicked "See it on you" in Product Finder grid
+      - on-you-toggle-clicked — toggled the on-you view
+      - Unlock-product-[category]-[price range] — viewed a category in Product Finder (e.g. Unlock-product-medium-foundation-[0-500])
+      - similar-shades-see-it-on-you-click — clicked "See it on you" from Similar Shades
+
+      PASS ACTIONS:
+      - using-customer-coins — a pass was deducted (generic deduction event)
+
+      PAYWALL / PURCHASE EVENTS:
+      - payment-popup-open — paywall modal opened
+      - payment-popup close — user closed paywall without buying (counted once per user per day)
+      - compare-shades — opened Compare Shades
+      - bought-coins — purchased a coin/pass pack
+      - bought-premium — purchased ₹399/yr Premium
+      - bought-shade-guide — unlocked the Shade Guide
+
+      --- END CONTEXT ---
+
+      On ${aiDate}, ${users.length} user(s) were active. Here are their step sequences (each arrow → means the next thing they did):
+
+      ${lines.join("\n")}
+
+      Respond in this exact structure with these 4 sections:
+
+      SECTION_1: POPULAR FLOWS
+      What are users commonly doing? What flows and features are most used? Be specific about step names.
+
+      SECTION_2: DROP-OFF & FRICTION
+      Where do users get stuck, loop, or abandon? Mention specific steps and patterns.
+
+      SECTION_3: ENGAGEMENT HIGHLIGHTS
+      Any power users, interesting loops, or high-engagement patterns worth noting?
+
+      SECTION_4: WHY PEOPLE ARE NOT BUYING & HOW TO FIX IT
+      Based on the step sequences, identify the exact moments before users close the paywall or stop. What is blocking conversion? Give 3-5 specific, actionable fixes we can implement in the app.`;
+
+      const resp = await fetch("/api/analytics/ai-analyse", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ prompt }),
+      });
+      const data = await resp.json();
+      const text = data.text || "";
+      setAiAnalysis({ date: aiDate, userCount: users.length, text });
+    } catch (e) {
+      setAiError(e.message || "Analysis failed");
+    } finally {
+      setAiLoading(false);
+    }
+  }
 
   return (
     <div style={{ minHeight: "100vh", background: "linear-gradient(135deg, #fff8f7 0%, #fde8e4 40%, #f9d0cc 100%)", fontFamily: "'Inter', sans-serif" }}>
@@ -331,6 +698,77 @@ export default function AnalyticsPage() {
             <button onClick={() => setBackfillResult(null)} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 16, color: "inherit", opacity: 0.6 }}>✕</button>
           </div>
         )}
+
+        {/* ── AI Daily Analysis ── */}
+        <div style={{ ...GL.card, padding: 28 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap", marginBottom: aiAnalysis || aiError ? 20 : 0 }}>
+            <div style={GL.sectionHeader}>AI Daily Step Analysis</div>
+            <input
+              type="date"
+              className="th-input"
+              style={{ ...GL.input, width: "auto", fontSize: 14, padding: "9px 13px" }}
+              value={aiDate}
+              onChange={(e) => setAiDate(e.target.value)}
+            />
+            <button
+              className="th-btn-primary"
+              style={{ ...GL.btnPrimary, opacity: aiLoading ? 0.6 : 1 }}
+              disabled={aiLoading}
+              onClick={runAiAnalysis}
+            >
+              {aiLoading ? "Analysing…" : "✦ Analyse with AI"}
+            </button>
+          </div>
+
+          {aiError && (
+            <div style={{ background: "rgba(220,38,38,0.08)", border: "1px solid rgba(220,38,38,0.2)", borderRadius: 10, padding: "12px 16px", fontSize: 14, color: "#dc2626" }}>
+              {aiError}
+            </div>
+          )}
+
+          {aiAnalysis && (
+            <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 12 }}>
+                <div style={{ fontSize: 13, color: "#9b4a42" }}>
+                  {aiAnalysis.userCount} active user{aiAnalysis.userCount !== 1 ? "s" : ""} on {aiAnalysis.date}
+                </div>
+                <div style={{ display: "flex", gap: 8 }}>
+                  <button className="th-btn-outline" style={GL.btnOutline}
+                    onClick={() => {
+                      navigator.clipboard.writeText(aiAnalysis.text);
+                    }}>
+                    ⎘ Copy
+                  </button>
+                  {["pdf", "docx"].map((fmt) => (
+                    <button key={fmt} className="th-btn-outline" style={GL.btnOutline}
+                      onClick={async () => { 
+                        try {
+                          const r = await fetch("/api/analytics/export-report", {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({ text: aiAnalysis.text, date: aiAnalysis.date, userCount: aiAnalysis.userCount, format: fmt }),
+                          });
+                          if (!r.ok) throw new Error(await r.text());
+                          const blob = await r.blob();
+                          const url = URL.createObjectURL(blob);
+                          const a = document.createElement("a");
+                          a.href = url;
+                          a.download = `truehue-analysis-${aiAnalysis.date}.${fmt}`;
+                          a.click();
+                          URL.revokeObjectURL(url);
+                        } catch (e) {
+                          alert(`Export failed: ${e.message}`);
+                        }
+                      }}>
+                      ↓ {fmt.toUpperCase()}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <AiAnalysisView text={aiAnalysis.text} />
+            </div>
+          )}
+        </div>
 
         {/* ── Funnel Graph ── */}
         <div style={{ ...GL.card, padding: 28, overflow: "visible" }}>
