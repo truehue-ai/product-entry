@@ -376,6 +376,11 @@ export default function AnalyticsPage() {
   const [aiLoading, setAiLoading] = useState(false);
   const [aiAnalysis, setAiAnalysis] = useState(null);
   const [aiError, setAiError] = useState(null);
+  const [aiMessages, setAiMessages] = useState([]); // [{role: "user"|"assistant", content: "..."}]
+  const [aiChatInput, setAiChatInput] = useState("");
+  const [aiChatLoading, setAiChatLoading] = useState(false);
+  const [grantingPremium, setGrantingPremium] = useState(false);
+const [grantPremiumResult, setGrantPremiumResult] = useState(null);
 
   useEffect(() => {
     let active = true;
@@ -460,135 +465,138 @@ export default function AnalyticsPage() {
   }, [usersList, query]);
 
   async function runAiAnalysis() {
-    setAiLoading(true);
-    setAiAnalysis(null);
-    setAiError(null);
-    try {
-      const r = await fetch(`/api/analytics/steps?date=${encodeURIComponent(aiDate)}`, { cache: "no-store" });
-      const j = await r.json();
-      const BLACKLIST = new Set(["7383231612", "7862917606"]);
-      const users = (j.users || []).filter((u) => !BLACKLIST.has(String(u.id)));
-      
-      if (!users.length) {
-        setAiError("No users found with activity on this date.");
-        setAiLoading(false);
-        return;
-      }
+  setAiLoading(true);
+  setAiAnalysis(null);
+  setAiError(null);
+  setAiMessages([]);
+  try {
+    const r = await fetch(`/api/analytics/steps?date=${encodeURIComponent(aiDate)}`, { cache: "no-store" });
+    const j = await r.json();
+    const BLACKLIST = new Set(["7383231612", "7862917606"]);
+    const users = (j.users || []).filter((u) => !BLACKLIST.has(String(u.id)));
 
-      // Build a compact prompt
-      const lines = users.map((u) => {
-        const seq = u.steps.map((s) => s.step).join(" → ");
-        return `User ${u.id}: ${seq}`;
-      });
-      const prompt = `You are analyzing user behavior in TrueHue, an AI-powered makeup shade-matching app. Here is full context about how the app works:
-
-      --- APP CONTEXT ---
-
-      CURRENCY: Shade passes (also called coins). New users get 10 free passes on signup. Deleted/re-registered users get 0.
-
-      HOW PASSES WORK: Nothing is ever blocked or hidden upfront. Users explore normally — tapping shades, trying on looks, comparing. Each interaction silently deducts 1 pass as they go. The paywall only appears when passes run out and they try to do something that costs a pass. A soft toast warning appears at 3 passes remaining. Subscribers bypass all deductions entirely.
-
-      WHAT COSTS 1 PASS:
-      - Tapping a shade in the Product Finder grid (session-deduped — same shade again in same session = free)
-      - "See it on you" in Similar Shades (session-deduped)
-      - Palette click or recommended tab click in Shade Selector (session-deduped by hex)
-      - Compare Shades costs min(30% of total shades, 5, remaining passes)
-
-      BUYING PASSES:
-      - 50 passes · ₹29
-      - 200 passes · ₹79 (Popular)
-      - 650 passes · ₹199
-      - Premium · ₹399/yr (unlimited, no pass counting)
-
-      --- WHAT EACH STEP MEANS ---
-
-      ONBOARDING / PHOTO FLOW:
-      - login — user opened the app and logged in
-      - how to capture- continue-button — tapped Continue on photo capture instructions (can repeat if they re-read)
-      - submit photo — submitted selfie for analysis
-      - back-preview-photo — went back from photo preview to retake
-      - skintone-before — skintone result screen loaded
-      - skintone-selected — confirmed their skintone
-      - skintone-result-next — tapped Next on skintone result
-      - back-skintone-select — went back to skintone selection
-      - skintone-adjust-from-result — manually adjusted skintone from result screen
-      - skintone-change-lighter / skintone-change-darker — tapped lighter/darker on skintone adjustment
-      - undertone-before — undertone result screen loaded
-      - undertone-selected — confirmed undertone
-      - undertone-result-next — tapped Next on undertone result
-      - back-undertone-result — went back from undertone result
-      - lip-pigmentation-before — lip pigmentation screen loaded
-      - lip-pigmentation-selected — selected lip pigmentation (can repeat if they change selection)
-      - model-before — model selection screen loaded
-      - model_select — picked a model match
-      - back-fine-tone — went back from model fine-tune screen
-      - model-fine-tune — completed model fine-tuning
-      - disclaimer — saw and accepted the disclaimer
-      - home-page — landed on home screen
-
-      CORE FEATURE NAVIGATION:
-      - shade-finder — opened Shade Finder
-      - product-finder — opened Product Finder
-      - shade-guide — visited the Shade Guide
-
-      SHADE FINDER ACTIONS:
-      - on-you-shade-finder — toggled "See it on you" inside Shade Finder
-      - lighter-shade-finder — tapped lighter shade variant
-      - darker-shade-finder — tapped darker shade variant
-      - recommended-shade-clicked-your_shade / -lighter / -darker — clicked a recommended shade tab
-      - Unlock-shade-[brand]-[product] — viewed a product in Shade Finder (e.g. Unlock-shade-Fenty Beauty-Pro Filt'r)
-
-      PRODUCT FINDER ACTIONS:
-      - on-you-product-finder — clicked "See it on you" in Product Finder grid
-      - on-you-toggle-clicked — toggled the on-you view
-      - Unlock-product-[category]-[price range] — viewed a category in Product Finder (e.g. Unlock-product-medium-foundation-[0-500])
-      - similar-shades-see-it-on-you-click — clicked "See it on you" from Similar Shades
-
-      PASS ACTIONS:
-      - using-customer-coins — a pass was deducted (generic deduction event)
-
-      PAYWALL / PURCHASE EVENTS:
-      - payment-popup-open — paywall modal opened
-      - payment-popup close — user closed paywall without buying (counted once per user per day)
-      - compare-shades — opened Compare Shades
-      - bought-coins — purchased a coin/pass pack
-      - bought-premium — purchased ₹399/yr Premium
-      - bought-shade-guide — unlocked the Shade Guide
-
-      --- END CONTEXT ---
-
-      On ${aiDate}, ${users.length} user(s) were active. Here are their step sequences (each arrow → means the next thing they did):
-
-      ${lines.join("\n")}
-
-      Respond in this exact structure with these 4 sections:
-
-      SECTION_1: POPULAR FLOWS
-      What are users commonly doing? What flows and features are most used? Be specific about step names.
-
-      SECTION_2: DROP-OFF & FRICTION
-      Where do users get stuck, loop, or abandon? Mention specific steps and patterns.
-
-      SECTION_3: ENGAGEMENT HIGHLIGHTS
-      Any power users, interesting loops, or high-engagement patterns worth noting?
-
-      SECTION_4: WHY PEOPLE ARE NOT BUYING & HOW TO FIX IT
-      Based on the step sequences, identify the exact moments before users close the paywall or stop. What is blocking conversion? Give 3-5 specific, actionable fixes we can implement in the app.`;
-
-      const resp = await fetch("/api/analytics/ai-analyse", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prompt }),
-      });
-      const data = await resp.json();
-      const text = data.text || "";
-      setAiAnalysis({ date: aiDate, userCount: users.length, text });
-    } catch (e) {
-      setAiError(e.message || "Analysis failed");
-    } finally {
+    if (!users.length) {
+      setAiError("No users found with activity on this date.");
       setAiLoading(false);
+      return;
     }
+
+    const lines = users.map((u) => {
+      const seq = u.steps.map((s) => s.step).join(" → ");
+      return `User ${u.id}: ${seq}`;
+    });
+    const systemPrompt = `You are a conversion analyst for TrueHue, an AI-powered makeup shade-matching app. Your job is to determine exactly what drives purchases and what stops them.
+
+--- APP CONTEXT ---
+CURRENCY: Shade passes (also called coins). New users get 5 free passes on signup. Deleted/re-registered users get 0.
+
+HOW PASSES WORK: Nothing is blocked upfront. Users explore freely — unlocking each shade costs 1 pass, shown as a -1 toast. Once unlocked, a shade is free forever across all features. Lock icon = costs 1 pass. Sparkle icon = already unlocked, free.
+
+ZERO-PASS UX (after paywall dismissed):
+- Shade Finder:  user image dimmed. pressing on you deducts a pass and unlocks the shade. (if they have passes, other wise will show user image dimmed and clicking cta will open paywall)
+- Shade Finder:  pressing recommended button and seeing shade costs 1 pass and unlocks the shade (if they have passes, other wise clicking cta will open paywall)
+- Product Finder: image opens normally  - user image dimmed and shade name is blutted. "unlock Shade – 1 pass" unlocks shade, pressing on you costs 1 pass and unlocks shade.  (if they have passes, other wise clicking cta will open paywall)
+- any unlock will unlock full shade eg. if i unlock a shade through rec button in shade finder, it will unlock the on you for it too. that shade is unlocked forever in shade finder and product finder. (if they have passes, other wise will show user image dimmed and clicking cta will open paywall))
+
+PASS TRIGGER FLOW:
+- 3 unlocks → educate popup (explains sparkle = free, lock = 1 pass)
+
+WHAT COSTS 1 PASS: unlocking a shade. for locked shades seeing shade on model is free. unlocked shade gives you seeing it on you and reccomended in shade finder, and seeing it on you and exact shade name in product finder
+
+PASS PACKS: 50/₹29 · 200/₹79 (Popular) · 650/₹199 · Premium ₹399/yr (unlimited)
+
+Shade guide:
+there are 7 sections, 2 are free, 5 are paid - 149 for the whole shade guide.
+
+--- STEP GLOSSARY ---
+login, submit photo, skintone-result-next, undertone-result-next, lip-pigmentation-selected, model_select, model-fine-tune, disclaimer, home-page = onboarding steps
+shade-finder = opened Shade Finder feature
+product-finder = opened Product Finder feature
+shade-guide = visited Shade Guide
+Unlock-shade-[brand]-[product] = tapped a product in Shade Finder (costs 1 pass if new shade)
+Unlock-product-[category]-[price] = browsed a category in Product Finder
+on-you-toggle-clicked = toggled "See it on you" (FREE, no pass)
+recommended-shade-clicked-your_shade / -lighter / -darker = explored shade variants
+using-customer-coins = a pass was deducted
+payment-popup-open = paywall opened
+payment-popup close = paywall closed WITHOUT buying
+bought-coins = purchased a pass pack ✓ CONVERSION
+bought-premium = purchased ₹399/yr ✓ CONVERSION
+compare-shades = opened Compare Shades`;
+
+    const firstUserMessage = `Analyse ${aiDate}, ${users.length} user(s) were active. Step sequences (→ = next action):
+
+${lines.join("\n")}
+
+Respond in EXACTLY this structure:
+
+SECTION_1: CONVERSION WINS
+For every user who has bought-coins or bought-premium: what did they do in the 5 steps before payment-popup-open? How many products had they explored? How many using-customer-coins events before they hit the wall? Were they mid-exploration or at a pause point? What made them buy?
+
+SECTION_2: CONVERSION LOSSES
+For every user who has payment-popup-open followed by payment-popup close (without bought-coins or bought-premium): what were their last 5 steps before the paywall? How deep into exploration were they — had they explored 1 product or many? Were they mid-task or wrapping up? What likely stopped them?
+
+SECTION_3: NEVER-REACHED-PAYWALL USERS
+Users who used all passes (10 using-customer-coins events) but never saw payment-popup-open — what did they do after passes ran out? Did they keep exploring in zero-pass UX or did they leave? What does this tell us?
+
+SECTION_4: ENGAGEMENT DEPTH vs CONVERSION
+Compare users who converted vs those who didn't: did converters explore more products, more brands, more shade variants? Did they use on-you-toggle-clicked more? Is there a specific product or brand that appears in converter sessions but not non-converter sessions?
+
+SECTION_5: THE ONE THING TO FIX
+Based purely on the step data above, what is the single highest-leverage change we can make in the app to increase conversions this week? Be specific about which step, which moment, and what to change. Give 1 primary fix and 2 supporting fixes with exact implementation suggestions.`;
+
+    const initialMessages = [{ role: "user", content: firstUserMessage }];
+
+    const resp = await fetch("/api/analytics/ai-analyse", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ prompt: firstUserMessage, system: systemPrompt }),
+    });
+    const data = await resp.json();
+    const text = data.text || "";
+
+    const newMessages = [
+      { role: "user", content: firstUserMessage },
+      { role: "assistant", content: text },
+    ];
+    setAiMessages(newMessages);
+    setAiAnalysis({ date: aiDate, userCount: users.length, text, systemPrompt, rawMessages: newMessages });
+  } catch (e) {
+    setAiError(e.message || "Analysis failed");
+  } finally {
+    setAiLoading(false);
   }
+}
+
+async function sendAiChat() {
+  if (!aiChatInput.trim() || !aiAnalysis) return;
+  const userMsg = aiChatInput.trim();
+  setAiChatInput("");
+  setAiChatLoading(true);
+
+  const updatedMessages = [...aiMessages, { role: "user", content: userMsg }];
+  setAiMessages(updatedMessages);
+
+  try {
+    const resp = await fetch("/api/analytics/ai-analyse", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        system: aiAnalysis.systemPrompt,
+        messages: updatedMessages,
+      }),
+    });
+    const data = await resp.json();
+    const text = data.text || "";
+    const finalMessages = [...updatedMessages, { role: "assistant", content: text }];
+    setAiMessages(finalMessages);
+    setAiAnalysis((prev) => prev ? { ...prev, text, rawMessages: finalMessages } : prev);
+  } catch (e) {
+    setAiMessages((prev) => [...prev, { role: "assistant", content: `Error: ${e.message}` }]);
+  } finally {
+    setAiChatLoading(false);
+  }
+}
 
   return (
     <div style={{ minHeight: "100vh", background: "linear-gradient(135deg, #fff8f7 0%, #fde8e4 40%, #f9d0cc 100%)", fontFamily: "'Inter', sans-serif" }}>
@@ -692,12 +700,53 @@ export default function AnalyticsPage() {
       </div>
 
       <div style={{ padding: "28px 28px", display: "flex", flexDirection: "column", gap: 24 }}>
+        {grantPremiumResult && (
+          <div style={{ background: grantPremiumResult.startsWith("✓") ? "rgba(22,163,74,0.1)" : "rgba(220,38,38,0.1)", border: `1px solid ${grantPremiumResult.startsWith("✓") ? "rgba(22,163,74,0.3)" : "rgba(220,38,38,0.3)"}`, borderRadius: 12, padding: "14px 20px", fontSize: 14, fontWeight: 600, color: grantPremiumResult.startsWith("✓") ? "#15803d" : "#dc2626", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            {grantPremiumResult}
+            <button onClick={() => setGrantPremiumResult(null)} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 16, color: "inherit", opacity: 0.6 }}>✕</button>
+          </div>
+        )}
         {backfillResult && (
           <div style={{ background: backfillResult.startsWith("✓") ? "rgba(22,163,74,0.1)" : "rgba(220,38,38,0.1)", border: `1px solid ${backfillResult.startsWith("✓") ? "rgba(22,163,74,0.3)" : "rgba(220,38,38,0.3)"}`, borderRadius: 12, padding: "14px 20px", fontSize: 14, fontWeight: 600, color: backfillResult.startsWith("✓") ? "#15803d" : "#dc2626", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
             {backfillResult}
             <button onClick={() => setBackfillResult(null)} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 16, color: "inherit", opacity: 0.6 }}>✕</button>
           </div>
         )}
+
+        {/* ── Grant Premium ── */}
+        <div style={{ ...GL.card, padding: 28 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap" }}>
+            <div style={GL.sectionHeader}>Grant Premium Access</div>
+            <span style={{ fontSize: 13, color: "#9b4a42", flex: 1 }}>
+              Grants 1-year premium to all users with more than 2 coins who are not already subscribed.
+            </span>
+            <button
+              className="th-btn-primary"
+              style={{ ...GL.btnPrimary, opacity: grantingPremium ? 0.6 : 1 }}
+              disabled={grantingPremium}
+              onClick={async () => {
+                if (!confirm("Grant 1yr premium to all users with >2 coins who aren't already subscribed?")) return;
+                setGrantingPremium(true);
+                setGrantPremiumResult(null);
+                try {
+                  const r = await fetch("/api/analytics/grant-premium-bulk", { method: "POST", cache: "no-store" });
+                  const j = await r.json();
+                  if (j.ok) {
+                    setGrantPremiumResult(`✓ Granted to ${j.granted?.length ?? 0} users (${j.failed?.length ?? 0} failed)`);
+                  } else {
+                    setGrantPremiumResult(`✗ Error: ${j.error}`);
+                  }
+                } catch (e) {
+                  setGrantPremiumResult(`✗ ${e.message}`);
+                } finally {
+                  setGrantingPremium(false);
+                }
+              }}
+            >
+              {grantingPremium ? "Granting…" : "🎁 Grant Premium (>2 coins)"}
+            </button>
+          </div>
+        </div>
 
         {/* ── AI Daily Analysis ── */}
         <div style={{ ...GL.card, padding: 28 }}>
@@ -765,7 +814,52 @@ export default function AnalyticsPage() {
                   ))}
                 </div>
               </div>
-              <AiAnalysisView text={aiAnalysis.text} />
+              <AiAnalysisView text={aiAnalysis?.text} />
+
+              {/* ── Chat thread ── */}
+              {aiMessages.length > 2 && (
+                <div style={{ display: "flex", flexDirection: "column", gap: 12, marginTop: 8 }}>
+                  {aiMessages.slice(2).map((msg, i) => (
+                    <div key={i} style={{
+                      alignSelf: msg.role === "user" ? "flex-end" : "flex-start",
+                      maxWidth: "90%",
+                      background: msg.role === "user" ? "linear-gradient(135deg, #c0392b 0%, #ab1f10 100%)" : "rgba(255,255,255,0.72)",
+                      color: msg.role === "user" ? "#fff" : "#1a0a09",
+                      borderRadius: msg.role === "user" ? "16px 16px 4px 16px" : "16px 16px 16px 4px",
+                      padding: "12px 16px",
+                      fontSize: 14,
+                      lineHeight: 1.6,
+                      border: msg.role === "assistant" ? "1px solid rgba(171,31,16,0.1)" : "none",
+                      boxShadow: "0 2px 8px rgba(171,31,16,0.08)",
+                    }}>
+                      {msg.role === "assistant" ? <AiAnalysisView text={msg.content} /> : msg.content}
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* ── Chat input ── */}
+              <div style={{ display: "flex", gap: 10, marginTop: 8, alignItems: "flex-end" }}>
+                <textarea
+                  className="th-input"
+                  style={{ ...GL.input, resize: "none", minHeight: 44, maxHeight: 120, lineHeight: 1.5, flex: 1, fontSize: 14 }}
+                  placeholder="Correct something, add context, or ask a follow-up…"
+                  value={aiChatInput}
+                  rows={2}
+                  onChange={(e) => setAiChatInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendAiChat(); }
+                  }}
+                />
+                <button
+                  className="th-btn-primary"
+                  style={{ ...GL.btnPrimary, opacity: (aiChatLoading || !aiChatInput.trim()) ? 0.6 : 1, height: 44, paddingLeft: 20, paddingRight: 20 }}
+                  disabled={aiChatLoading || !aiChatInput.trim()}
+                  onClick={sendAiChat}
+                >
+                  {aiChatLoading ? "…" : "Send"}
+                </button>
+              </div>
             </div>
           )}
         </div>

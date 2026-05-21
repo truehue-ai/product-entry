@@ -45,16 +45,18 @@ const percent = (a, b) => {
 
 // ── Distinct, readable colour palette ──
 const LINES = {
-  fineTune:               { label: "Model Fine Tune",           color: "#1e92a9" }, // blue
-  productFinder:          { label: "Product Finder",            color: "#da5439" }, // green
-  shadeFinder:            { label: "Shade Finder",              color: "#fe9525" }, // red
-  shadeGuide:             { label: "Shade Guide",               color: "#9464e7" }, // purple
-  boughtCoins:            { label: "Bought Coins",              color: "#579b56" }, // cyan
-  boughtShadeGuide:       { label: "Bought Shade Guide",        color: "#41a22e" }, // pink
-  boughtPremium:          { label: "Bought Premium",            color: "#43d400" }, // dark green
-  paymentPopupClose:       { label: "Payment Popup Close",       color: "#ffd736" }, // violet
-  useCoinsLastRemaining:   { label: "Use Coins (Last Remaining)", color: "#ff85c2" }, // amber-600
-  usingCustomerCoins:      { label: "Using Customer Coins",      color: "#bb3463" }, // teal
+  fineTune:               { label: "Model Fine Tune",           color: "#1e92a9" },
+  productFinder:          { label: "Product Finder",            color: "#da5439" },
+  shadeFinder:            { label: "Shade Finder",              color: "#fe9525" },
+  shadeGuide:             { label: "Shade Guide",               color: "#9464e7" },
+  boughtCoins:            { label: "Bought Coins",              color: "#579b56" },
+  boughtShadeGuide:       { label: "Bought Shade Guide",        color: "#41a22e" },
+  boughtPremium:          { label: "Bought Premium",            color: "#43d400" },
+  paymentPopupClose:      { label: "Payment Popup Close",       color: "#ffd736" },
+  theEditOpen:            { label: "The Edit Open",             color: "#e8488a" },
+  tryOnceForFreeProduct:  { label: "Try Once Free (Product)",   color: "#06b6d4" },
+  tryOnceForFreeShade:    { label: "Try Once Free (Shade)",     color: "#f97316" },
+  theEditArticleOpen:     { label: "The Edit Article Open",     color: "#a855f7" },
 };
 
 // Tooltip Section header
@@ -91,8 +93,10 @@ const CustomTooltip = ({ active, payload, label, coordinate, viewBox }) => {
   const boughtShadeGuide = map.boughtShadeGuide || 0;
   const boughtPremium = map.boughtPremium || 0;
   const paymentPopupClose = map.paymentPopupClose || 0;
-  const useCoinsLastRemaining = map.useCoinsLastRemaining || 0;
-  const usingCustomerCoins = map.usingCustomerCoins || 0;
+  const theEditOpen = map.theEditOpen || 0;
+  const tryOnceForFreeProduct = map.tryOnceForFreeProduct || 0;
+  const tryOnceForFreeShade = map.tryOnceForFreeShade || 0;
+  const theEditArticleOpen = map.theEditArticleOpen || 0;
 
   const tooltipWidth = 340;
   const tooltipHeight = 520; // approximate full height
@@ -156,16 +160,24 @@ const CustomTooltip = ({ active, payload, label, coordinate, viewBox }) => {
         extra={`${percent(boughtCoins, logins)} of logins`} />
       <TRow label="Payment Popup Close" value={paymentPopupClose} color={LINES.paymentPopupClose.color}
         extra={`${percent(paymentPopupClose, logins)} of logins`} />
-      <TRow label="Use Coins (Last Remaining)" value={useCoinsLastRemaining} color={LINES.useCoinsLastRemaining.color}
-        extra={`${percent(useCoinsLastRemaining, logins)} of logins`} />
-      <TRow label="Using Customer Coins" value={usingCustomerCoins} color={LINES.usingCustomerCoins.color}
-        extra={`${percent(usingCustomerCoins, logins)} of logins`} />
 
       <TSection title="Shade Guide" />
       <TRow label="Shade Guide Quiz" value={shadeGuide} color={LINES.shadeGuide.color}
         extra={`${percent(shadeGuide, logins)} of logins · ${percent(shadeGuide, fineTune)} of FT`} />
       <TRow label="Bought Shade Guide" value={boughtShadeGuide} color={LINES.boughtShadeGuide.color}
         extra={`${percent(boughtShadeGuide, shadeGuide)} of SG · ${percent(boughtShadeGuide, logins)} of logins`} />
+
+      <TSection title="The Edit" />
+      <TRow label="The Edit Open" value={theEditOpen} color={LINES.theEditOpen.color}
+        extra={`${percent(theEditOpen, logins)} of logins`} />
+      <TRow label="Article Open" value={theEditArticleOpen} color={LINES.theEditArticleOpen.color}
+        extra={`${percent(theEditArticleOpen, theEditOpen)} of Edit opens`} />
+
+      <TSection title="Try Once Free" />
+      <TRow label="Try Once Free (Product)" value={tryOnceForFreeProduct} color={LINES.tryOnceForFreeProduct.color}
+        extra={`${percent(tryOnceForFreeProduct, logins)} of logins`} />
+      <TRow label="Try Once Free (Shade)" value={tryOnceForFreeShade} color={LINES.tryOnceForFreeShade.color}
+        extra={`${percent(tryOnceForFreeShade, logins)} of logins`} />
 
       <TSection title="Premium" />
       <TRow label="Bought Premium" value={boughtPremium} color={LINES.boughtPremium.color}
@@ -200,9 +212,10 @@ export default function StepsAnalyticsGraph({ data }) {
       const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
       const existing = sortedData.find((e) => e.date === key);
       result.push(existing || {
-        date: key, logins: 0, fineTune: 0, shadeFinder: 0, productFinder: 0,
-        shadeGuide: 0, useCoinsShadeFinder: 0, useCoinsProductFinder: 0,
-        boughtCoins: 0, boughtPremium: 0, boughtShadeGuide: 0, returningUsers: 0,
+        date: key, logins: 0, returningUsers: 0, fineTune: 0, shadeFinder: 0,
+        productFinder: 0, shadeGuide: 0, boughtCoins: 0, boughtPremium: 0,
+        paymentPopupClose: 0, theEditOpen: 0, tryOnceForFreeProduct: 0,
+        tryOnceForFreeShade: 0, theEditArticleOpen: 0,
       });
     }
     return result;

@@ -35,6 +35,12 @@ const CARDS = {
       description: 'Send push notifications to all users with a registered device token.',
       icon: '🔔',
     },
+    {
+      href: '/articles',
+      label: 'The Edit',
+      description: 'Create and preview personalised beauty editorial articles for the app.',
+      icon: '✨',
+    },
   ],
   aastha: [
     {

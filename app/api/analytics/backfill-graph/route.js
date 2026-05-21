@@ -109,9 +109,10 @@ function dailyGraphMetrics(users) {
     if (!daily[day]) {
       daily[day] = {
         logins: 0, returningUsers: 0, fineTune: 0, shadeFinder: 0,
-        productFinder: 0, shadeGuide: 0, shadeGuideQ3: 0,
+        productFinder: 0, shadeGuide: 0,
         boughtCoins: 0, boughtPremium: 0, boughtShadeGuide: 0,
-        paymentPopupClose: 0, useCoinsLastRemaining: 0, usingCustomerCoins: 0,
+        paymentPopupClose: 0,
+        theEditOpen: 0, tryOnceForFreeProduct: 0, tryOnceForFreeShade: 0, theEditArticleOpen: 0,
       };
     }
   }
@@ -146,7 +147,6 @@ function dailyGraphMetrics(users) {
         case "shade-finder":             daily[day].shadeFinder++;            break;
         case "product-finder":           daily[day].productFinder++;          break;
         case "shade-guide":              daily[day].shadeGuide++;             break;
-        case "shade-guide-q3":           daily[day].shadeGuideQ3++;           break;
         case "bought-coins":             daily[day].boughtCoins++;            break;
         case "bought-premium":           daily[day].boughtPremium++;          break;
         case "bought-shade-guide":       daily[day].boughtShadeGuide++;       break;
@@ -158,13 +158,10 @@ function dailyGraphMetrics(users) {
           }
           break;
         }
-        case "use-coins-last-remaining":
-        case "use-coins-last-5":
-        case "use-coins-shade-name-reveal":
-        case "use-coins-similar-shade-name-reveal":
-            daily[day].useCoinsLastRemaining++;
-            break;
-        case "using-customer-coins":               daily[day].usingCustomerCoins++;             break;
+        case "the-edit-open":              daily[day].theEditOpen++;             break;
+        case "try-once-for-free-product":  daily[day].tryOnceForFreeProduct++;   break;
+        case "try-once-for-free-shade":    daily[day].tryOnceForFreeShade++;     break;
+        case "the-edit-article-open":     daily[day].theEditArticleOpen++;      break;
       }
     }
 

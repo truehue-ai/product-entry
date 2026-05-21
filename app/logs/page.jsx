@@ -369,7 +369,7 @@ export default function LogsPage() {
                     <button
                       className="th-btn-primary"
                       style={GL.btnPrimary}
-                      onClick={() => router.push(`/color-picker?brand=${encodeURIComponent(selected.brand)}&product=${encodeURIComponent(selected.product)}&from=logs`)}
+                      onClick={() => window.open(`/color-picker?brand=${encodeURIComponent(selected.brand)}&product=${encodeURIComponent(selected.product)}&from=logs`, '_blank')}
                     >
                       Edit in Shade Capture →
                     </button>

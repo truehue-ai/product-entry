@@ -19,6 +19,38 @@ const BUCKET = process.env.X_AWS_BUCKET_NAME;
 // Canonical shades path: brands/<brand>/product_shade_values/<product>/shades.json
 const BRANDS_PREFIX = "brands/";
 
+// ── In-memory cache ──────────────────────────────────────────────────────────
+let _cache = null;          // { items: [{brand, product}], populatedAt: number }
+const CACHE_TTL_MS = 5 * 60 * 1000;  // 5 minutes
+
+async function getCachedItems() {
+  const now = Date.now();
+  if (_cache && now - _cache.populatedAt < CACHE_TTL_MS) {
+    return _cache.items;
+  }
+  // Re-fetch from S3
+  const allKeys = await listAllKeys(BRANDS_PREFIX);
+  const re = /^brands\/([^/]+)\/product_shade_values\/([^/]+)\/shades\.json$/;
+  const set = new Set();
+  for (const k of allKeys) {
+    const m = k.match(re);
+    if (!m) continue;
+    try {
+      const brand = decodeURIComponent(m[1]);
+      const product = decodeURIComponent(m[2]);
+      set.add(`${brand}:::${product}`);
+    } catch { console.log("Failed to decode key:", k); }
+  }
+  const items = Array.from(set).map((pk) => {
+    const [brand, product] = pk.split(":::");
+    return { brand, product };
+  });
+  items.sort((a, b) => a.product.localeCompare(b.product) || a.brand.localeCompare(b.brand));
+  _cache = { items, populatedAt: now };
+  return items;
+}
+// ─────────────────────────────────────────────────────────────────────────────
+
 async function listAllKeys(prefix) {
   let ContinuationToken = undefined;
   const keys = [];
@@ -38,33 +70,12 @@ export async function GET(req) {
     const { searchParams } = new URL(req.url, "http://localhost");
     const q = (searchParams.get("q") || "").trim().toLowerCase();
 
-    // 1) List all brand/product shades.json keys
-    const allKeys = await listAllKeys(BRANDS_PREFIX);
+    // 1) Get cached (or freshly fetched) list — force refresh with ?refresh=1
+    const forceRefresh = searchParams.get("refresh") === "1";
+    if (forceRefresh) _cache = null;
+    let items = await getCachedItems();
 
-    // Match: brands/<brand>/product_shade_values/<product>/shades.json
-    const re = /^brands\/([^/]+)\/product_shade_values\/([^/]+)\/shades\.json$/;
-
-    const set = new Set();
-    for (const k of allKeys) {
-      const m = k.match(re);
-      if (!m) continue;
-      try {
-        const brand = decodeURIComponent(m[1]);
-        const product = decodeURIComponent(m[2]);
-        const pairKey = `${brand}:::${product}`;
-        if (!set.has(pairKey)) set.add(pairKey);
-      } catch {
-        console.log("Failed to decode key:", k);
-      }
-    }
-
-    // 2) Build items array
-    let items = Array.from(set).map((pk) => {
-      const [brand, product] = pk.split(":::");
-      return { brand, product };
-    });
-
-    // 3) Optional search filter
+    // 2) Optional search filter
     if (q) {
       items = items.filter(
         (it) =>
@@ -72,11 +83,6 @@ export async function GET(req) {
           it.product.toLowerCase().includes(q)
       );
     }
-
-    // 4) Sort for stable UI
-    items.sort((a, b) =>
-      a.product.localeCompare(b.product) || a.brand.localeCompare(b.brand)
-    );
 
     return new Response(JSON.stringify({ items }), {
       headers: {

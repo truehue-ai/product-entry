@@ -2,8 +2,9 @@ export const runtime = "nodejs";
 
 export async function POST(req) {
   try {
-    const { prompt } = await req.json();
-    if (!prompt) return new Response(JSON.stringify({ error: "No prompt" }), { status: 400 });
+    const { prompt, system, messages } = await req.json();
+    const messageHistory = messages || [{ role: "user", content: prompt }];
+    if (!messageHistory.length) return new Response(JSON.stringify({ error: "No prompt" }), { status: 400 });
 
     const resp = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
@@ -15,7 +16,8 @@ export async function POST(req) {
       body: JSON.stringify({
         model: "claude-opus-4-5",
         max_tokens: 4000,
-        messages: [{ role: "user", content: prompt }],
+        ...(system ? { system } : {}),
+        messages: messageHistory,
       }),
     });
 
