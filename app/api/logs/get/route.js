@@ -80,6 +80,8 @@ export async function GET(req) {
   const { searchParams } = new URL(req.url, "http://localhost");
   const brand = searchParams.get("brand");
   const product = searchParams.get("product");
+  const usa = searchParams.get("usa") === "1";
+  const brandsRoot = usa ? "brands_usa" : "brands";
   if (!brand || !product) {
     return new Response(JSON.stringify({ error: "Missing brand or product" }), {
       status: 400,
@@ -88,22 +90,22 @@ export async function GET(req) {
   }
 
   // canonical base where shades.json lives
-  const shadesBase = `brands/${brand}/product_shade_values/${product}`;
+  const shadesBase = `${brandsRoot}/${brand}/product_shade_values/${product}`;
 
   // other known layouts for links/price/type
   const linksPaths = [
-    `${shadesBase}/links.json`,                       // sometimes alongside shades
-    `brands/${brand}/links/${product}/links.json`,    // your separate folder
+    `${shadesBase}/links.json`,
+    `${brandsRoot}/${brand}/links/${product}/links.json`,
   ];
   const pricePaths = [
     `${shadesBase}/price.json`,
-    `brands/${brand}/price/${product}/price.json`,
+    `${brandsRoot}/${brand}/price/${product}/price.json`,
   ];
   const typePaths = [
     `${shadesBase}/types.json`,
     `${shadesBase}/type.json`,
-    `brands/${brand}/type/${product}/types.json`,
-    `brands/${brand}/type/${product}/type.json`,
+    `${brandsRoot}/${brand}/type/${product}/types.json`,
+    `${brandsRoot}/${brand}/type/${product}/type.json`,
   ];
 
   // fetch files

@@ -18,19 +18,24 @@ const BUCKET = process.env.X_AWS_BUCKET_NAME;
 // We want product-entry logs, not user analytics.
 // Canonical shades path: brands/<brand>/product_shade_values/<product>/shades.json
 const BRANDS_PREFIX = "brands/";
+const BRANDS_USA_PREFIX = "brands_usa/";
 
 // ── In-memory cache ──────────────────────────────────────────────────────────
-let _cache = null;          // { items: [{brand, product}], populatedAt: number }
-const CACHE_TTL_MS = 5 * 60 * 1000;  // 5 minutes
+let _cache = null;
+let _cacheUSA = null;
+const CACHE_TTL_MS = 5 * 60 * 1000;
 
-async function getCachedItems() {
+async function getCachedItems(usa = false) {
   const now = Date.now();
-  if (_cache && now - _cache.populatedAt < CACHE_TTL_MS) {
-    return _cache.items;
+  const cache = usa ? _cacheUSA : _cache;
+  if (cache && now - cache.populatedAt < CACHE_TTL_MS) {
+    return cache.items;
   }
-  // Re-fetch from S3
-  const allKeys = await listAllKeys(BRANDS_PREFIX);
-  const re = /^brands\/([^/]+)\/product_shade_values\/([^/]+)\/shades\.json$/;
+  const prefix = usa ? BRANDS_USA_PREFIX : BRANDS_PREFIX;
+  const allKeys = await listAllKeys(prefix);
+  const re = usa
+    ? /^brands_usa\/([^/]+)\/product_shade_values\/([^/]+)\/shades\.json$/
+    : /^brands\/([^/]+)\/product_shade_values\/([^/]+)\/shades\.json$/;
   const set = new Set();
   for (const k of allKeys) {
     const m = k.match(re);
@@ -46,7 +51,8 @@ async function getCachedItems() {
     return { brand, product };
   });
   items.sort((a, b) => a.product.localeCompare(b.product) || a.brand.localeCompare(b.brand));
-  _cache = { items, populatedAt: now };
+  if (usa) _cacheUSA = { items, populatedAt: now };
+  else _cache = { items, populatedAt: now };
   return items;
 }
 // ─────────────────────────────────────────────────────────────────────────────
@@ -72,8 +78,9 @@ export async function GET(req) {
 
     // 1) Get cached (or freshly fetched) list — force refresh with ?refresh=1
     const forceRefresh = searchParams.get("refresh") === "1";
-    if (forceRefresh) _cache = null;
-    let items = await getCachedItems();
+    const usa = searchParams.get("usa") === "1";
+    if (forceRefresh) { _cache = null; _cacheUSA = null; }
+    let items = await getCachedItems(usa);
 
     // 2) Optional search filter
     if (q) {

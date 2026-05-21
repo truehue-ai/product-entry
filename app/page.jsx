@@ -12,6 +12,12 @@ const CARDS = {
       icon: '🎨',
     },
     {
+    href: '/color-picker-usa',
+    label: 'Shade Capture USA',
+    description: 'Pick & upload shades for the US market (brands_usa prefix, all-data-usa.json).',
+    icon: '🇺🇸',
+  },
+    {
       href: '/logs',
       label: 'Product Logs',
       description: 'Browse every saved product, view shades, links, and prices.',
@@ -49,6 +55,12 @@ const CARDS = {
       description: 'Pick & upload shades to S3, product database, and Shopify.',
       icon: '🎨',
     },
+    {
+    href: '/color-picker-usa',
+    label: 'Shade Capture USA',
+    description: 'Pick & upload shades for the US market (brands_usa prefix, all-data-usa.json).',
+    icon: '🇺🇸',
+  },
     {
       href: '/logs',
       label: 'Product Logs',

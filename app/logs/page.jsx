@@ -74,6 +74,7 @@ const GL = {
 
 export default function LogsPage() {
   const [query, setQuery] = useState("");
+  const [isUSA, setIsUSA] = useState(false);
   const [loadingList, setLoadingList] = useState(false);
   const [items, setItems] = useState([]);
   const [selected, setSelected] = useState(null);
@@ -124,7 +125,7 @@ export default function LogsPage() {
     const fetchList = async () => {
       setLoadingList(true);
       try {
-        const r = await fetch(`/api/logs/list?q=${encodeURIComponent(query)}`, { cache: "no-store" });
+        const r = await fetch(`/api/logs/list?q=${encodeURIComponent(query)}&usa=${isUSA ? "1" : "0"}`, { cache: "no-store" });
         const j = await r.json();
         if (active) setItems(j.items || []);
       } finally {
@@ -133,7 +134,7 @@ export default function LogsPage() {
     };
     const t = setTimeout(fetchList, 250);
     return () => { active = false; clearTimeout(t); };
-  }, [query]);
+  }, [query, isUSA]);
 
   useEffect(() => {
     let active = true;
@@ -142,7 +143,7 @@ export default function LogsPage() {
       setLoadingDetails(true);
       try {
         const r = await fetch(
-          `/api/logs/get?brand=${encodeURIComponent(selected.brand)}&product=${encodeURIComponent(selected.product)}`,
+          `/api/logs/get?brand=${encodeURIComponent(selected.brand)}&product=${encodeURIComponent(selected.product)}&usa=${isUSA ? "1" : "0"}`,
           { cache: "no-store" }
         );
         const j = await r.json();
@@ -153,7 +154,7 @@ export default function LogsPage() {
     };
     run();
     return () => { active = false; };
-  }, [selected]);
+  }, [selected, isUSA]);
 
   const list = useMemo(() => items, [items]);
 
@@ -278,18 +279,40 @@ export default function LogsPage() {
         <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
 
           {/* Search bar */}
-          <div style={{ ...GL.card, padding: "16px 20px", display: "flex", alignItems: "center", gap: 14 }}>
-            <span style={{ fontSize: 18, flexShrink: 0 }}>🔎</span>
-            <input
-              className="th-input"
-              style={{ ...GL.input, border: "none", background: "transparent", padding: "0", fontSize: 16, boxShadow: "none" }}
-              placeholder="Search by brand or product…"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-            />
-            {loadingList && (
-              <span style={{ fontSize: 13, color: "#9b4a42", flexShrink: 0 }}>Loading…</span>
-            )}
+          <div style={{ display: "flex", gap: 14, alignItems: "stretch" }}>
+            <div style={{ ...GL.card, padding: "16px 20px", display: "flex", alignItems: "center", gap: 14, flex: 1 }}>
+              <span style={{ fontSize: 18, flexShrink: 0 }}>🔎</span>
+              <input
+                className="th-input"
+                style={{ ...GL.input, border: "none", background: "transparent", padding: "0", fontSize: 16, boxShadow: "none" }}
+                placeholder="Search by brand or product…"
+                value={query}
+                onChange={(e) => { setQuery(e.target.value); setSelected(null); }}
+              />
+              {loadingList && (
+                <span style={{ fontSize: 13, color: "#9b4a42", flexShrink: 0 }}>Loading…</span>
+              )}
+            </div>
+            <button
+              onClick={() => { setIsUSA(prev => !prev); setSelected(null); setDetails(null); }}
+              style={{
+                ...GL.card,
+                padding: "16px 22px",
+                border: isUSA ? "1.5px solid #ab1f10" : "1.5px solid rgba(255,255,255,0.8)",
+                background: isUSA ? "rgba(171,31,16,0.08)" : "rgba(255,255,255,0.58)",
+                cursor: "pointer",
+                fontSize: 14,
+                fontWeight: 700,
+                color: isUSA ? "#ab1f10" : "#9b4a42",
+                display: "flex",
+                alignItems: "center",
+                gap: 8,
+                flexShrink: 0,
+                transition: "all 0.15s",
+              }}
+            >
+              🇺🇸 USA
+            </button>
           </div>
 
           {/* Two-column layout */}
@@ -369,7 +392,7 @@ export default function LogsPage() {
                     <button
                       className="th-btn-primary"
                       style={GL.btnPrimary}
-                      onClick={() => window.open(`/color-picker?brand=${encodeURIComponent(selected.brand)}&product=${encodeURIComponent(selected.product)}&from=logs`, '_blank')}
+                      onClick={() => window.open(`/${isUSA ? "color-picker-usa" : "color-picker"}?brand=${encodeURIComponent(selected.brand)}&product=${encodeURIComponent(selected.product)}&from=logs`, '_blank')}
                     >
                       Edit in Shade Capture →
                     </button>
