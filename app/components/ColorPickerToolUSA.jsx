@@ -337,29 +337,24 @@ export default function ColorPickerToolUSA({ initialBrand = "", initialProduct =
     }
   };
 
-  useEffect(() => {
-    if (!brand || brand.trim().length < 1) {
+  const fetchBrandHistory = useCallback(async () => {
+    if (!brand || brand.trim().length < 1) return;
+    setSuggestionsLoading(true);
+    setShowSuggestions(false);
+    try {
+      const r = await fetch(`/api/logs/list?q=${encodeURIComponent(brand)}&usa=0`, { cache: "no-store" });
+      const j = await r.json();
+      const filtered = (j.items || []).filter(
+        (it) => it.brand.toLowerCase() === brand.trim().toLowerCase()
+      );
+      setBrandSuggestions(filtered);
+      setShowSuggestions(true);
+    } catch {
       setBrandSuggestions([]);
       setShowSuggestions(false);
-      return;
+    } finally {
+      setSuggestionsLoading(false);
     }
-    setSuggestionsLoading(true);
-    const t = setTimeout(async () => {
-      try {
-        const r = await fetch(`/api/logs/list?q=${encodeURIComponent(brand)}&usa=0`, { cache: "no-store" });
-        const j = await r.json();
-        const filtered = (j.items || []).filter(
-          (it) => it.brand.toLowerCase() === brand.trim().toLowerCase()
-        );
-        setBrandSuggestions(filtered);
-        setShowSuggestions(filtered.length > 0);
-      } catch {
-        setBrandSuggestions([]);
-      } finally {
-        setSuggestionsLoading(false);
-      }
-    }, 300);
-    return () => clearTimeout(t);
   }, [brand]);
 
   const handleSuggestionClick = async (item) => {
@@ -446,6 +441,7 @@ export default function ColorPickerToolUSA({ initialBrand = "", initialProduct =
         .shade-row:hover { background: rgba(171,31,16,0.03); }
         .shade-row.active-row { background: rgba(171,31,16,0.06); border-left: 4px solid #ab1f10; }
         .del-btn:hover { background: rgba(192,57,43,0.1) !important; color: #ab1f10 !important; }
+        @keyframes th-slide { 0% { transform: translateX(-100%); } 100% { transform: translateX(350%); } }
         ::-webkit-scrollbar { width: 5px; } ::-webkit-scrollbar-track { background: transparent; } ::-webkit-scrollbar-thumb { background: rgba(171,31,16,0.2); border-radius: 4px; }
       `}</style>
 
@@ -501,8 +497,15 @@ export default function ColorPickerToolUSA({ initialBrand = "", initialProduct =
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 14, overflow: "visible" }}>
               <div>
                 <label style={GL.label}>Brand</label>
-                <input className="th-input" style={GL.input} placeholder="e.g. NARS" value={brand} onChange={(e) => { setBrand(e.target.value); setShowSuggestions(false); }} onBlur={() => setTimeout(() => setShowSuggestions(false), 150)} />
-              </div>
+                <div style={{ display: "flex", gap: 8 }}>
+                    <input className="th-input" style={{ ...GL.input, flex: 1 }} placeholder="e.g. NARS" value={brand} onChange={(e) => { setBrand(e.target.value); setShowSuggestions(false); setBrandSuggestions([]); }} onBlur={() => setTimeout(() => setShowSuggestions(false), 150)} />
+                    <button
+                    type="button"
+                    onClick={fetchBrandHistory}
+                    style={{ flexShrink: 0, background: "rgba(171,31,16,0.08)", border: "1.5px solid rgba(171,31,16,0.2)", borderRadius: 11, padding: "0 14px", fontSize: 13, fontWeight: 600, color: "#ab1f10", cursor: "pointer", whiteSpace: "nowrap" }}
+                    >History</button>
+                </div>
+                </div>
               <div style={{ position: "relative" }}>
                 <label style={GL.label}>Product</label>
                 <input
@@ -515,6 +518,11 @@ export default function ColorPickerToolUSA({ initialBrand = "", initialProduct =
                   onBlur={() => setTimeout(() => setShowSuggestions(false), 150)}
                   autoComplete="off"
                 />
+                {suggestionsLoading && (
+                    <div style={{ position: "absolute", top: "100%", left: 0, right: 0, height: 3, marginTop: 4, borderRadius: 2, background: "rgba(171,31,16,0.1)", overflow: "hidden", zIndex: 99 }}>
+                        <div style={{ height: "100%", width: "40%", background: "#ab1f10", borderRadius: 2, animation: "th-slide 1s ease-in-out infinite" }} />
+                    </div>
+                    )}
                 {showSuggestions && (
                   <div style={{
                     position: "absolute",
