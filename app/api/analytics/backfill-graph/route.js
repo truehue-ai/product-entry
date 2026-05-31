@@ -113,6 +113,8 @@ function dailyGraphMetrics(users) {
         boughtCoins: 0, boughtPremium: 0, boughtShadeGuide: 0,
         paymentPopupClose: 0,
         theEditOpen: 0, tryOnceForFreeProduct: 0, tryOnceForFreeShade: 0, theEditArticleOpen: 0,
+        passSelected1day: 0, passSelected1month: 0, passSelected1year: 0,
+        ctaClicked1day: 0, ctaClicked1month: 0, ctaClicked1year: 0,
       };
     }
   }
@@ -161,7 +163,13 @@ function dailyGraphMetrics(users) {
         case "the-edit-open":              daily[day].theEditOpen++;             break;
         case "try-once-for-free-product":  daily[day].tryOnceForFreeProduct++;   break;
         case "try-once-for-free-shade":    daily[day].tryOnceForFreeShade++;     break;
-        case "the-edit-article-open":     daily[day].theEditArticleOpen++;      break;
+        case "the-edit-article-open":       daily[day].theEditArticleOpen++;    break;
+        case "pass-selected-1day":          daily[day].passSelected1day++;      break;
+        case "pass-selected-1month":        daily[day].passSelected1month++;    break;
+        case "pass-selected-1year":         daily[day].passSelected1year++;     break;
+        case "cta-clicked-1day":            daily[day].ctaClicked1day++;        break;
+        case "cta-clicked-1month":          daily[day].ctaClicked1month++;      break;
+        case "cta-clicked-1year":           daily[day].ctaClicked1year++;       break;
       }
     }
 

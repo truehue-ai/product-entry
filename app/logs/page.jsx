@@ -392,7 +392,7 @@ export default function LogsPage() {
                     <button
                       className="th-btn-primary"
                       style={GL.btnPrimary}
-                      onClick={() => window.open(`/${isUSA ? "color-picker-usa" : "color-picker"}?brand=${encodeURIComponent(selected.brand)}&product=${encodeURIComponent(selected.product)}&from=logs`, '_blank')}
+                      onClick={() => window.open(`/${isUSA ? "color-picker-usa" : "color-picker"}?brand=${encodeURIComponent(selected.brand)}&product=${encodeURIComponent(selected.product)}&from=logs${isUSA ? "&usa=1" : ""}`, '_blank')}
                     >
                       Edit in Shade Capture →
                     </button>

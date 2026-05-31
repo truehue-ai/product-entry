@@ -386,7 +386,7 @@ export default function ColorPickerToolUSA({ initialBrand = "", initialProduct =
   useEffect(() => {
     const load = async () => {
       if (!initialBrand || !initialProduct) return;
-      const r = await fetch(`/api/logs/get?brand=${encodeURIComponent(initialBrand)}&product=${encodeURIComponent(initialProduct)}`, { cache: "no-store" });
+      const r = await fetch(`/api/logs/get?brand=${encodeURIComponent(initialBrand)}&product=${encodeURIComponent(initialProduct)}&usa=1`, { cache: "no-store" });
       const j = await r.json();
       if (j?.shades) {
         setBrand(j.brand); setProduct(j.product);
@@ -452,17 +452,17 @@ export default function ColorPickerToolUSA({ initialBrand = "", initialProduct =
           <div style={{ width: 1, height: 20, background: "rgba(171,31,16,0.2)" }} />
           <button className="th-btn-ghost" onClick={() => router.push('/logs')} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 15, fontWeight: 600, color: "#7b241c", padding: "8px 14px", borderRadius: 9 }}>Logs</button>
         </div>
-        <span style={{ fontSize: 18, fontWeight: 700, color: "#ab1f10", letterSpacing: "-0.3px" }}>Shade Capture</span>
+        <span style={{ fontSize: 18, fontWeight: 700, color: "#ab1f10", letterSpacing: "-0.3px" }}>Shade Capture USA</span>
         <button onClick={logout} style={{ background: "none", border: "1.5px solid rgba(171,31,16,0.3)", borderRadius: 9, padding: "8px 18px", fontSize: 14, fontWeight: 600, color: "#ab1f10", cursor: "pointer" }}>Logout</button>
       </div>
 
       <div style={{ padding: "28px 28px", display: "flex", gap: 24, alignItems: "flex-start" }}>
 
         {/* ── Left Panel ── */}
-        <div style={{ width: 480, flexShrink: 0, display: "flex", flexDirection: "column", gap: 16 }}>
+        <div style={{ width: 480, flexShrink: 0, display: "flex", flexDirection: "column", gap: 16, overflow: "visible" }}>
 
           {/* Product Info */}
-          <div style={{ ...GL.card, padding: 26 }}>
+          <div style={{ ...GL.card, padding: 26, overflow: "visible" }}>
             <div style={{ fontSize: 12, fontWeight: 700, color: "#7b241c", letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: 18 }}>Product Info</div>
 
             <div style={{ marginBottom: 16 }}>
@@ -506,7 +506,7 @@ export default function ColorPickerToolUSA({ initialBrand = "", initialProduct =
                     >History</button>
                 </div>
                 </div>
-              <div style={{ position: "relative" }}>
+              <div style={{ position: "relative", overflow: "visible" }}>
                 <label style={GL.label}>Product</label>
                 <input
                   className="th-input"
@@ -525,7 +525,6 @@ export default function ColorPickerToolUSA({ initialBrand = "", initialProduct =
                     )}
                 {showSuggestions && (
                   <div style={{
-                    position: "absolute",
                     top: "100%",
                     left: 0,
                     right: 0,

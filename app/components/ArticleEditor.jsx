@@ -583,8 +583,9 @@ export default function ArticleEditorPage() {
   }
 
   async function uploadFeaturedImage(file) {
-    const ext      = file.name.split('.').pop();
-    const s3Key    = `magazine/${template.id}/image.${ext}`;
+    const ext   = file.name.split('.').pop();
+    const version = template.featured_image ? `_v${Date.now()}` : '';
+    const s3Key = `magazine/${template.id}/image${version}.${ext}`;
     const formData = new FormData();
     formData.append('file', file);
     formData.append('key', s3Key);
@@ -596,7 +597,7 @@ export default function ArticleEditorPage() {
     if (!res.ok) throw new Error(await res.text());
     const { url } = await res.json();
     setTemplate(prev => ({ ...prev, featured_image: url }));
-    }
+}
 
   async function saveArticle() {
     setSaving(true); setError(null);
@@ -781,6 +782,7 @@ export default function ArticleEditorPage() {
                         height: 160, border: '1.5px solid rgba(255,255,255,0.8)',
                         }}>
                         <img
+                            key={template.featured_image}
                             src={template.featured_image}
                             alt="Featured"
                             style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}

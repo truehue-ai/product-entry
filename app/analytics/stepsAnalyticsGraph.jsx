@@ -57,6 +57,12 @@ const LINES = {
   tryOnceForFreeProduct:  { label: "Try Once Free (Product)",   color: "#06b6d4" },
   tryOnceForFreeShade:    { label: "Try Once Free (Shade)",     color: "#f97316" },
   theEditArticleOpen:     { label: "The Edit Article Open",     color: "#a855f7" },
+  passSelected1day:       { label: "Pass Selected 1 Day",       color: "#fb923c" },
+  passSelected1month:     { label: "Pass Selected 1 Month",     color: "#f59e0b" },
+  passSelected1year:      { label: "Pass Selected 1 Year",      color: "#eab308" },
+  ctaClicked1day:         { label: "CTA Clicked 1 Day",         color: "#ef4444" },
+  ctaClicked1month:       { label: "CTA Clicked 1 Month",       color: "#dc2626" },
+  ctaClicked1year:        { label: "CTA Clicked 1 Year",        color: "#b91c1c" },
 };
 
 // Tooltip Section header
@@ -79,9 +85,14 @@ const TRow = ({ label, value, extra, color }) => (
   </div>
 );
 
-const CustomTooltip = ({ active, payload, label, coordinate, viewBox }) => {
+const CustomTooltip = ({ active, payload, label, coordinate, viewBox, allData, visibleLines = {} }) => {
   if (!active || !payload?.length || typeof window === "undefined") return null;
+  const dayEntry = (allData || []).find(d => d.date === label) || {};
   const map = {};
+  Object.keys(dayEntry).forEach(k => {
+    if (k === "date" || k === "logins" || k === "returningUsers") { map[k] = dayEntry[k]; return; }
+    map[k] = visibleLines[k] !== false ? (dayEntry[k] ?? 0) : 0;
+  });
   payload.forEach((p) => (map[p.dataKey] = p.value ?? 0));
 
   const logins = map.logins || 0;
@@ -97,6 +108,12 @@ const CustomTooltip = ({ active, payload, label, coordinate, viewBox }) => {
   const tryOnceForFreeProduct = map.tryOnceForFreeProduct || 0;
   const tryOnceForFreeShade = map.tryOnceForFreeShade || 0;
   const theEditArticleOpen = map.theEditArticleOpen || 0;
+  const passSelected1day = map.passSelected1day || 0;
+  const passSelected1month = map.passSelected1month || 0;
+  const passSelected1year = map.passSelected1year || 0;
+  const ctaClicked1day = map.ctaClicked1day || 0;
+  const ctaClicked1month = map.ctaClicked1month || 0;
+  const ctaClicked1year = map.ctaClicked1year || 0;
 
   const tooltipWidth = 340;
   const tooltipHeight = 520; // approximate full height
@@ -147,41 +164,41 @@ const CustomTooltip = ({ active, payload, label, coordinate, viewBox }) => {
       <TRow label="Returning Users" value={map.returningUsers || 0} color="#9CA3AF"
         extra={`${percent(map.returningUsers, logins)} of logins`} />
 
-      <TSection title="Fine Tune" />
-      <TRow label="Model Fine Tune" value={fineTune} color={LINES.fineTune.color}
-        extra={`${percent(fineTune, logins)} of logins`} />
+      {fineTune > 0 && <><TSection title="Fine Tune" />
+      <TRow label="Model Fine Tune" value={fineTune} color={LINES.fineTune.color} extra={`${percent(fineTune, logins)} of logins`} /></>}
 
-      <TSection title="Coins Funnel" />
-      <TRow label="Product Finder" value={productFinder} color={LINES.productFinder.color}
-        extra={`${percent(productFinder, logins)} of logins · ${percent(productFinder, fineTune)} of FT`} />
-      <TRow label="Shade Finder" value={shadeFinder} color={LINES.shadeFinder.color}
-        extra={`${percent(shadeFinder, logins)} of logins · ${percent(shadeFinder, fineTune)} of FT`} />
-      <TRow label="Bought Coins" value={boughtCoins} color={LINES.boughtCoins.color}
-        extra={`${percent(boughtCoins, logins)} of logins`} />
-      <TRow label="Payment Popup Close" value={paymentPopupClose} color={LINES.paymentPopupClose.color}
-        extra={`${percent(paymentPopupClose, logins)} of logins`} />
+      {(productFinder > 0 || shadeFinder > 0 || boughtCoins > 0 || paymentPopupClose > 0) && <TSection title="Coins Funnel" />}
+      {productFinder > 0 && <TRow label="Product Finder" value={productFinder} color={LINES.productFinder.color} extra={`${percent(productFinder, logins)} of logins · ${percent(productFinder, fineTune)} of FT`} />}
+      {shadeFinder > 0 && <TRow label="Shade Finder" value={shadeFinder} color={LINES.shadeFinder.color} extra={`${percent(shadeFinder, logins)} of logins · ${percent(shadeFinder, fineTune)} of FT`} />}
+      {boughtCoins > 0 && <TRow label="Bought Coins" value={boughtCoins} color={LINES.boughtCoins.color} extra={`${percent(boughtCoins, logins)} of logins`} />}
+      {paymentPopupClose > 0 && <TRow label="Payment Popup Close" value={paymentPopupClose} color={LINES.paymentPopupClose.color} extra={`${percent(paymentPopupClose, logins)} of logins`} />}
 
-      <TSection title="Shade Guide" />
-      <TRow label="Shade Guide Quiz" value={shadeGuide} color={LINES.shadeGuide.color}
-        extra={`${percent(shadeGuide, logins)} of logins · ${percent(shadeGuide, fineTune)} of FT`} />
-      <TRow label="Bought Shade Guide" value={boughtShadeGuide} color={LINES.boughtShadeGuide.color}
-        extra={`${percent(boughtShadeGuide, shadeGuide)} of SG · ${percent(boughtShadeGuide, logins)} of logins`} />
+      {(shadeGuide > 0 || boughtShadeGuide > 0) && <TSection title="Shade Guide" />}
+      {shadeGuide > 0 && <TRow label="Shade Guide Quiz" value={shadeGuide} color={LINES.shadeGuide.color} extra={`${percent(shadeGuide, logins)} of logins · ${percent(shadeGuide, fineTune)} of FT`} />}
+      {boughtShadeGuide > 0 && <TRow label="Bought Shade Guide" value={boughtShadeGuide} color={LINES.boughtShadeGuide.color} extra={`${percent(boughtShadeGuide, shadeGuide)} of SG · ${percent(boughtShadeGuide, logins)} of logins`} />}
 
-      <TSection title="The Edit" />
-      <TRow label="The Edit Open" value={theEditOpen} color={LINES.theEditOpen.color}
-        extra={`${percent(theEditOpen, logins)} of logins`} />
-      <TRow label="Article Open" value={theEditArticleOpen} color={LINES.theEditArticleOpen.color}
-        extra={`${percent(theEditArticleOpen, theEditOpen)} of Edit opens`} />
+      {(theEditOpen > 0 || theEditArticleOpen > 0) && <TSection title="The Edit" />}
+      {theEditOpen > 0 && <TRow label="The Edit Open" value={theEditOpen} color={LINES.theEditOpen.color} extra={`${percent(theEditOpen, logins)} of logins`} />}
+      {theEditArticleOpen > 0 && <TRow label="Article Open" value={theEditArticleOpen} color={LINES.theEditArticleOpen.color} extra={`${percent(theEditArticleOpen, theEditOpen)} of Edit opens`} />}
 
-      <TSection title="Try Once Free" />
-      <TRow label="Try Once Free (Product)" value={tryOnceForFreeProduct} color={LINES.tryOnceForFreeProduct.color}
-        extra={`${percent(tryOnceForFreeProduct, logins)} of logins`} />
-      <TRow label="Try Once Free (Shade)" value={tryOnceForFreeShade} color={LINES.tryOnceForFreeShade.color}
-        extra={`${percent(tryOnceForFreeShade, logins)} of logins`} />
+      {(tryOnceForFreeProduct > 0 || tryOnceForFreeShade > 0) && <TSection title="Try Once Free" />}
+      {tryOnceForFreeProduct > 0 && <TRow label="Try Once Free (Product)" value={tryOnceForFreeProduct} color={LINES.tryOnceForFreeProduct.color} extra={`${percent(tryOnceForFreeProduct, logins)} of logins`} />}
+      {tryOnceForFreeShade > 0 && <TRow label="Try Once Free (Shade)" value={tryOnceForFreeShade} color={LINES.tryOnceForFreeShade.color} extra={`${percent(tryOnceForFreeShade, logins)} of logins`} />}
 
-      <TSection title="Premium" />
-      <TRow label="Bought Premium" value={boughtPremium} color={LINES.boughtPremium.color}
-        extra={`${percent(boughtPremium, logins)} of logins · ${percent(boughtPremium, fineTune)} of FT`} />
+      {boughtPremium > 0 && <><TSection title="Premium" />
+      <TRow label="Bought Premium" value={boughtPremium} color={LINES.boughtPremium.color} extra={`${percent(boughtPremium, logins)} of logins · ${percent(boughtPremium, fineTune)} of FT`} /></>}
+
+      {(passSelected1day > 0 || passSelected1month > 0 || passSelected1year > 0) && <TSection title="Pass Selection" />}
+      {passSelected1day > 0 && <TRow label="Pass Selected 1 Day" value={passSelected1day} color={LINES.passSelected1day.color} extra={`${percent(passSelected1day, logins)} of logins`} />}
+      {passSelected1month > 0 && <TRow label="Pass Selected 1 Month" value={passSelected1month} color={LINES.passSelected1month.color} extra={`${percent(passSelected1month, logins)} of logins`} />}
+      {passSelected1year > 0 && <TRow label="Pass Selected 1 Year" value={passSelected1year} color={LINES.passSelected1year.color} extra={`${percent(passSelected1year, logins)} of logins`} />}
+
+      {(ctaClicked1day > 0 || ctaClicked1month > 0 || ctaClicked1year > 0) && <TSection title="CTA Clicks" />}
+      {ctaClicked1day > 0 && <TRow label="CTA Clicked 1 Day" value={ctaClicked1day} color={LINES.ctaClicked1day.color} extra={`${percent(ctaClicked1day, passSelected1day)} of 1d selections`} />}
+      {ctaClicked1month > 0 && <TRow label="CTA Clicked 1 Month" value={ctaClicked1month} color={LINES.ctaClicked1month.color} extra={`${percent(ctaClicked1month, passSelected1month)} of 1m selections`} />}
+      {ctaClicked1year > 0 && <TRow label="CTA Clicked 1 Year" value={ctaClicked1year} color={LINES.ctaClicked1year.color} extra={`${percent(ctaClicked1year, passSelected1year)} of 1y selections`} />}
+
+      
     </div>,
     document.body
   );
@@ -214,8 +231,9 @@ export default function StepsAnalyticsGraph({ data }) {
       result.push(existing || {
         date: key, logins: 0, returningUsers: 0, fineTune: 0, shadeFinder: 0,
         productFinder: 0, shadeGuide: 0, boughtCoins: 0, boughtPremium: 0,
-        paymentPopupClose: 0, theEditOpen: 0, tryOnceForFreeProduct: 0,
-        tryOnceForFreeShade: 0, theEditArticleOpen: 0,
+        paymentPopupClose: 0, theEditOpen: 0, tryOnceForFreeProduct: 0, tryOnceForFreeShade: 0, theEditArticleOpen: 0,
+        passSelected1day: 0, passSelected1month: 0, passSelected1year: 0,
+        ctaClicked1day: 0, ctaClicked1month: 0, ctaClicked1year: 0,
       });
     }
     return result;
@@ -281,7 +299,7 @@ export default function StepsAnalyticsGraph({ data }) {
           <CartesianGrid stroke="rgba(0,0,0,0.05)" vertical={false} />
           <XAxis dataKey="date" tickFormatter={formatShort} stroke="#9CA3AF" tick={{ fontSize: 12, fontWeight: 500 }} />
           <YAxis stroke="#9CA3AF" tick={{ fontSize: 12 }} width={36} />
-          <Tooltip content={<CustomTooltip />} cursor={{ fill: "rgba(171,31,16,0.04)" }} wrapperStyle={{ zIndex: 9999 }} isAnimationActive={false} position={{ x: 0, y: 0 }} />
+          <Tooltip content={(props) => <CustomTooltip {...props} allData={weeklyData} visibleLines={visibleLines} />} cursor={{ fill: "rgba(171,31,16,0.04)" }} wrapperStyle={{ zIndex: 9999 }} isAnimationActive={false} position={{ x: 0, y: 0 }} />
 
           {/* Logins bar — always shown */}
           <Bar dataKey="logins" fill="#1F2937" opacity={0.85} name="Logins" radius={[6, 6, 0, 0]} maxBarSize={56} />

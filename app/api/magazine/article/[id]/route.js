@@ -1,7 +1,7 @@
 export const runtime = "nodejs";
 
 const BACKEND_URL = "https://api.th-fargate.in";
-const AUTH = "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJudW1iZXIiOiI2NjY2NjY2NjY2IiwiZXhwIjoxNzc5MjY0NjQ1fQ.IvTiiGLM54yFbMZ4ANMaXyl7-dsZ-pwWr3OKpScA8IA";
+const AUTH = "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJudW1iZXIiOiI3MzgzMjMxNjEyIiwiZXhwIjoxNzgwMTM2MDc5fQ.yHegZ1xoukm6ZTwauaL9z102-PomeXy9Vy17lLALs5k";
 
 // GET /api/magazine/article/[id]
 // Supports:
