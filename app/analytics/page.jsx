@@ -309,7 +309,10 @@ function fmtDate(value) {
   const n = typeof value === "number" ? value : isNaN(Date.parse(String(value))) ? null : Date.parse(String(value));
   if (!n) return "-";
   try { return new Date(n).toLocaleString(); } catch { return "-"; }
+  
 }
+
+const isNumericId = (id) => /^\d+$/.test(String(id));
 
 // Small stat card used in steps insights
 function StatCard({ title, value, sub, children }) {
@@ -370,6 +373,11 @@ export default function AnalyticsPage() {
   const [graphData, setGraphData] = useState(null);
   const [graphLoading, setGraphLoading] = useState(false);
   const [usersWithPushTokens, setUsersWithPushTokens] = useState([]);
+  const [buyers, setBuyers] = useState(null);       // null = not loaded yet
+  const [buyersLoading, setBuyersLoading] = useState(false);
+  const [buyersScanning, setBuyersScanning] = useState(false);
+  const [boughtCoinsExpanded, setBoughtCoinsExpanded] = useState(false);
+  const [boughtPremiumExpanded, setBoughtPremiumExpanded] = useState(false);
   const [backfilling, setBackfilling] = useState(false);
   const [backfillResult, setBackfillResult] = useState(null);
   const [aiDate, setAiDate] = useState(() => new Date().toISOString().split("T")[0]);
@@ -379,8 +387,27 @@ export default function AnalyticsPage() {
   const [aiMessages, setAiMessages] = useState([]); // [{role: "user"|"assistant", content: "..."}]
   const [aiChatInput, setAiChatInput] = useState("");
   const [aiChatLoading, setAiChatLoading] = useState(false);
+  const [userType, setUserType] = useState("numeric"); // "numeric" | "alpha"
   const [grantingPremium, setGrantingPremium] = useState(false);
 const [grantPremiumResult, setGrantPremiumResult] = useState(null);
+const [imgOptFolderSummary, setImgOptFolderSummary] = useState(null);
+const [imgOptLoading, setImgOptLoading] = useState(false);
+const [imgOptResult, setImgOptResult] = useState(null);
+const [imgOptError, setImgOptError] = useState(null);
+const [imgOptDryRun, setImgOptDryRun] = useState(true);
+const [imgOptExpanded, setImgOptExpanded] = useState(false);
+const [imgOptSelectedFolders, setImgOptSelectedFolders] = useState([]);
+
+const ALL_IMG_FOLDERS = [
+  "assets/drinks",
+  "assets/snacks",
+  "assets/sip-snack",
+  "assets/memoji",
+  "assets/preview",
+  "assets/compare",
+  "assets/helps",
+  "assets/images",
+];
 
   useEffect(() => {
     let active = true;
@@ -401,6 +428,12 @@ const [grantPremiumResult, setGrantPremiumResult] = useState(null);
         setPerfect5UpdatedAt(j.perfectProduct5UpdatedAt || null);
         setPerfect24UpdatedAt(j.perfectProduct24UpdatedAt || null);
         setUsersWithPushTokens(j.usersWithPushTokens || []);
+        // fetch buyers from S3 (read-only, no scan)
+        try {
+          const br = await fetch("/api/analytics/buyers", { cache: "no-store" });
+          const bj = await br.json();
+          if (bj.exists) setBuyers(bj);
+        } catch { /* silent */ }
         } catch {
         if (!active) return;
       } finally {
@@ -408,11 +441,16 @@ const [grantPremiumResult, setGrantPremiumResult] = useState(null);
       }
     })();
 
-    // graph fetch runs in parallel — not chained after users
+    return () => (active = false);
+  }, []);
+
+  // Refetch graph whenever user-type tab changes
+  useEffect(() => {
+    let active = true;
     (async () => {
       setGraphLoading(true);
       try {
-        const g = await fetch("/api/analytics/steps-graph", { cache: "no-store" });
+        const g = await fetch(`/api/analytics/steps-graph?type=${userType}`, { cache: "no-store" });
         const gjson = await g.json();
         if (active) setGraphData(gjson.graph || null);
       } catch {
@@ -421,9 +459,18 @@ const [grantPremiumResult, setGrantPremiumResult] = useState(null);
         if (active) setGraphLoading(false);
       }
     })();
+    return () => { active = false; };
+  }, [userType]);
 
-    return () => (active = false);
-  }, []);
+  // Clear stale analysis when switching tabs
+  useEffect(() => {
+    setStepsInsights(null);
+    setAiAnalysis(null);
+    setAiMessages([]);
+    setAiError(null);
+    setSelectedId(null);
+  }, [userType]);
+
 
   useEffect(() => { setShowImages(false); }, [selectedId]);
 
@@ -448,6 +495,7 @@ const [grantPremiumResult, setGrantPremiumResult] = useState(null);
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     let arr = usersList || [];
+    arr = arr.filter((u) => (userType === "numeric" ? isNumericId(u.id) : !isNumericId(u.id)));
     if (q) arr = arr.filter((u) => [String(u.id ?? ""), u.name ?? "", u.number ?? ""].join(" ").toLowerCase().includes(q));
     const getTs = (u) => {
       const v = u?.lastLogin ?? u?.createdAt;
@@ -462,7 +510,7 @@ const [grantPremiumResult, setGrantPremiumResult] = useState(null);
       if (ta != null && tb != null && ta !== tb) return tb - ta;
       return (a.name || "").localeCompare(b.name || "");
     });
-  }, [usersList, query]);
+  }, [usersList, query, userType]);
 
   async function runAiAnalysis() {
   setAiLoading(true);
@@ -470,7 +518,7 @@ const [grantPremiumResult, setGrantPremiumResult] = useState(null);
   setAiError(null);
   setAiMessages([]);
   try {
-    const r = await fetch(`/api/analytics/steps?date=${encodeURIComponent(aiDate)}`, { cache: "no-store" });
+    const r = await fetch(`/api/analytics/steps?date=${encodeURIComponent(aiDate)}&type=${userType}`, { cache: "no-store" });
     const j = await r.json();
     const BLACKLIST = new Set(["7383231612", "7862917606"]);
     const users = (j.users || []).filter((u) => !BLACKLIST.has(String(u.id)));
@@ -485,65 +533,431 @@ const [grantPremiumResult, setGrantPremiumResult] = useState(null);
       const seq = u.steps.map((s) => s.step).join(" → ");
       return `User ${u.id}: ${seq}`;
     });
-    const systemPrompt = `You are a conversion analyst for TrueHue, an AI-powered makeup shade-matching app. Your job is to determine exactly what drives purchases and what stops them.
+    const systemPrompt = `You are a product and conversion analyst for TrueHue, an AI-powered makeup shade-matching app.
 
---- APP CONTEXT ---
-CURRENCY: Shade passes (also called coins). New users get 5 free passes on signup. Deleted/re-registered users get 0.
+Your job is NOT just to explain why users buy.
 
-HOW PASSES WORK: Nothing is blocked upfront. Users explore freely — unlocking each shade costs 1 pass, shown as a -1 toast. Once unlocked, a shade is free forever across all features. Lock icon = costs 1 pass. Sparkle icon = already unlocked, free.
+Your job is to understand EVERYTHING:
 
-ZERO-PASS UX (after paywall dismissed):
-- Shade Finder:  user image dimmed. pressing on you deducts a pass and unlocks the shade. (if they have passes, other wise will show user image dimmed and clicking cta will open paywall)
-- Shade Finder:  pressing recommended button and seeing shade costs 1 pass and unlocks the shade (if they have passes, other wise clicking cta will open paywall)
-- Product Finder: image opens normally  - user image dimmed and shade name is blutted. "unlock Shade – 1 pass" unlocks shade, pressing on you costs 1 pass and unlocks shade.  (if they have passes, other wise clicking cta will open paywall)
-- any unlock will unlock full shade eg. if i unlock a shade through rec button in shade finder, it will unlock the on you for it too. that shade is unlocked forever in shade finder and product finder. (if they have passes, other wise will show user image dimmed and clicking cta will open paywall))
+* What makes users purchase
+* What stops users from purchasing
+* Where users drop off
+* Where users get confused
+* What errors or bugs occurred
+* Which features users love
+* Which features users ignore
+* Whether the paywall is shown at the right moment
+* Whether users close the paywall immediately or spend time on it
+* Whether users return after dismissing the paywall
+* Which onboarding steps cause friction
+* What should be improved in product, UX, copy, or pricing
 
-PASS TRIGGER FLOW:
-- 3 unlocks → educate popup (explains sparkle = free, lock = 1 pass)
+Think like a combination of:
 
-WHAT COSTS 1 PASS: unlocking a shade. for locked shades seeing shade on model is free. unlocked shade gives you seeing it on you and reccomended in shade finder, and seeing it on you and exact shade name in product finder
+1. Product Manager
+2. Growth Analyst
+3. UX Researcher
+4. Conversion Optimizer
 
-PASS PACKS: 50/₹29 · 200/₹79 (Popular) · 650/₹199 · Premium ₹399/yr (unlimited)
+Always be brutally honest and point out both strengths and weaknesses.
 
-Shade guide:
-there are 7 sections, 2 are free, 5 are paid - 149 for the whole shade guide.
+---
 
---- STEP GLOSSARY ---
-login, submit photo, skintone-result-next, undertone-result-next, lip-pigmentation-selected, model_select, model-fine-tune, disclaimer, home-page = onboarding steps
-shade-finder = opened Shade Finder feature
-product-finder = opened Product Finder feature
-shade-guide = visited Shade Guide
-Unlock-shade-[brand]-[product] = tapped a product in Shade Finder (costs 1 pass if new shade)
-Unlock-product-[category]-[price] = browsed a category in Product Finder
-on-you-toggle-clicked = toggled "See it on you" (FREE, no pass)
-recommended-shade-clicked-your_shade / -lighter / -darker = explored shade variants
-using-customer-coins = a pass was deducted
-payment-popup-open = paywall opened
-payment-popup close = paywall closed WITHOUT buying
-bought-coins = purchased a pass pack ✓ CONVERSION
-bought-premium = purchased ₹399/yr ✓ CONVERSION
-compare-shades = opened Compare Shades`;
+APP CONTEXT
 
-    const firstUserMessage = `Analyse ${aiDate}, ${users.length} user(s) were active. Step sequences (→ = next action):
+PURCHASE MODEL:
+
+TrueHue has TWO paid options:
+
+✨ Lifetime Access — ₹99
+Users pay once and unlock all premium features forever.
+
+⏱️ One-Day Access — ₹39
+Users unlock all premium features for 24 hours.
+
+There are:
+
+* No subscriptions
+* No auto-renewal
+* No coins
+* No pass packs
+* No premium tiers
+* No free trials
+
+Conversion events:
+
+bought-premium = purchased premium access (Lifetime ₹99 OR One-Day ₹39) ✓ CONVERSION
+bought-coins = purchased one day - rs 39 ✓ CONVERSION
+cta-clicked-1-year = user tapped the LIFETIME (₹99) option's CTA on the paywall (note: the event is named "1-year" but it refers to Lifetime)
+cta-clicked-1-day = user tapped the ONE-DAY (₹39) option's CTA on the paywall
+
+---
+
+FREE EXPERIENCE
+
+Users can:
+
+✓ Complete onboarding
+
+✓ Shade Finder
+
+* See all shades on models
+* Compare shades on models
+* Browse every shade
+
+✓ Product Finder
+
+* Full browsing experience
+* Browse all brands and products
+* On the MODEL: everything is fully visible (all shades)
+* "On you": only 4 out of 8 shades are visible; the rest are locked
+* Similar shades list: brand names are visible, but product names are blocked/locked
+
+✓ Shade Guide
+
+* Read the entire shade guide
+* Browse all sections
+
+However:
+
+* "See it on you" is locked
+* Exact shade recommendations are locked
+* Shade Guide product recommendations are locked
+
+Locked features show a CTA to purchase Lifetime Access.
+
+---
+
+PREMIUM EXPERIENCE
+
+Lifetime Access unlocks:
+
+✓ See all shades on YOU
+
+✓ Exact shade recommendations
+
+✓ Full Shade Guide experience
+
+* Personalized recommendations
+* Recommended products
+
+✓ Compare shades on YOU
+
+✓ All future premium features
+
+Premium is designed as:
+
+"Pay Once. Use Forever."
+
+Price:
+
+₹99
+
+Subtext:
+
+"All premium features unlocked forever."
+
+CTA:
+
+"Get Lifetime Access"
+
+---
+
+ANALYSIS FRAMEWORK
+
+When analyzing sessions, focus on:
+
+ONBOARDING
+
+* Where users abandon onboarding
+* Which screens are skipped quickly
+* Which screens are revisited
+* Whether onboarding is too long
+* Whether users understand the value proposition
+
+FEATURE DISCOVERY
+
+* Which features users try first
+* Which features they never use
+* Which features keep them engaged
+* Which features appear confusing
+
+PAYWALL
+
+* How many times the paywall opens
+* Time spent before opening paywall
+* Time spent on paywall
+* Whether users scroll
+* Whether users immediately close it
+* Whether users reopen later
+* Which action triggered the paywall
+* Whether the paywall timing feels natural or aggressive
+* Whether the pricing seems to create friction
+
+CONVERSION
+
+* What sequence of actions leads to purchase
+* Which features are strongest purchase triggers
+* Which users are most likely to buy
+* What objections likely prevented purchase
+* What changes could improve conversion
+
+DROPOFF
+
+* Exact point where users leave
+* Patterns among dropoffs
+* Possible confusion or bugs
+* Missing information
+* Friction in the experience
+
+ERRORS
+
+* Any crashes
+* Broken events
+* Failed API calls
+* Missing images
+* Invalid states
+* UI inconsistencies
+* Unexpected behavior
+
+Always point out:
+
+1. What's working
+2. What's not working
+3. Biggest opportunities
+4. Biggest risks
+5. Specific recommendations
+
+---
+
+STEP GLOSSARY
+
+login
+
+submit-photo
+
+skintone-result-next
+
+undertone-result-next
+
+lip-pigmentation-selected
+
+model_select
+
+model-fine-tune
+
+disclaimer
+
+home-page
+
+shade-finder
+= opened Shade Finder
+
+product-finder
+= opened Product Finder
+
+shade-guide
+= visited Shade Guide
+
+locked-shade-clicked
+= user tapped a locked shade
+
+on-you-toggle-clicked
+= user attempted "See it on you"
+
+recommended-shade-clicked-your_shade
+
+recommended-shade-clicked-lighter
+
+recommended-shade-clicked-darker
+
+compare-shades
+
+payment-popup-open
+
+payment-popup-close
+= paywall closed
+
+cta-clicked-1-year
+= tapped the Lifetime (₹99) CTA on the paywall (event name says "1-year" but it means Lifetime)
+
+cta-clicked-1-day
+= tapped the One-Day (₹39) CTA on the paywall
+
+bought-premium
+= purchased premium access (Lifetime ₹99 or One-Day ₹39) ✓ CONVERSION`;
+
+
+  const firstUserMessage = `Analyse ${aiDate}. ${users.length} user(s) were active.
+
+Step sequences (→ = next action):
 
 ${lines.join("\n")}
 
 Respond in EXACTLY this structure:
 
-SECTION_1: CONVERSION WINS
-For every user who has bought-coins or bought-premium: what did they do in the 5 steps before payment-popup-open? How many products had they explored? How many using-customer-coins events before they hit the wall? Were they mid-exploration or at a pause point? What made them buy?
+SECTION_1: EXECUTIVE SUMMARY
 
-SECTION_2: CONVERSION LOSSES
-For every user who has payment-popup-open followed by payment-popup close (without bought-coins or bought-premium): what were their last 5 steps before the paywall? How deep into exploration were they — had they explored 1 product or many? Were they mid-task or wrapping up? What likely stopped them?
+* Total active users
+* Number who opened the paywall
+* Number who purchased (bought-premium)
+* Paywall conversion rate
+* Biggest success in the funnel
+* Biggest dropoff in the funnel
+* Most surprising user behaviour
 
-SECTION_3: NEVER-REACHED-PAYWALL USERS
-Users who used all passes (10 using-customer-coins events) but never saw payment-popup-open — what did they do after passes ran out? Did they keep exploring in zero-pass UX or did they leave? What does this tell us?
+---
 
-SECTION_4: ENGAGEMENT DEPTH vs CONVERSION
-Compare users who converted vs those who didn't: did converters explore more products, more brands, more shade variants? Did they use on-you-toggle-clicked more? Is there a specific product or brand that appears in converter sessions but not non-converter sessions?
+SECTION_2: CONVERSION ANALYSIS
 
-SECTION_5: THE ONE THING TO FIX
-Based purely on the step data above, what is the single highest-leverage change we can make in the app to increase conversions this week? Be specific about which step, which moment, and what to change. Give 1 primary fix and 2 supporting fixes with exact implementation suggestions.`;
+For every user who purchased (bought-premium):
+
+* What were their last 5 actions before purchase?
+* What feature triggered the paywall?
+* How much of the app had they explored?
+* Did they use Shade Finder, Product Finder and Shade Guide?
+* Were they exploring multiple shades or a single shade?
+* Did they hesitate after the paywall or buy immediately?
+* What behavioural patterns are common across purchasers?
+
+Then summarize:
+
+* Top reasons users buy
+* Strongest purchase triggers
+* Which feature creates the most value
+
+---
+
+SECTION_3: PAYWALL ANALYSIS
+
+For every user who opened the paywall:
+
+* What action triggered the paywall?
+* How long had they been using the app before opening it?
+* Did they close immediately or stay for some time?
+* Did they reopen it later?
+* Did they continue exploring after closing?
+* Did they eventually purchase?
+
+Then summarize:
+
+* Is the paywall shown at the right moment?
+* Does the paywall appear too early or too late?
+* What friction likely exists on the paywall?
+* What should be changed first?
+
+---
+
+SECTION_4: CONVERSION LOSSES
+
+For every user who opened the paywall but never purchased:
+
+* What were their last 5 actions before opening it?
+* How much had they explored?
+* Were they in the middle of a task?
+* What were they trying to do?
+* Did they leave immediately after closing?
+* Did they come back later?
+
+Then summarize:
+
+* Most likely reasons they did not buy
+* Common behavioural patterns
+* Product or UX improvements that may help
+
+---
+
+SECTION_5: DROP OFFS
+
+Find users who:
+
+* Left during onboarding
+* Never opened Shade Finder
+* Never opened Product Finder
+* Never opened Shade Guide
+* Opened features but stopped quickly
+* Reached premium walls and disappeared
+
+For each major dropoff:
+
+* Exact step where it happened
+* What the user was trying to do
+* Possible reason for leaving
+* Confidence level (High / Medium / Low)
+
+Then summarize:
+
+* Biggest funnel leak
+* Most concerning behaviour
+* Fastest improvement opportunity
+
+---
+
+SECTION_6: FEATURE ENGAGEMENT
+
+Compare:
+
+Purchasers vs Non-purchasers
+
+Answer:
+
+* Which features are most used?
+* Which features are ignored?
+* Which features correlate with purchase?
+* Are converters more likely to compare shades?
+* Are converters more likely to visit Shade Guide?
+* Are converters more likely to use Product Finder?
+
+Then rank:
+
+1. Highest value feature
+2. Highest engagement feature
+3. Most underutilized feature
+4. Feature most likely to drive conversion if improved
+
+---
+
+SECTION_7: ERRORS & SUSPICIOUS PATTERNS
+
+Look for:
+
+* Missing events
+* Broken funnels
+* Users stuck repeating actions
+* Unexpected jumps
+* Users abandoning immediately after a step
+* Possible bugs
+* Inconsistent event sequences
+
+For every issue:
+
+* Describe the issue
+* Which users experienced it
+* Severity (Low / Medium / High)
+* Suggested fix
+
+---
+
+SECTION_8: WHAT TO FIX THIS WEEK
+
+Give:
+
+1 Primary Fix
+
+* Exact step
+* Problem
+* Why it matters
+* Exact implementation suggestion
+
+2 Supporting Fixes
+
+* Exact implementation suggestions
+
+Prioritize changes by expected impact on:
+
+1. Purchases
+2. Retention
+3. User experience`;
 
     const initialMessages = [{ role: "user", content: firstUserMessage }];
 
@@ -629,10 +1043,23 @@ async function sendAiChat() {
           <button className="th-btn-outline" style={GL.btnOutline}
             onClick={async () => {
               setStepsLoading(true);
-              try { const r = await fetch("/api/analytics/steps", { cache: "no-store" }); const j = await r.json(); setStepsInsights(j.insights || null); }
+              try { const r = await fetch(`/api/analytics/steps?type=${userType}`, { cache: "no-store" }); const j = await r.json(); setStepsInsights(j.insights || null); }
               catch { setStepsInsights(null); } finally { setStepsLoading(false); }
             }}>
             {stepsLoading ? "Analysing…" : "Analyse Steps"}
+          </button>
+          <button className="th-btn-outline" style={{ ...GL.btnOutline, opacity: buyersScanning ? 0.6 : 1 }}
+            disabled={buyersScanning}
+            onClick={async () => {
+              if (!confirm("This will scan all users and save purchase_data.json to S3. Continue?")) return;
+              setBuyersScanning(true);
+              try {
+                const r = await fetch("/api/analytics/buyers", { method: "POST", cache: "no-store" });
+                const j = await r.json();
+                if (j.ok) setBuyers(j);
+              } catch { /* silent */ } finally { setBuyersScanning(false); }
+            }}>
+            {buyersScanning ? "Scanning…" : "💳 List Buyers"}
           </button>
           <button className="th-btn-outline" style={GL.btnOutline}
             onClick={async () => {
@@ -649,12 +1076,12 @@ async function sendAiChat() {
               setBackfilling(true);
               setBackfillResult(null);
               try {
-                const r = await fetch("/api/analytics/backfill-graph", { method: "POST", cache: "no-store" });
+                const r = await fetch(`/api/analytics/backfill-graph?type=${userType}`, { method: "POST", cache: "no-store" });
                 const j = await r.json();
                 if (j.ok) {
                   setBackfillResult(`✓ Backfill done — ${j.days} days written`);
                   // refresh graph display
-                  const g = await fetch(`/api/analytics/steps-graph?t=${Date.now()}`, { cache: "no-store" });
+                  const g = await fetch(`/api/analytics/steps-graph?type=${userType}&t=${Date.now()}`, { cache: "no-store" });
                   const gjson = await g.json();
                   setGraphData(gjson.graph || null);
                 } else {
@@ -700,6 +1127,27 @@ async function sendAiChat() {
       </div>
 
       <div style={{ padding: "28px 28px", display: "flex", flexDirection: "column", gap: 24 }}>
+        {/* ── User Type Tabs ── */}
+        <div style={{ display: "flex", gap: 6, background: "rgba(255,255,255,0.58)", backdropFilter: "blur(20px)", borderRadius: 14, padding: 6, border: "1.5px solid rgba(255,255,255,0.8)", width: "fit-content", boxShadow: "0 4px 24px rgba(171,31,16,0.07)" }}>
+          {[
+            { id: "numeric", label: "🔢 Number Users" },
+            { id: "alpha", label: "🔤 Alphanumeric Users" },
+          ].map((t) => (
+            <button
+              key={t.id}
+              onClick={() => setUserType(t.id)}
+              style={{
+                background: userType === t.id ? "linear-gradient(135deg, #c0392b 0%, #ab1f10 100%)" : "transparent",
+                color: userType === t.id ? "#fff" : "#7b241c",
+                border: "none", borderRadius: 10, padding: "10px 22px",
+                fontSize: 14, fontWeight: 700, cursor: "pointer", transition: "all 0.15s",
+                boxShadow: userType === t.id ? "0 4px 12px rgba(171,31,16,0.25)" : "none",
+              }}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
         {grantPremiumResult && (
           <div style={{ background: grantPremiumResult.startsWith("✓") ? "rgba(22,163,74,0.1)" : "rgba(220,38,38,0.1)", border: `1px solid ${grantPremiumResult.startsWith("✓") ? "rgba(22,163,74,0.3)" : "rgba(220,38,38,0.3)"}`, borderRadius: 12, padding: "14px 20px", fontSize: 14, fontWeight: 600, color: grantPremiumResult.startsWith("✓") ? "#15803d" : "#dc2626", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
             {grantPremiumResult}
@@ -746,6 +1194,224 @@ async function sendAiChat() {
               {grantingPremium ? "Granting…" : "🎁 Grant Premium (>2 coins)"}
             </button>
           </div>
+        </div>
+
+        {/* ── Image Optimizer ── */}
+        <div style={{ ...GL.card, padding: 28 }}>
+          <div
+            style={{ display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap", cursor: "pointer" }}
+            onClick={() => {
+              setImgOptExpanded((v) => !v);
+              if (!imgOptFolderSummary && !imgOptLoading) {
+                setImgOptLoading(true);
+                fetch("/api/analytics/optimize-images")
+                  .then((r) => r.json())
+                  .then((j) => { setImgOptFolderSummary(j.folders || null); })
+                  .catch(() => {})
+                  .finally(() => setImgOptLoading(false));
+              }
+            }}
+          >
+            <div style={GL.sectionHeader}>🖼️ Image Optimizer</div>
+            <span style={{ fontSize: 13, color: "#9b4a42", flex: 1 }}>
+              Resize all CDN images to 600px · convert to WebP · ~90% smaller
+            </span>
+            <span style={{ fontSize: 13, color: "#ab1f10", fontWeight: 600 }}>
+              {imgOptExpanded ? "▲ Hide" : "▼ Show"}
+            </span>
+          </div>
+
+          {imgOptExpanded && (
+            <div style={{ marginTop: 20, display: "flex", flexDirection: "column", gap: 16 }}>
+
+              {imgOptFolderSummary && (
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: 8 }}>
+                  {imgOptFolderSummary.map((f) => {
+                    const folderKey = f.folder.replace(/\/$/, "");
+                    const isSelected = imgOptSelectedFolders.includes(folderKey);
+                    return (
+                      <div
+                        key={f.folder}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setImgOptSelectedFolders((prev) =>
+                            prev.includes(folderKey)
+                              ? prev.filter((x) => x !== folderKey)
+                              : [...prev, folderKey]
+                          );
+                        }}
+                        style={{
+                          background: isSelected ? "rgba(171,31,16,0.07)" : "rgba(255,255,255,0.65)",
+                          border: `1.5px solid ${isSelected ? "#ab1f10" : "rgba(171,31,16,0.1)"}`,
+                          borderRadius: 12,
+                          padding: "12px 16px",
+                          cursor: "pointer",
+                          transition: "all 0.15s",
+                        }}
+                      >
+                        <div style={{ fontSize: 13, fontWeight: 700, color: "#1a0a09", marginBottom: 4 }}>
+                          {f.folder.replace("assets/", "").replace("/", "")}
+                          {isSelected && <span style={{ marginLeft: 6, color: "#ab1f10" }}>✓</span>}
+                        </div>
+                        <div style={{ fontSize: 12, color: "#9b4a42" }}>
+                          {f.fileCount} files · {f.totalMB} MB
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              {imgOptLoading && !imgOptResult && (
+                <div style={{ fontSize: 14, color: "#9b4a42" }}>Loading folder info…</div>
+              )}
+
+              <div style={{ display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap" }}>
+                <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", fontSize: 14, fontWeight: 600, color: "#7b241c" }}>
+                  <div
+                    onClick={(e) => { e.stopPropagation(); setImgOptDryRun((v) => !v); }}
+                    style={{
+                      width: 40, height: 22, borderRadius: 11,
+                      background: imgOptDryRun ? "#ab1f10" : "rgba(171,31,16,0.2)",
+                      position: "relative", transition: "background 0.2s", cursor: "pointer",
+                    }}
+                  >
+                    <div style={{
+                      position: "absolute", top: 3, left: imgOptDryRun ? 20 : 3,
+                      width: 16, height: 16, borderRadius: 8, background: "#fff",
+                      transition: "left 0.2s", boxShadow: "0 1px 4px rgba(0,0,0,0.2)",
+                    }} />
+                  </div>
+                  {imgOptDryRun ? "Dry run (preview only)" : "Live (will overwrite S3)"}
+                </label>
+
+                <span style={{ fontSize: 13, color: "#9b4a42" }}>
+                  {imgOptSelectedFolders.length === 0
+                    ? "All folders will be processed"
+                    : `${imgOptSelectedFolders.length} folder${imgOptSelectedFolders.length > 1 ? "s" : ""} selected`}
+                </span>
+
+                {imgOptSelectedFolders.length > 0 && (
+                  <button
+                    onClick={(e) => { e.stopPropagation(); setImgOptSelectedFolders([]); }}
+                    style={{ background: "none", border: "none", fontSize: 13, color: "#ab1f10", cursor: "pointer", fontWeight: 600 }}
+                  >
+                    Clear selection
+                  </button>
+                )}
+
+                <button
+                  className="th-btn-primary"
+                  style={{
+                    ...GL.btnPrimary,
+                    opacity: imgOptLoading ? 0.6 : 1,
+                    background: imgOptDryRun
+                      ? "linear-gradient(135deg, #7b7b7b 0%, #555 100%)"
+                      : "linear-gradient(135deg, #c0392b 0%, #ab1f10 100%)",
+                  }}
+                  disabled={imgOptLoading}
+                  onClick={async (e) => {
+                    e.stopPropagation();
+                    if (!imgOptDryRun && !confirm(
+                      `This will permanently overwrite images in S3 with compressed WebP versions.\n\nFolders: ${imgOptSelectedFolders.length > 0 ? imgOptSelectedFolders.join(", ") : "ALL"}\n\nContinue?`
+                    )) return;
+
+                    setImgOptLoading(true);
+                    setImgOptResult(null);
+                    setImgOptError(null);
+
+                    try {
+                      const r = await fetch("/api/analytics/optimize-images", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                          dryRun: imgOptDryRun,
+                          folders: imgOptSelectedFolders.length > 0 ? imgOptSelectedFolders : undefined,
+                        }),
+                      });
+                      const j = await r.json();
+                      if (j.ok) setImgOptResult(j);
+                      else setImgOptError(j.error || "Failed");
+                    } catch (e) {
+                      setImgOptError(e.message);
+                    } finally {
+                      setImgOptLoading(false);
+                    }
+                  }}
+                >
+                  {imgOptLoading ? "Processing…" : imgOptDryRun ? "🔍 Preview savings" : "⚡ Optimize & save"}
+                </button>
+              </div>
+
+              {imgOptError && (
+                <div style={{ background: "rgba(220,38,38,0.08)", border: "1px solid rgba(220,38,38,0.2)", borderRadius: 10, padding: "12px 16px", fontSize: 14, color: "#dc2626" }}>
+                  {imgOptError}
+                </div>
+              )}
+
+              {imgOptResult && (
+                <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))", gap: 10 }}>
+                    {[
+                      { label: "Processed", value: imgOptResult.summary.processed, color: "#1a0a09" },
+                      { label: "Skipped", value: imgOptResult.summary.skipped, color: "#9b4a42" },
+                      { label: "Failed", value: imgOptResult.summary.failed, color: "#dc2626" },
+                      { label: "Original", value: `${imgOptResult.summary.originalMB} MB`, color: "#1a0a09" },
+                      { label: imgOptResult.dryRun ? "Would be" : "Now", value: `${imgOptResult.summary.optimizedMB} MB`, color: "#15803d" },
+                      { label: "Saved", value: `${imgOptResult.summary.savingPct}%`, color: "#ab1f10" },
+                    ].map(({ label, value, color }) => (
+                      <div key={label} style={{ background: "rgba(255,255,255,0.72)", borderRadius: 12, border: "1px solid rgba(171,31,16,0.08)", padding: "14px 16px" }}>
+                        <div style={{ fontSize: 11, fontWeight: 700, color: "#9b4a42", letterSpacing: "0.06em", textTransform: "uppercase", marginBottom: 4 }}>{label}</div>
+                        <div style={{ fontSize: 22, fontWeight: 800, color, lineHeight: 1 }}>{value}</div>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div style={{ background: "rgba(255,255,255,0.55)", borderRadius: 14, border: "1px solid rgba(171,31,16,0.07)", overflow: "hidden" }}>
+                    <div style={{ maxHeight: 340, overflowY: "auto" }}>
+                      <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+                        <thead style={{ position: "sticky", top: 0, background: "rgba(255,255,255,0.95)", zIndex: 1 }}>
+                          <tr style={{ borderBottom: "1px solid rgba(171,31,16,0.1)" }}>
+                            {["File", "Status", "Before", "After", "Saving"].map((h) => (
+                              <th key={h} style={{ padding: "10px 14px", textAlign: "left", fontSize: 11, fontWeight: 700, color: "#7b241c", letterSpacing: "0.05em", textTransform: "uppercase" }}>{h}</th>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {imgOptResult.results.map((row, i) => (
+                            <tr key={i} style={{ borderBottom: "1px solid rgba(171,31,16,0.04)", background: i % 2 === 0 ? "rgba(255,255,255,0.5)" : "transparent" }}>
+                              <td style={{ padding: "8px 14px", color: "#1a0a09", maxWidth: 280, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                                <div style={{ fontSize: 12, color: "#9b4a42", marginBottom: 2 }}>from: {row.key.replace("assets/", "")}</div>
+                                <div style={{ fontSize: 12, color: "#15803d" }}>to: {row.outputKey?.replace("assets_optimised/", "") || "—"}</div>
+                              </td>
+                              <td style={{ padding: "8px 14px" }}>
+                                <span style={{
+                                  fontSize: 11, fontWeight: 700, padding: "2px 8px", borderRadius: 999,
+                                  background: row.status === "optimized" ? "rgba(22,163,74,0.1)" : row.status === "dry-run" ? "rgba(171,31,16,0.08)" : row.status === "failed" ? "rgba(220,38,38,0.1)" : "rgba(0,0,0,0.05)",
+                                  color: row.status === "optimized" ? "#15803d" : row.status === "dry-run" ? "#ab1f10" : row.status === "failed" ? "#dc2626" : "#9b4a42",
+                                }}>
+                                  {row.status}
+                                </span>
+                              </td>
+                              <td style={{ padding: "8px 14px", color: "#9b4a42" }}>{row.originalKB ? `${row.originalKB} KB` : "—"}</td>
+                              <td style={{ padding: "8px 14px", color: "#15803d", fontWeight: 600 }}>{row.optimizedKB ? `${row.optimizedKB} KB` : "—"}</td>
+                              <td style={{ padding: "8px 14px", color: "#ab1f10", fontWeight: 700 }}>{row.savingPct != null ? `${row.savingPct}%` : row.reason || "—"}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+
+                  {!imgOptResult.dryRun && (
+                    <div style={{ background: "rgba(22,163,74,0.07)", border: "1px solid rgba(22,163,74,0.2)", borderRadius: 10, padding: "12px 16px", fontSize: 13, color: "#15803d", fontWeight: 600 }}>
+                      ✓ Images saved to S3. CloudFront will serve fresh versions within ~60s.
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         {/* ── AI Daily Analysis ── */}
@@ -871,7 +1537,7 @@ async function sendAiChat() {
             {graphLoading && <span style={{ fontSize: 13, color: "#9b4a42" }}>Loading…</span>}
           </div>
           {graphData
-            ? <StepsAnalyticsGraph data={graphData} />
+            ? <StepsAnalyticsGraph data={graphData} userType={userType} />
             : !graphLoading && <div style={{ fontSize: 14, color: "#9b4a42", padding: "20px 0" }}>No graph data available.</div>}
         </div>
 
@@ -1097,6 +1763,88 @@ async function sendAiChat() {
             </div>
           </div>
         </div>
+
+        {/* ── Buyers ── */}
+        {buyers && (
+          <div style={{ ...GL.card, padding: 28 }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6, flexWrap: "wrap", gap: 12 }}>
+              <div style={GL.sectionHeader}>
+                💳 Buyers
+                <span style={{ fontWeight: 400, color: "#b08080", marginLeft: 10 }}>
+                  {buyers.combined?.length ?? 0} total
+                </span>
+              </div>
+              <span style={{ fontSize: 12, color: "#9b4a42" }}>
+                {buyers.generatedAt ? `Last scanned ${new Date(buyers.generatedAt).toLocaleString()}` : ""}
+              </span>
+            </div>
+            <p style={{ fontSize: 13, color: "#7b241c", marginBottom: 20, opacity: 0.8 }}>
+              Loaded from <code style={{ background: "rgba(171,31,16,0.07)", borderRadius: 5, padding: "2px 6px" }}>purchase_data.json</code>.
+              Premium counted from 15 Jun 2026 onwards. Hit <strong>List Buyers</strong> to rescan and overwrite.
+            </p>
+
+            <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
+
+              {/* Bought Coins */}
+              <div>
+                <div
+                  onClick={() => setBoughtCoinsExpanded((v) => !v)}
+                  style={{ display: "flex", alignItems: "center", justifyContent: "space-between", cursor: "pointer", fontSize: 12, fontWeight: 700, color: "#ab1f10", letterSpacing: "0.07em", textTransform: "uppercase", marginBottom: boughtCoinsExpanded ? 12 : 0 }}
+                >
+                  <span>Bought Coins — {buyers.boughtCoins?.length ?? 0}</span>
+                  <span style={{ fontSize: 12 }}>{boughtCoinsExpanded ? "▲ Hide" : "▼ Show"}</span>
+                </div>
+                {boughtCoinsExpanded && (
+                  !buyers.boughtCoins?.length ? (
+                    <div style={{ fontSize: 14, color: "#9b4a42" }}>None yet.</div>
+                  ) : (
+                    <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                      <div style={{ display: "grid", gridTemplateColumns: "1fr 80px 1fr", gap: 12, padding: "0 14px", fontSize: 11, fontWeight: 700, color: "#9b4a42", letterSpacing: "0.06em", textTransform: "uppercase" }}>
+                        <span>Phone</span><span>Purchases</span><span>First Buy</span>
+                      </div>
+                      {buyers.boughtCoins.map((u, i) => (
+                        <div key={i} style={{ display: "grid", gridTemplateColumns: "1fr 80px 1fr", gap: 12, alignItems: "center", background: "rgba(255,255,255,0.65)", borderRadius: 10, padding: "10px 14px", border: "1px solid rgba(171,31,16,0.06)" }}>
+                          <span style={{ fontSize: 14, fontWeight: 600, color: "#1a0a09", fontFamily: "monospace" }}>{u.id}</span>
+                          <span style={{ fontSize: 14, fontWeight: 700, color: "#ab1f10" }}>×{u.count}</span>
+                          <span style={{ fontSize: 13, color: "#9b4a42" }}>{u.firstAt ? new Date(u.firstAt).toLocaleString() : "—"}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )
+                )}
+              </div>
+
+              {/* Bought Premium */}
+              <div>
+                <div
+                  onClick={() => setBoughtPremiumExpanded((v) => !v)}
+                  style={{ display: "flex", alignItems: "center", justifyContent: "space-between", cursor: "pointer", fontSize: 12, fontWeight: 700, color: "#7b241c", letterSpacing: "0.07em", textTransform: "uppercase", marginBottom: boughtPremiumExpanded ? 12 : 0 }}
+                >
+                  <span>Bought Premium (≥ 15 Jun 2026) — {buyers.boughtPremium?.length ?? 0}</span>
+                  <span style={{ fontSize: 12 }}>{boughtPremiumExpanded ? "▲ Hide" : "▼ Show"}</span>
+                </div>
+                {boughtPremiumExpanded && (
+                  !buyers.boughtPremium?.length ? (
+                    <div style={{ fontSize: 14, color: "#9b4a42" }}>None yet.</div>
+                  ) : (
+                    <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, padding: "0 14px", fontSize: 11, fontWeight: 700, color: "#9b4a42", letterSpacing: "0.06em", textTransform: "uppercase" }}>
+                        <span>Phone</span><span>Purchased At</span>
+                      </div>
+                      {buyers.boughtPremium.map((u, i) => (
+                        <div key={i} style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, alignItems: "center", background: "rgba(255,255,255,0.65)", borderRadius: 10, padding: "10px 14px", border: "1px solid rgba(171,31,16,0.06)" }}>
+                          <span style={{ fontSize: 14, fontWeight: 600, color: "#1a0a09", fontFamily: "monospace" }}>{u.id}</span>
+                          <span style={{ fontSize: 13, color: "#9b4a42" }}>{u.firstAt ? new Date(u.firstAt).toLocaleString() : "—"}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )
+                )}
+              </div>
+
+            </div>
+          </div>
+        )}
 
         {/* ── Push Notifications ── */}
         <div style={{ ...GL.card, padding: 28 }}>

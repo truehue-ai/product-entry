@@ -2,7 +2,7 @@
 
 import { createPortal } from "react-dom";
 
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import {
   Line,
   BarChart,
@@ -38,13 +38,126 @@ const formatShort = (dateStr) => {
   return d.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
 };
 
+const PLATFORM_METRICS = [
+  { key: "logins", label: "Logins", color: "#1F2937" },
+];
+
+const PlatformTooltip = ({ active, payload, label }) => {
+  if (!active || !payload?.length) return null;
+  const ios = {};
+  const android = {};
+  payload.forEach(p => {
+    if (p.dataKey.startsWith("ios_")) ios[p.dataKey.replace("ios_", "")] = p.value;
+    else if (p.dataKey.startsWith("android_")) android[p.dataKey.replace("android_", "")] = p.value;
+  });
+  const d = new Date(label);
+  const dateLabel = d.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", year: "numeric" });
+
+  const PBlock = ({ platform, map, color, icon }) => {
+    const total = PLATFORM_METRICS.reduce((s, m) => s + (map[m.key] || 0), 0);
+    if (total === 0) return null;
+    return (
+      <div style={{ marginBottom: 12 }}>
+        <div style={{ fontSize: 12, fontWeight: 800, color, marginBottom: 6, display: "flex", alignItems: "center", gap: 6 }}>
+          <span>{icon}</span> {platform} — {total} total
+        </div>
+        {PLATFORM_METRICS.map(m => map[m.key] > 0 ? (
+          <div key={m.key} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              <div style={{ width: 8, height: 8, borderRadius: "50%", background: m.color }} />
+              <span style={{ fontSize: 12, color: "#374151" }}>{m.label}</span>
+            </div>
+            <span style={{ fontSize: 13, fontWeight: 700, color: "#111827" }}>{map[m.key]}</span>
+          </div>
+        ) : null)}
+      </div>
+    );
+  };
+
+  return (
+    <div style={{ background: "#fff", borderRadius: 14, padding: "16px 20px", boxShadow: "0 12px 32px rgba(0,0,0,0.14)", border: "1px solid rgba(0,0,0,0.06)", minWidth: 220, zIndex: 99999 }}>
+      <div style={{ fontWeight: 800, fontSize: 14, color: "#111827", marginBottom: 12 }}>{dateLabel}</div>
+      <div style={{ fontSize: 11, color: "#9CA3AF", marginBottom: 12 }}>Platform login counts only</div>
+      <PBlock platform="iOS" map={ios} color="#007AFF" icon="🍎" />
+      <PBlock platform="Android" map={android} color="#3DDC84" icon="🤖" />
+    </div>
+  );
+};
+
+function PlatformBreakdownChart({ sortedData }) {
+  // Only days that have at least one platform login recorded
+  const platformDays = useMemo(() => {
+    return sortedData.filter(d => (d.loginPlatformIos || 0) > 0 || (d.loginPlatformAndroid || 0) > 0);
+  }, [sortedData]);
+
+  if (platformDays.length === 0) return null;
+
+  // Build chart data: for each day, create ios_<metric> and android_<metric> keys
+  // We distribute each metric proportionally based on ios vs android login split
+  const chartData = platformDays.map(d => {
+    const iosLogins = d.loginPlatformIos || 0;
+    const androidLogins = d.loginPlatformAndroid || 0;
+    const row = { date: d.date, ios_logins: iosLogins, android_logins: androidLogins };
+    // Only ritual steps are tracked per-platform via the login-platform step
+    // All other metrics are not per-platform tagged so we only show logins
+    return row;
+  });
+
+  return (
+    <div style={{ marginTop: 48 }}>
+      <div style={{ fontSize: 13, fontWeight: 800, color: "#7b241c", letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: 6 }}>
+        Platform Breakdown (iOS vs Android)
+      </div>
+      <div style={{ fontSize: 12, color: "#9CA3AF", marginBottom: 20 }}>
+        Only days with platform data shown. Shows actual iOS vs Android login counts.
+      </div>
+
+      {/* Legend */}
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 12, marginBottom: 20, padding: "12px 16px", background: "rgba(255,255,255,0.5)", borderRadius: 12, border: "1px solid rgba(0,0,0,0.05)" }}>
+        <div style={{ fontSize: 11, fontWeight: 700, color: "#7b241c", letterSpacing: "0.07em", textTransform: "uppercase", width: "100%", marginBottom: 4 }}>🍎 iOS (left bar) · 🤖 Android (right bar)</div>
+        {PLATFORM_METRICS.map(m => (
+          <div key={m.key} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "#374151" }}>
+            <div style={{ width: 12, height: 12, borderRadius: 3, background: m.color }} />
+            {m.label}
+          </div>
+        ))}
+      </div>
+
+      <ResponsiveContainer width="100%" height={380}>
+        <BarChart data={chartData} margin={{ top: 8, right: 16, left: 0, bottom: 8 }} barCategoryGap="30%" barGap={4}>
+          <CartesianGrid stroke="rgba(0,0,0,0.05)" vertical={false} />
+          <XAxis dataKey="date" tickFormatter={formatShort} stroke="#9CA3AF" tick={{ fontSize: 12, fontWeight: 500 }} />
+          <YAxis stroke="#9CA3AF" tick={{ fontSize: 12 }} width={36} />
+          <Tooltip content={<PlatformTooltip />} cursor={{ fill: "rgba(0,0,0,0.03)" }} />
+
+          {/* iOS stacked bars */}
+          {PLATFORM_METRICS.map((m, i) => (
+            <Bar key={`ios_${m.key}`} dataKey={`ios_${m.key}`} name={`iOS ${m.label}`}
+              stackId="ios" fill={m.color}
+              radius={i === PLATFORM_METRICS.length - 1 ? [4, 4, 0, 0] : [0, 0, 0, 0]}
+              maxBarSize={40} />
+          ))}
+
+          {/* Android stacked bars */}
+          {PLATFORM_METRICS.map((m, i) => (
+            <Bar key={`android_${m.key}`} dataKey={`android_${m.key}`} name={`Android ${m.label}`}
+              stackId="android" fill={m.color} opacity={0.65}
+              radius={i === PLATFORM_METRICS.length - 1 ? [4, 4, 0, 0] : [0, 0, 0, 0]}
+              maxBarSize={40} />
+          ))}
+        </BarChart>
+      </ResponsiveContainer>
+    </div>
+  );
+}
+
 const percent = (a, b) => {
   if (!b || b === 0) return "0%";
   return ((a / b) * 100).toFixed(1) + "%";
 };
 
 // ── Distinct, readable colour palette ──
-const LINES = {
+const NUMERIC_LINES = {
   fineTune:               { label: "Model Fine Tune",           color: "#1e92a9" },
   productFinder:          { label: "Product Finder",            color: "#da5439" },
   shadeFinder:            { label: "Shade Finder",              color: "#fe9525" },
@@ -63,6 +176,26 @@ const LINES = {
   ctaClicked1day:         { label: "CTA Clicked 1 Day",         color: "#ef4444" },
   ctaClicked1month:       { label: "CTA Clicked 1 Month",       color: "#dc2626" },
   ctaClicked1year:        { label: "CTA Clicked 1 Year",        color: "#b91c1c" },
+  ritualPageLoaded:        { label: "Ritual Page Loaded",      color: "#0d9488" },
+  ritualBeginTapped:       { label: "Ritual Begin Tapped",     color: "#0891b2" },
+  ritualQuiz1Done:         { label: "Ritual Quiz 1 Done",      color: "#7c3aed" },
+  ritualPreviewNext:       { label: "Ritual Preview Next",     color: "#6d28d9" },
+  ritualTimelineNext:      { label: "Ritual Timeline Next",    color: "#5b21b6" },
+  ritualQuiz2Done:         { label: "Ritual Quiz 2 Done",      color: "#4c1d95" },
+  ritualCheckinDone:       { label: "Ritual Checkin Done",     color: "#059669" },
+  ritualPaywallCtaTapped:  { label: "Ritual Paywall CTA",      color: "#dc2626" },
+};
+
+const ALPHA_LINES = {
+  funnelGuestLogin:       { label: "Guest Login",           color: "#1e92a9" },
+  funnelQuiz:             { label: "Funnel Quiz",           color: "#da5439" },
+  submitPhoto:            { label: "Submit Photo",          color: "#fe9525" },
+  funnelTwinStart:        { label: "Twin Start",            color: "#9464e7" },
+  modelSelect:            { label: "Model Select",          color: "#579b56" },
+  shadeGuidePaywallOpen:  { label: "Paywall Open",          color: "#ffd736" },
+  shadeGuidePaywallCta:   { label: "Paywall CTA",           color: "#e8488a" },
+  paymentSuccess249:      { label: "Payment Success ₹249", color: "#43d400" },
+  paymentSuccess199:      { label: "Payment Success ₹199", color: "#06b6d4" },
 };
 
 // Tooltip Section header
@@ -114,6 +247,14 @@ const CustomTooltip = ({ active, payload, label, coordinate, viewBox, allData, v
   const ctaClicked1day = map.ctaClicked1day || 0;
   const ctaClicked1month = map.ctaClicked1month || 0;
   const ctaClicked1year = map.ctaClicked1year || 0;
+  const ritualPageLoaded = map.ritualPageLoaded || 0;
+  const ritualBeginTapped = map.ritualBeginTapped || 0;
+  const ritualQuiz1Done = map.ritualQuiz1Done || 0;
+  const ritualPreviewNext = map.ritualPreviewNext || 0;
+  const ritualTimelineNext = map.ritualTimelineNext || 0;
+  const ritualQuiz2Done = map.ritualQuiz2Done || 0;
+  const ritualCheckinDone = map.ritualCheckinDone || 0;
+  const ritualPaywallCtaTapped = map.ritualPaywallCtaTapped || 0;
 
   const tooltipWidth = 340;
   const tooltipHeight = 520; // approximate full height
@@ -165,38 +306,47 @@ const CustomTooltip = ({ active, payload, label, coordinate, viewBox, allData, v
         extra={`${percent(map.returningUsers, logins)} of logins`} />
 
       {fineTune > 0 && <><TSection title="Fine Tune" />
-      <TRow label="Model Fine Tune" value={fineTune} color={LINES.fineTune.color} extra={`${percent(fineTune, logins)} of logins`} /></>}
+      <TRow label="Model Fine Tune" value={fineTune} color={NUMERIC_LINES.fineTune.color} extra={`${percent(fineTune, logins)} of logins`} /></>}
 
       {(productFinder > 0 || shadeFinder > 0 || boughtCoins > 0 || paymentPopupClose > 0) && <TSection title="Coins Funnel" />}
-      {productFinder > 0 && <TRow label="Product Finder" value={productFinder} color={LINES.productFinder.color} extra={`${percent(productFinder, logins)} of logins · ${percent(productFinder, fineTune)} of FT`} />}
-      {shadeFinder > 0 && <TRow label="Shade Finder" value={shadeFinder} color={LINES.shadeFinder.color} extra={`${percent(shadeFinder, logins)} of logins · ${percent(shadeFinder, fineTune)} of FT`} />}
-      {boughtCoins > 0 && <TRow label="Bought Coins" value={boughtCoins} color={LINES.boughtCoins.color} extra={`${percent(boughtCoins, logins)} of logins`} />}
-      {paymentPopupClose > 0 && <TRow label="Payment Popup Close" value={paymentPopupClose} color={LINES.paymentPopupClose.color} extra={`${percent(paymentPopupClose, logins)} of logins`} />}
+      {productFinder > 0 && <TRow label="Product Finder" value={productFinder} color={NUMERIC_LINES.productFinder.color} extra={`${percent(productFinder, logins)} of logins · ${percent(productFinder, fineTune)} of FT`} />}
+      {shadeFinder > 0 && <TRow label="Shade Finder" value={shadeFinder} color={NUMERIC_LINES.shadeFinder.color} extra={`${percent(shadeFinder, logins)} of logins · ${percent(shadeFinder, fineTune)} of FT`} />}
+      {boughtCoins > 0 && <TRow label="Bought Coins" value={boughtCoins} color={NUMERIC_LINES.boughtCoins.color} extra={`${percent(boughtCoins, logins)} of logins`} />}
+      {paymentPopupClose > 0 && <TRow label="Payment Popup Close" value={paymentPopupClose} color={NUMERIC_LINES.paymentPopupClose.color} extra={`${percent(paymentPopupClose, logins)} of logins`} />}
 
       {(shadeGuide > 0 || boughtShadeGuide > 0) && <TSection title="Shade Guide" />}
-      {shadeGuide > 0 && <TRow label="Shade Guide Quiz" value={shadeGuide} color={LINES.shadeGuide.color} extra={`${percent(shadeGuide, logins)} of logins · ${percent(shadeGuide, fineTune)} of FT`} />}
-      {boughtShadeGuide > 0 && <TRow label="Bought Shade Guide" value={boughtShadeGuide} color={LINES.boughtShadeGuide.color} extra={`${percent(boughtShadeGuide, shadeGuide)} of SG · ${percent(boughtShadeGuide, logins)} of logins`} />}
+      {shadeGuide > 0 && <TRow label="Shade Guide Quiz" value={shadeGuide} color={NUMERIC_LINES.shadeGuide.color} extra={`${percent(shadeGuide, logins)} of logins · ${percent(shadeGuide, fineTune)} of FT`} />}
+      {boughtShadeGuide > 0 && <TRow label="Bought Shade Guide" value={boughtShadeGuide} color={NUMERIC_LINES.boughtShadeGuide.color} extra={`${percent(boughtShadeGuide, shadeGuide)} of SG · ${percent(boughtShadeGuide, logins)} of logins`} />}
 
       {(theEditOpen > 0 || theEditArticleOpen > 0) && <TSection title="The Edit" />}
-      {theEditOpen > 0 && <TRow label="The Edit Open" value={theEditOpen} color={LINES.theEditOpen.color} extra={`${percent(theEditOpen, logins)} of logins`} />}
-      {theEditArticleOpen > 0 && <TRow label="Article Open" value={theEditArticleOpen} color={LINES.theEditArticleOpen.color} extra={`${percent(theEditArticleOpen, theEditOpen)} of Edit opens`} />}
+      {theEditOpen > 0 && <TRow label="The Edit Open" value={theEditOpen} color={NUMERIC_LINES.theEditOpen.color} extra={`${percent(theEditOpen, logins)} of logins`} />}
+      {theEditArticleOpen > 0 && <TRow label="Article Open" value={theEditArticleOpen} color={NUMERIC_LINES.theEditArticleOpen.color} extra={`${percent(theEditArticleOpen, theEditOpen)} of Edit opens`} />}
 
       {(tryOnceForFreeProduct > 0 || tryOnceForFreeShade > 0) && <TSection title="Try Once Free" />}
-      {tryOnceForFreeProduct > 0 && <TRow label="Try Once Free (Product)" value={tryOnceForFreeProduct} color={LINES.tryOnceForFreeProduct.color} extra={`${percent(tryOnceForFreeProduct, logins)} of logins`} />}
-      {tryOnceForFreeShade > 0 && <TRow label="Try Once Free (Shade)" value={tryOnceForFreeShade} color={LINES.tryOnceForFreeShade.color} extra={`${percent(tryOnceForFreeShade, logins)} of logins`} />}
+      {tryOnceForFreeProduct > 0 && <TRow label="Try Once Free (Product)" value={tryOnceForFreeProduct} color={NUMERIC_LINES.tryOnceForFreeProduct.color} extra={`${percent(tryOnceForFreeProduct, logins)} of logins`} />}
+      {tryOnceForFreeShade > 0 && <TRow label="Try Once Free (Shade)" value={tryOnceForFreeShade} color={NUMERIC_LINES.tryOnceForFreeShade.color} extra={`${percent(tryOnceForFreeShade, logins)} of logins`} />}
 
       {boughtPremium > 0 && <><TSection title="Premium" />
-      <TRow label="Bought Premium" value={boughtPremium} color={LINES.boughtPremium.color} extra={`${percent(boughtPremium, logins)} of logins · ${percent(boughtPremium, fineTune)} of FT`} /></>}
+      <TRow label="Bought Premium" value={boughtPremium} color={NUMERIC_LINES.boughtPremium.color} extra={`${percent(boughtPremium, logins)} of logins · ${percent(boughtPremium, fineTune)} of FT`} /></>}
 
       {(passSelected1day > 0 || passSelected1month > 0 || passSelected1year > 0) && <TSection title="Pass Selection" />}
-      {passSelected1day > 0 && <TRow label="Pass Selected 1 Day" value={passSelected1day} color={LINES.passSelected1day.color} extra={`${percent(passSelected1day, logins)} of logins`} />}
-      {passSelected1month > 0 && <TRow label="Pass Selected 1 Month" value={passSelected1month} color={LINES.passSelected1month.color} extra={`${percent(passSelected1month, logins)} of logins`} />}
-      {passSelected1year > 0 && <TRow label="Pass Selected 1 Year" value={passSelected1year} color={LINES.passSelected1year.color} extra={`${percent(passSelected1year, logins)} of logins`} />}
+      {passSelected1day > 0 && <TRow label="Pass Selected 1 Day" value={passSelected1day} color={NUMERIC_LINES.passSelected1day.color} extra={`${percent(passSelected1day, logins)} of logins`} />}
+      {passSelected1month > 0 && <TRow label="Pass Selected 1 Month" value={passSelected1month} color={NUMERIC_LINES.passSelected1month.color} extra={`${percent(passSelected1month, logins)} of logins`} />}
+      {passSelected1year > 0 && <TRow label="Pass Selected 1 Year" value={passSelected1year} color={NUMERIC_LINES.passSelected1year.color} extra={`${percent(passSelected1year, logins)} of logins`} />}
 
       {(ctaClicked1day > 0 || ctaClicked1month > 0 || ctaClicked1year > 0) && <TSection title="CTA Clicks" />}
-      {ctaClicked1day > 0 && <TRow label="CTA Clicked 1 Day" value={ctaClicked1day} color={LINES.ctaClicked1day.color} extra={`${percent(ctaClicked1day, passSelected1day)} of 1d selections`} />}
-      {ctaClicked1month > 0 && <TRow label="CTA Clicked 1 Month" value={ctaClicked1month} color={LINES.ctaClicked1month.color} extra={`${percent(ctaClicked1month, passSelected1month)} of 1m selections`} />}
-      {ctaClicked1year > 0 && <TRow label="CTA Clicked 1 Year" value={ctaClicked1year} color={LINES.ctaClicked1year.color} extra={`${percent(ctaClicked1year, passSelected1year)} of 1y selections`} />}
+      {ctaClicked1day > 0 && <TRow label="CTA Clicked 1 Day" value={ctaClicked1day} color={NUMERIC_LINES.ctaClicked1day.color} extra={`${percent(ctaClicked1day, passSelected1day)} of 1d selections`} />}
+      {ctaClicked1month > 0 && <TRow label="CTA Clicked 1 Month" value={ctaClicked1month} color={NUMERIC_LINES.ctaClicked1month.color} extra={`${percent(ctaClicked1month, passSelected1month)} of 1m selections`} />}
+      {ctaClicked1year > 0 && <TRow label="CTA Clicked 1 Year" value={ctaClicked1year} color={NUMERIC_LINES.ctaClicked1year.color} extra={`${percent(ctaClicked1year, passSelected1year)} of 1y selections`} />}
+      {(ritualPageLoaded > 0 || ritualBeginTapped > 0 || ritualQuiz1Done > 0 || ritualQuiz2Done > 0 || ritualCheckinDone > 0 || ritualPaywallCtaTapped > 0) && <TSection title="Ritual Funnel" />}
+      {ritualPageLoaded > 0 && <TRow label="Page Loaded" value={ritualPageLoaded} color={NUMERIC_LINES.ritualPageLoaded.color} />}
+      {ritualBeginTapped > 0 && <TRow label="Begin Tapped" value={ritualBeginTapped} color={NUMERIC_LINES.ritualBeginTapped.color} extra={`${percent(ritualBeginTapped, ritualPageLoaded)} of loaded`} />}
+      {ritualQuiz1Done > 0 && <TRow label="Quiz 1 Done" value={ritualQuiz1Done} color={NUMERIC_LINES.ritualQuiz1Done.color} extra={`${percent(ritualQuiz1Done, ritualBeginTapped)} of begun`} />}
+      {ritualPreviewNext > 0 && <TRow label="Preview Next" value={ritualPreviewNext} color={NUMERIC_LINES.ritualPreviewNext.color} extra={`${percent(ritualPreviewNext, ritualQuiz1Done)} of Q1`} />}
+      {ritualTimelineNext > 0 && <TRow label="Timeline Next" value={ritualTimelineNext} color={NUMERIC_LINES.ritualTimelineNext.color} extra={`${percent(ritualTimelineNext, ritualPreviewNext)} of preview`} />}
+      {ritualQuiz2Done > 0 && <TRow label="Quiz 2 Done" value={ritualQuiz2Done} color={NUMERIC_LINES.ritualQuiz2Done.color} extra={`${percent(ritualQuiz2Done, ritualTimelineNext)} of timeline`} />}
+      {ritualCheckinDone > 0 && <TRow label="Checkin Done" value={ritualCheckinDone} color={NUMERIC_LINES.ritualCheckinDone.color} extra={`${percent(ritualCheckinDone, ritualQuiz2Done)} of Q2`} />}
+      {ritualPaywallCtaTapped > 0 && <TRow label="Paywall CTA Tapped" value={ritualPaywallCtaTapped} color={NUMERIC_LINES.ritualPaywallCtaTapped.color} extra={`${percent(ritualPaywallCtaTapped, ritualPageLoaded)} of loaded`} />}
 
       
     </div>,
@@ -204,7 +354,78 @@ const CustomTooltip = ({ active, payload, label, coordinate, viewBox, allData, v
   );
 };
 
-export default function StepsAnalyticsGraph({ data }) {
+const AlphaCustomTooltip = ({ active, payload, label, coordinate, viewBox, allData, visibleLines = {} }) => {
+  if (!active || !payload?.length || typeof window === "undefined") return null;
+  const dayEntry = (allData || []).find(d => d.date === label) || {};
+  const map = {};
+  Object.keys(dayEntry).forEach(k => {
+    if (k === "date" || k === "logins" || k === "returningUsers") { map[k] = dayEntry[k]; return; }
+    map[k] = visibleLines[k] !== false ? (dayEntry[k] ?? 0) : 0;
+  });
+  payload.forEach((p) => (map[p.dataKey] = p.value ?? 0));
+
+  const logins = map.logins || 0;
+  const funnelGuestLogin = map.funnelGuestLogin || 0;
+  const funnelQuiz = map.funnelQuiz || 0;
+  const submitPhoto = map.submitPhoto || 0;
+  const funnelTwinStart = map.funnelTwinStart || 0;
+  const modelSelect = map.modelSelect || 0;
+  const shadeGuidePaywallOpen = map.shadeGuidePaywallOpen || 0;
+  const shadeGuidePaywallCta = map.shadeGuidePaywallCta || 0;
+  const paymentSuccess249 = map.paymentSuccess249 || 0;
+  const paymentSuccess199 = map.paymentSuccess199 || 0;
+
+  const tooltipWidth = 340;
+  const tooltipHeight = 420;
+  const margin = 16;
+
+  const barX = (viewBox?.left ?? 0) + (coordinate?.x ?? 0);
+  const screenW = window.innerWidth;
+  const screenH = window.innerHeight;
+
+  let left = barX + 20;
+  if (left + tooltipWidth > screenW - margin) left = barX - tooltipWidth - 20;
+
+  const rawTop = (coordinate?.y ?? 100) - 40;
+  let top = rawTop;
+  if (top + tooltipHeight > screenH - margin) top = screenH - tooltipHeight - margin;
+  if (top < margin) top = margin;
+
+  return createPortal(
+    <div style={{
+      position: "fixed", left, top, background: "#ffffff", borderRadius: 18,
+      padding: "20px 24px", boxShadow: "0 24px 48px rgba(0,0,0,0.16)",
+      border: "1px solid rgba(0,0,0,0.06)", fontSize: 13, width: tooltipWidth,
+      maxHeight: `calc(100vh - ${margin * 2}px)`, overflowY: "auto", zIndex: 99999, pointerEvents: "none",
+    }}>
+      <div style={{ fontWeight: 800, fontSize: 15, marginBottom: 4, color: "#111827" }}>{formatDate(label)}</div>
+
+      <TSection title="Logins" />
+      <TRow label="Total Logins" value={logins} color="#111827" />
+      <TRow label="Returning Users" value={map.returningUsers || 0} color="#9CA3AF"
+        extra={`${percent(map.returningUsers, logins)} of logins`} />
+
+      {(funnelGuestLogin > 0 || funnelQuiz > 0 || submitPhoto > 0 || funnelTwinStart > 0 || modelSelect > 0) && <TSection title="Onboarding Funnel" />}
+      {funnelGuestLogin > 0 && <TRow label="Guest Login" value={funnelGuestLogin} color={ALPHA_LINES.funnelGuestLogin.color} extra={`${percent(funnelGuestLogin, logins)} of logins`} />}
+      {funnelQuiz > 0 && <TRow label="Funnel Quiz" value={funnelQuiz} color={ALPHA_LINES.funnelQuiz.color} extra={`${percent(funnelQuiz, funnelGuestLogin)} of guest logins`} />}
+      {submitPhoto > 0 && <TRow label="Submit Photo" value={submitPhoto} color={ALPHA_LINES.submitPhoto.color} extra={`${percent(submitPhoto, logins)} of logins`} />}
+      {funnelTwinStart > 0 && <TRow label="Twin Start" value={funnelTwinStart} color={ALPHA_LINES.funnelTwinStart.color} extra={`${percent(funnelTwinStart, submitPhoto)} of photos`} />}
+      {modelSelect > 0 && <TRow label="Model Select" value={modelSelect} color={ALPHA_LINES.modelSelect.color} extra={`${percent(modelSelect, funnelTwinStart)} of twin starts`} />}
+
+      {(shadeGuidePaywallOpen > 0 || shadeGuidePaywallCta > 0) && <TSection title="Paywall" />}
+      {shadeGuidePaywallOpen > 0 && <TRow label="Paywall Open" value={shadeGuidePaywallOpen} color={ALPHA_LINES.shadeGuidePaywallOpen.color} extra={`${percent(shadeGuidePaywallOpen, logins)} of logins`} />}
+      {shadeGuidePaywallCta > 0 && <TRow label="Paywall CTA" value={shadeGuidePaywallCta} color={ALPHA_LINES.shadeGuidePaywallCta.color} extra={`${percent(shadeGuidePaywallCta, shadeGuidePaywallOpen)} of opens`} />}
+
+      {(paymentSuccess249 > 0 || paymentSuccess199 > 0) && <TSection title="Purchases" />}
+      {paymentSuccess249 > 0 && <TRow label="Payment Success (₹249)" value={paymentSuccess249} color={ALPHA_LINES.paymentSuccess249.color} extra={`${percent(paymentSuccess249, logins)} of logins`} />}
+      {paymentSuccess199 > 0 && <TRow label="Payment Success (₹199)" value={paymentSuccess199} color={ALPHA_LINES.paymentSuccess199.color} extra={`${percent(paymentSuccess199, logins)} of logins`} />}
+    </div>,
+    document.body
+  );
+};
+
+export default function StepsAnalyticsGraph({ data, userType = "numeric" }) {
+  const LINES = userType === "alpha" ? ALPHA_LINES : NUMERIC_LINES;
   const sortedData = useMemo(() => {
     return Object.entries(data)
       .sort(([a], [b]) => new Date(a) - new Date(b))
@@ -228,13 +449,25 @@ export default function StepsAnalyticsGraph({ data }) {
       d.setDate(d.getDate() + i);
       const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
       const existing = sortedData.find((e) => e.date === key);
-      result.push(existing || {
+      const emptyNumericDay = {
         date: key, logins: 0, returningUsers: 0, fineTune: 0, shadeFinder: 0,
         productFinder: 0, shadeGuide: 0, boughtCoins: 0, boughtPremium: 0,
         paymentPopupClose: 0, theEditOpen: 0, tryOnceForFreeProduct: 0, tryOnceForFreeShade: 0, theEditArticleOpen: 0,
         passSelected1day: 0, passSelected1month: 0, passSelected1year: 0,
         ctaClicked1day: 0, ctaClicked1month: 0, ctaClicked1year: 0,
-      });
+        loginPlatformIos: 0, loginPlatformAndroid: 0,
+        ritualPageLoaded: 0, ritualBeginTapped: 0,
+        ritualQuiz1Done: 0, ritualPreviewNext: 0,
+        ritualTimelineNext: 0, ritualQuiz2Done: 0,
+        ritualCheckinDone: 0, ritualPaywallCtaTapped: 0,
+      };
+      const emptyAlphaDay = {
+        date: key, logins: 0, returningUsers: 0,
+        funnelGuestLogin: 0, funnelQuiz: 0, submitPhoto: 0, funnelTwinStart: 0, modelSelect: 0,
+        shadeGuidePaywallOpen: 0, shadeGuidePaywallCta: 0,
+        paymentSuccess249: 0, paymentSuccess199: 0,
+      };
+      result.push(existing || (userType === "alpha" ? emptyAlphaDay : emptyNumericDay));
     }
     return result;
   }, [sortedData, weekStart]);
@@ -242,6 +475,10 @@ export default function StepsAnalyticsGraph({ data }) {
   const [visibleLines, setVisibleLines] = useState(
     Object.fromEntries(Object.keys(LINES).map((k) => [k, true]))
   );
+
+  useEffect(() => {
+    setVisibleLines(Object.fromEntries(Object.keys(LINES).map((k) => [k, true])));
+  }, [userType]);
 
   const toggleLine = (key) => setVisibleLines((prev) => ({ ...prev, [key]: !prev[key] }));
 
@@ -299,7 +536,10 @@ export default function StepsAnalyticsGraph({ data }) {
           <CartesianGrid stroke="rgba(0,0,0,0.05)" vertical={false} />
           <XAxis dataKey="date" tickFormatter={formatShort} stroke="#9CA3AF" tick={{ fontSize: 12, fontWeight: 500 }} />
           <YAxis stroke="#9CA3AF" tick={{ fontSize: 12 }} width={36} />
-          <Tooltip content={(props) => <CustomTooltip {...props} allData={weeklyData} visibleLines={visibleLines} />} cursor={{ fill: "rgba(171,31,16,0.04)" }} wrapperStyle={{ zIndex: 9999 }} isAnimationActive={false} position={{ x: 0, y: 0 }} />
+          <Tooltip content={(props) => (userType === "alpha"
+            ? <AlphaCustomTooltip {...props} allData={weeklyData} visibleLines={visibleLines} />
+            : <CustomTooltip {...props} allData={weeklyData} visibleLines={visibleLines} />
+          )} cursor={{ fill: "rgba(171,31,16,0.04)" }} wrapperStyle={{ zIndex: 9999 }} isAnimationActive={false} position={{ x: 0, y: 0 }} />
 
           {/* Logins bar — always shown */}
           <Bar dataKey="logins" fill="#1F2937" opacity={0.85} name="Logins" radius={[6, 6, 0, 0]} maxBarSize={56} />
@@ -330,6 +570,8 @@ export default function StepsAnalyticsGraph({ data }) {
           </div>
         ))}
       </div>
+
+      {userType !== "alpha" && <PlatformBreakdownChart sortedData={sortedData} />}
     </div>
   );
 }

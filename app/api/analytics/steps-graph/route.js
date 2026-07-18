@@ -14,9 +14,16 @@ const s3 = new S3Client({
 const BUCKET = process.env.X_AWS_BUCKET_NAME || "truehue-backend-data";
 const GRAPH_KEY = "permanent/analytics/daily_graph.json";
 
-export async function GET() {
+export async function GET(req) {
   try {
-    const r = await s3.send(new GetObjectCommand({ Bucket: BUCKET, Key: GRAPH_KEY }));
+    const { searchParams } = new URL(req.url);
+    const type = searchParams.get("type");
+    const key =
+      type === "numeric" ? "permanent/analytics/daily_graph_numeric.json" :
+      type === "alpha"   ? "permanent/analytics/daily_graph_alpha.json" :
+      GRAPH_KEY;
+
+    const r = await s3.send(new GetObjectCommand({ Bucket: BUCKET, Key: key }));
     const text = await r.Body.transformToString();
     const graph = JSON.parse(text);
 

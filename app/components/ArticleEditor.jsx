@@ -32,6 +32,8 @@ const BLANK_TEMPLATE = {
   is_premium: false,
   is_article_of_the_day: false,
   featured_image: '',
+  cover_slot: '',
+  cover_overlay_url: '',
   slots: {},
   sections: [],
 };
@@ -599,6 +601,21 @@ export default function ArticleEditorPage() {
     setTemplate(prev => ({ ...prev, featured_image: url }));
 }
 
+async function uploadOverlayImage(file) {
+    const ext = file.name.split('.').pop();
+    const s3Key = `magazine/${template.id}/overlay.${ext}`;
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('key', s3Key);
+    const res = await fetch(`/api/magazine/upload-image`, {
+      method: 'POST',
+      body: formData,
+    });
+    if (!res.ok) throw new Error(await res.text());
+    const { url } = await res.json();
+    setTemplate(prev => ({ ...prev, cover_overlay_url: url }));
+  }
+
   async function saveArticle() {
     setSaving(true); setError(null);
     const payload = { ...template, slots: buildSlots(template.sections) };
@@ -847,6 +864,72 @@ export default function ArticleEditorPage() {
                       placeholder="Type tag + Enter"
                       style={{ ...inputStyle, flex: 1 }}
                     />
+                  </div>
+                </div>
+
+                {/* Cover personalization */}
+                <div style={{ gridColumn: '1 / -1', display: 'flex', flexDirection: 'column', gap: 14,
+                  background: 'rgba(171,31,16,0.04)', border: '1.5px solid rgba(171,31,16,0.12)',
+                  borderRadius: 12, padding: '16px 18px' }}>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: '#ab1f10', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                    Personalised Cover
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+                    <div>
+                      <label style={labelStyle}>Cover Slot <span style={{ color: '#9b4a42', fontWeight: 400 }}>(which slot's try-on goes on the cover)</span></label>
+                      <select
+                        value={template.cover_slot || ''}
+                        onChange={e => setTemplate(prev => ({ ...prev, cover_slot: e.target.value }))}
+                        style={selectStyle}
+                      >
+                        <option value="">None — use static featured image</option>
+                        {template.sections
+                          .filter(s => s.type === 'product_card' && s.slot)
+                          .map(s => (
+                            <option key={s.slot} value={s.slot}>{s.heading || s.slot} ({s.slot})</option>
+                          ))}
+                      </select>
+                      <p style={{ fontSize: 11, color: '#9b4a42', margin: '5px 0 0' }}>
+                        The first product in this slot's try-on image will be composited into the cover.
+                      </p>
+                    </div>
+                    <div>
+                      <label style={labelStyle}>
+                        Cover Overlay PNG
+                        {!template.id && <span style={{ color: '#9b4a42', fontWeight: 400 }}> — save article first</span>}
+                      </label>
+                      {template.cover_overlay_url && (
+                        <div style={{ marginBottom: 8, borderRadius: 8, overflow: 'hidden', height: 80,
+                          border: '1.5px solid rgba(255,255,255,0.8)', background: '#f0e0dc' }}>
+                          <img src={template.cover_overlay_url} alt="Overlay"
+                            style={{ width: '100%', height: '100%', objectFit: 'contain', display: 'block' }}
+                            onError={e => e.target.style.display = 'none'} />
+                        </div>
+                      )}
+                      <label style={{
+                        display: 'flex', alignItems: 'center', gap: 10,
+                        padding: '9px 14px', borderRadius: 10,
+                        border: '1.5px dashed rgba(171,31,16,0.3)',
+                        background: 'rgba(255,255,255,0.6)',
+                        cursor: template.id ? 'pointer' : 'not-allowed',
+                        opacity: template.id ? 1 : 0.5,
+                        fontSize: 13, color: '#ab1f10', fontWeight: 600,
+                      }}>
+                        🖼 {template.cover_overlay_url ? 'Replace Overlay' : 'Upload Overlay PNG'}
+                        <input type="file" accept="image/png,image/webp" style={{ display: 'none' }}
+                          disabled={!template.id}
+                          onChange={async e => {
+                            const file = e.target.files?.[0];
+                            if (!file) return;
+                            try { await uploadOverlayImage(file); }
+                            catch (err) { setError('Overlay upload failed: ' + err.message); }
+                            e.target.value = '';
+                          }} />
+                      </label>
+                      <p style={{ fontSize: 11, color: '#9b4a42', margin: '5px 0 0' }}>
+                        Upload a PNG/WebP with editorial graphics. It will be composited over the user's try-on photo at 3:4.
+                      </p>
+                    </div>
                   </div>
                 </div>
 

@@ -65,7 +65,8 @@ function normalizeSteps(raw) {
 
       // Split on first colon no matter spacing: "a:b", "a : b", etc.
       const idx = row.indexOf(":");
-      if (idx === -1) return null;
+      // no colon = step with no timestamp (e.g. "bought-coins", "model-fine-tune")
+      if (idx === -1) return { step: row.trim(), at: null };
 
       const step = row.substring(0, idx).trim();
       const timeStr = row.substring(idx + 1).trim();
@@ -445,7 +446,10 @@ export async function GET(req) {
   try {
     const { searchParams } = new URL(req.url);
     const dateFilter = searchParams.get("date"); // e.g. "2026-04-22"
-    const ids = await listUserIds();
+    const typeFilter = searchParams.get("type"); // "numeric" | "alpha" | null
+    let ids = await listUserIds();
+    if (typeFilter === "numeric") ids = ids.filter((id) => /^\d+$/.test(id));
+    else if (typeFilter === "alpha") ids = ids.filter((id) => !/^\d+$/.test(id));
 
     // pull steps for each user id (id == number in your storage layout)
     // Process in batches of 25 to avoid socket exhaustion
@@ -456,11 +460,12 @@ export async function GET(req) {
       const batch = ids.slice(i, i + BATCH_SIZE);
       const batchResults = await Promise.all(
         batch.map(async (id) => {
-          const [raw, subs, paidData, shadeGuide] = await Promise.all([
+          const [raw, subs, paidData, shadeGuide, userInfo] = await Promise.all([
             getJSON(`${ROOT_PREFIX}${id}/steps_taken.json`),
             getJSON(`${ROOT_PREFIX}${id}/subscribed.json`),
             getJSON(`${ROOT_PREFIX}${id}/paid_data.json`),
             getJSON(`${ROOT_PREFIX}${id}/shade_guide.json`),
+            getJSON(`${ROOT_PREFIX}${id}/user_info.json`),
           ]);
 
           const coinsRaw = paidData?.paid_data?.coins;
@@ -468,8 +473,9 @@ export async function GET(req) {
           const hasShadeGuide = !!shadeGuide;
           const steps = normalizeSteps(raw);
           const subscribed = subs?.subscribed === true;
+          const createdAt = userInfo?.createdAt ?? null;
 
-          return { id, steps, subscribed, coins, hasShadeGuide };
+          return { id, steps, subscribed, coins, hasShadeGuide, createdAt };
         })
       );
       usersSteps.push(...batchResults);
@@ -483,7 +489,20 @@ export async function GET(req) {
     if (dateFilter) {
       const filtered = nonEmpty
         .map((u) => {
-          const daySteps = u.steps.filter((s) => {
+          // Fill in missing timestamps using the nearest preceding "login" step,
+          // so colonless steps like "bought-coins" / "bought-premium" can still
+          // be attributed to the correct day. If a user has no timestamps at all
+          // (e.g. alpha-user steps, which carry no per-step timestamp), fall back
+          // to their join date from user_info.
+          const joinAt = u.createdAt ? Date.parse(u.createdAt) : null;
+          const fallbackAt = Number.isNaN(joinAt) ? null : joinAt;
+          let lastLoginAt = fallbackAt;
+          const stepsWithFallback = u.steps.map((s) => {
+            if (s.step === "login" && s.at) lastLoginAt = s.at;
+            return s.at ? s : { ...s, at: lastLoginAt };
+          });
+
+          const daySteps = stepsWithFallback.filter((s) => {
             if (!s.at) return false;
             const d = new Date(s.at);
             const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;

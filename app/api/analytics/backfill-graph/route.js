@@ -18,7 +18,29 @@ const s3 = new S3Client({
 const BUCKET = process.env.X_AWS_BUCKET_NAME || "truehue-backend-data";
 const ROOT_PREFIX = "permanent/shopify/";
 const GRAPH_KEY = "permanent/analytics/daily_graph.json";
+const GRAPH_KEY_NUMERIC = "permanent/analytics/daily_graph_numeric.json";
+const GRAPH_KEY_ALPHA = "permanent/analytics/daily_graph_alpha.json";
+const isNumericId = (id) => /^\d+$/.test(String(id));
 const EXCLUDED_IDS = new Set(["7383231612", "7862917606"]);
+
+const ALPHA_STEP_FIELD_MAP = {
+  "funnel-guest-login":       "funnelGuestLogin",
+  "submit photo":             "submitPhoto",
+  "funnel-twin-start":        "funnelTwinStart",
+  "model_select":             "modelSelect",
+  "shade-guide-paywall-open": "shadeGuidePaywallOpen",
+  "shade-guide-paywall-cta":  "shadeGuidePaywallCta",
+  "payment-success-249":      "paymentSuccess249",
+  "payment-success-199":      "paymentSuccess199",
+};
+
+const ALPHA_DAY_TEMPLATE = {
+  logins: 0, returningUsers: 0,
+  funnelGuestLogin: 0, funnelQuiz: 0,
+  submitPhoto: 0, funnelTwinStart: 0, modelSelect: 0,
+  shadeGuidePaywallOpen: 0, shadeGuidePaywallCta: 0,
+  paymentSuccess249: 0, paymentSuccess199: 0,
+};
 
 async function getJSON(Key) {
   try {
@@ -115,6 +137,11 @@ function dailyGraphMetrics(users) {
         theEditOpen: 0, tryOnceForFreeProduct: 0, tryOnceForFreeShade: 0, theEditArticleOpen: 0,
         passSelected1day: 0, passSelected1month: 0, passSelected1year: 0,
         ctaClicked1day: 0, ctaClicked1month: 0, ctaClicked1year: 0,
+        loginPlatformIos: 0, loginPlatformAndroid: 0,
+        ritualPageLoaded: 0, ritualBeginTapped: 0,
+        ritualQuiz1Done: 0, ritualPreviewNext: 0,
+        ritualTimelineNext: 0, ritualQuiz2Done: 0,
+        ritualCheckinDone: 0, ritualPaywallCtaTapped: 0,
       };
     }
   }
@@ -170,6 +197,16 @@ function dailyGraphMetrics(users) {
         case "cta-clicked-1day":            daily[day].ctaClicked1day++;        break;
         case "cta-clicked-1month":          daily[day].ctaClicked1month++;      break;
         case "cta-clicked-1year":           daily[day].ctaClicked1year++;       break;
+        case "login-platform-ios":       daily[day].loginPlatformIos++;       break;
+        case "login-platform-android":   daily[day].loginPlatformAndroid++;   break;
+        case "ritual-page-loaded":        daily[day].ritualPageLoaded++;        break;
+        case "ritual-begin-tapped":       daily[day].ritualBeginTapped++;       break;
+        case "ritual-quiz1-done":         daily[day].ritualQuiz1Done++;         break;
+        case "ritual-preview-next":       daily[day].ritualPreviewNext++;       break;
+        case "ritual-timeline-next":      daily[day].ritualTimelineNext++;      break;
+        case "ritual-quiz2-done":         daily[day].ritualQuiz2Done++;         break;
+        case "ritual-checkin-done":       daily[day].ritualCheckinDone++;       break;
+        case "ritual-paywall-cta-tapped": daily[day].ritualPaywallCtaTapped++;  break;
       }
     }
 
@@ -187,8 +224,61 @@ function dailyGraphMetrics(users) {
   return daily;
 }
 
-export async function POST() {
+function dailyGraphMetricsAlpha(users) {
+  const daily = {};
+
+  function ensure(day) {
+    if (!daily[day]) daily[day] = { ...ALPHA_DAY_TEMPLATE };
+  }
+
+  for (const u of users) {
+    const steps = u.steps || [];
+    if (!steps.length) continue;
+
+    const info = u.info || {};
+    // Alpha users' steps have no per-step timestamps — fall back to their join date.
+    const joinDay = info.createdAt ? dateKey(new Date(info.createdAt).getTime()) : null;
+    const counted = new Set();
+    const activeDays = new Set(steps.map((s) => dateKey(s.at) || joinDay).filter(Boolean));
+
+    for (const s of steps) {
+      const day = dateKey(s.at) || joinDay;
+      if (!day) continue;
+      ensure(day);
+
+      if (s.step === "login") {
+        if (!counted.has(day)) {
+          daily[day].logins++;
+          counted.add(day);
+        }
+        continue;
+      }
+
+      // collapse any funnel-quiz-* step into a single "funnel-quiz" bucket
+      const lookupStep = s.step.startsWith("funnel-quiz-") ? "funnel-quiz" : s.step;
+
+      if (lookupStep === "funnel-quiz") {
+        daily[day].funnelQuiz++;
+      } else if (ALPHA_STEP_FIELD_MAP[lookupStep]) {
+        const field = ALPHA_STEP_FIELD_MAP[lookupStep];
+        daily[day][field]++;
+      }
+    }
+
+    if (!counted.has(joinDay) && joinDay) {
+      ensure(joinDay);
+      daily[joinDay].logins++;
+      counted.add(joinDay);
+    }
+  }
+
+  return daily;
+}
+
+export async function POST(req) {
   try {
+    const { searchParams } = new URL(req.url);
+    const typeFilter = searchParams.get("type"); // "numeric" | "alpha" | null (null = all)
     const ids = await listUserIds();
 
     async function fetchUser(id) {
@@ -208,16 +298,48 @@ export async function POST() {
       users.push(...results);
     }
 
-    const graph = dailyGraphMetrics(users.filter((u) => u.steps.length > 0));
+    const activeUsers = users.filter((u) => u.steps.length > 0);
+    const writes = [];
+    const result = { ok: true };
 
-    await s3.send(new PutObjectCommand({
-      Bucket: BUCKET,
-      Key: GRAPH_KEY,
-      Body: JSON.stringify(graph),
-      ContentType: "application/json",
-    }));
+    if (!typeFilter || typeFilter === "numeric") {
+      const numericUsers = activeUsers.filter((u) => isNumericId(u.id));
+      const graphNumeric = dailyGraphMetrics(numericUsers);
+      writes.push(s3.send(new PutObjectCommand({
+        Bucket: BUCKET,
+        Key: GRAPH_KEY_NUMERIC,
+        Body: JSON.stringify(graphNumeric),
+        ContentType: "application/json",
+      })));
+      result.daysNumeric = Object.keys(graphNumeric).length;
+    }
 
-    return new Response(JSON.stringify({ ok: true, days: Object.keys(graph).length }), {
+    if (!typeFilter || typeFilter === "alpha") {
+      const alphaUsers = activeUsers.filter((u) => !isNumericId(u.id));
+      const graphAlpha = dailyGraphMetricsAlpha(alphaUsers);
+      writes.push(s3.send(new PutObjectCommand({
+        Bucket: BUCKET,
+        Key: GRAPH_KEY_ALPHA,
+        Body: JSON.stringify(graphAlpha),
+        ContentType: "application/json",
+      })));
+      result.daysAlpha = Object.keys(graphAlpha).length;
+    }
+
+    if (!typeFilter) {
+      const graph = dailyGraphMetrics(activeUsers);
+      writes.push(s3.send(new PutObjectCommand({
+        Bucket: BUCKET,
+        Key: GRAPH_KEY,
+        Body: JSON.stringify(graph),
+        ContentType: "application/json",
+      })));
+      result.days = Object.keys(graph).length;
+    }
+
+    await Promise.all(writes);
+
+    return new Response(JSON.stringify(result), {
       headers: { "Content-Type": "application/json" },
     });
   } catch (err) {
