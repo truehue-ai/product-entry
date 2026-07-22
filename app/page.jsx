@@ -36,6 +36,12 @@ const CARDS = {
       icon: '📊',
     },
     {
+      href: '/product-analytics',
+      label: 'Product Analytics',
+      description: 'Brand & product search demand — buy-now clicks, redirects, skintone/undertone breakdown.',
+      icon: '🧴',
+    },
+    {
       href: '/notifications',
       label: 'Notifications',
       description: 'Send push notifications to all users with a registered device token.',
