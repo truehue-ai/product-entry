@@ -22,12 +22,13 @@ function mergeCountMap(a, b) {
 function mergeShades(a, b) {
   const out = { ...a };
   for (const k of Object.keys(b || {})) {
-    const prev = out[k] || { selected: 0, buy_now: 0, views: 0 };
+    const prev = out[k] || { selected: 0, buy_now: 0, views: 0, skintones: {} };
     const cur = b[k];
     out[k] = {
       selected: prev.selected + (cur.selected || 0),
       buy_now: prev.buy_now + (cur.buy_now || 0),
       views: prev.views + (cur.views || 0),
+      skintones: mergeCountMap(prev.skintones, cur.skintones || {}),
     };
   }
   return out;
@@ -53,10 +54,34 @@ export function mergeBucket(a, b) {
   };
 }
 
+function withShadeSkintones(bucket) {
+  if (!bucket || !bucket.shades) return bucket;
+  const shadeEntries = Object.entries(bucket.shades);
+  const totalShadeActivity = shadeEntries.reduce(
+    (sum, [, s]) => sum + (s.selected || 0) + (s.buy_now || 0) + (s.views || 0),
+    0
+  );
+  if (!totalShadeActivity) return bucket;
+
+  const shades = {};
+  for (const [shadeName, shadeData] of shadeEntries) {
+    const shadeActivity = (shadeData.selected || 0) + (shadeData.buy_now || 0) + (shadeData.views || 0);
+    const skintones = {};
+    if (shadeActivity) {
+      for (const [tone, count] of Object.entries(bucket.skintones || {})) {
+        skintones[tone] = count * (shadeActivity / totalShadeActivity);
+      }
+    }
+    shades[shadeName] = { ...shadeData, skintones };
+  }
+
+  return { ...bucket, shades };
+}
+
 function pickSources(section, source, into) {
   let total = into;
-  if (source === 'all' || source === 'user_search') total = mergeBucket(total, section.user_search);
-  if (source === 'all' || source === 'discovery') total = mergeBucket(total, section.discovery);
+  if (source === 'all' || source === 'user_search') total = mergeBucket(total, withShadeSkintones(section.user_search));
+  if (source === 'all' || source === 'discovery') total = mergeBucket(total, withShadeSkintones(section.discovery));
   return total;
 }
 
