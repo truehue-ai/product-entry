@@ -2,6 +2,7 @@
 export const runtime = "nodejs";
 
 import { S3Client, GetObjectCommand, PutObjectCommand } from "@aws-sdk/client-s3";
+import { awsCredentialsProvider } from "@vercel/oidc-aws-credentials-provider";
 
 /* --------------------------- Thresholds & Mapping -------------------------- */
 const brightnessThresholds = {
@@ -165,16 +166,13 @@ export async function POST(req) {
     );
   }
 
-  const bucket = "truehue-backend-data";
+  const bucket = "truehue-full-data";
   // ALIGN with builder path & filename
   const key = `find_products/product_database/${product_category}/categorised_LMD.json`;
 
   const s3 = new S3Client({
     region: process.env.X_AWS_REGION,
-    credentials: {
-      accessKeyId: process.env.X_AWS_ACCESS_KEY_ID,
-      secretAccessKey: process.env.X_AWS_SECRET_ACCESS_KEY,
-    },
+    credentials: awsCredentialsProvider({ roleArn: process.env.AWS_ROLE_ARN }),
   });
 
   // Load existing dict (or start fresh)

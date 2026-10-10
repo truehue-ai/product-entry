@@ -1683,8 +1683,8 @@ async function sendAiChat() {
                   {showImages && (
                     <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
                       {[
-                        { label: "User Image", src: detail.info?.number && detail.info?.latestVersion ? `https://d2bsc5jetkp62c.cloudfront.net/permanent/shopify/${detail.info.number}/${detail.info.latestVersion}/high_quality_image` : null },
-                        { label: "Model Image", src: detail.info?.modelPath ? `https://d2bsc5jetkp62c.cloudfront.net/full_model_pics_jpg/${detail.info.modelPath}` : null },
+                        { label: "User Image", src: detail.info?.number && detail.info?.latestVersion ? `https://d1b9q70hutuatn.cloudfront.net/permanent/shopify/${detail.info.number}/${detail.info.latestVersion}/high_quality_image` : null },
+                        { label: "Model Image", src: detail.info?.modelPath ? `https://d1b9q70hutuatn.cloudfront.net/full_model_pics_jpg/${detail.info.modelPath}` : null },
                       ].map(({ label, src }) => (
                         <div key={label} style={{ background: "rgba(255,255,255,0.6)", borderRadius: 12, border: "1px solid rgba(171,31,16,0.08)", padding: 16, display: "flex", flexDirection: "column", alignItems: "center", gap: 10 }}>
                           <div style={{ fontSize: 12, fontWeight: 700, color: "#7b241c", letterSpacing: "0.06em", textTransform: "uppercase" }}>{label}</div>

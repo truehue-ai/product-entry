@@ -1,15 +1,13 @@
 export const runtime = "nodejs";
 
 import { S3Client, ListObjectsV2Command, GetObjectCommand, PutObjectCommand } from "@aws-sdk/client-s3";
+import { awsCredentialsProvider } from "@vercel/oidc-aws-credentials-provider";
 import { NodeHttpHandler } from "@smithy/node-http-handler";
 import sharp from "sharp";
 
 const s3 = new S3Client({
   region: process.env.X_AWS_REGION,
-  credentials: {
-    accessKeyId: process.env.X_AWS_ACCESS_KEY_ID,
-    secretAccessKey: process.env.X_AWS_SECRET_ACCESS_KEY,
-  },
+  credentials: awsCredentialsProvider({ roleArn: process.env.AWS_ROLE_ARN }),
   requestHandler: new NodeHttpHandler({
     maxSockets: 50,
     socketAcquisitionWarningTimeout: 15000,

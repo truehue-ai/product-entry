@@ -1,5 +1,6 @@
 // app/api/upload-type-json/route.js
 import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
+import { awsCredentialsProvider } from "@vercel/oidc-aws-credentials-provider";
 
 export async function POST(req) {
   const { brand, product, type } = await req.json();
@@ -13,10 +14,7 @@ export async function POST(req) {
 
   const s3 = new S3Client({
     region: process.env.X_AWS_REGION,
-    credentials: {
-      accessKeyId: process.env.X_AWS_ACCESS_KEY_ID,
-      secretAccessKey: process.env.X_AWS_SECRET_ACCESS_KEY,
-    }
+    credentials: awsCredentialsProvider({ roleArn: process.env.AWS_ROLE_ARN })
   });
 
   const params = {

@@ -6,17 +6,16 @@ import {
   ListObjectsV2Command,
   GetObjectCommand,
 } from "@aws-sdk/client-s3";
+import { awsCredentialsProvider } from "@vercel/oidc-aws-credentials-provider";
 
 const REGION = process.env.X_AWS_REGION;
-const ACCESS_KEY_ID = process.env.X_AWS_ACCESS_KEY_ID;
-const SECRET_ACCESS_KEY = process.env.X_AWS_SECRET_ACCESS_KEY;
 
-const DATA_BUCKET = "truehue-backend-data";     // read-only reference bucket (existing CategorisedLMD.json)
+const DATA_BUCKET = "truehue-full-data";     // read-only reference bucket (existing CategorisedLMD.json)
 const WORK_BUCKET = process.env.X_AWS_BUCKET_NAME;
 
 const s3 = new S3Client({
   region: REGION,
-  credentials: { accessKeyId: ACCESS_KEY_ID, secretAccessKey: SECRET_ACCESS_KEY },
+  credentials: awsCredentialsProvider({ roleArn: process.env.AWS_ROLE_ARN }),
 });
 
 // ---------- S3 helpers ----------
