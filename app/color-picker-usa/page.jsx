@@ -8,6 +8,8 @@ function EditorShell() {
   const sp = useSearchParams();
   const initialBrand = sp.get('brand') ?? '';
   const initialProduct = sp.get('product') ?? '';
+  const initialCategory = sp.get('category') ?? '';
+  const initialTodoId = sp.get('todo') ?? '';
   const key = `${initialBrand}::${initialProduct}`;
 
   return (
@@ -15,6 +17,8 @@ function EditorShell() {
       key={key}
       initialBrand={initialBrand}
       initialProduct={initialProduct}
+      initialCategory={initialCategory}
+      initialTodoId={initialTodoId}
     />
   );
 }

@@ -8,6 +8,8 @@ function EditorShell() {
   const sp = useSearchParams();
   const initialBrand = sp.get('brand') ?? '';
   const initialProduct = sp.get('product') ?? '';
+  const initialCategory = sp.get('category') ?? '';
+  const initialTodoId = sp.get('todo') ?? '';
 
   // Force a re-mount when params change so the editor refreshes prefill
   const key = `${initialBrand}::${initialProduct}`;
@@ -17,6 +19,8 @@ function EditorShell() {
       key={key}
       initialBrand={initialBrand}
       initialProduct={initialProduct}
+      initialCategory={initialCategory}
+      initialTodoId={initialTodoId}
     />
   );
 }

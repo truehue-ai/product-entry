@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 
 import SBPickerPanel from "./SBPickerPanel";
 import { rgbToHsb } from "./SBPickerPanel";
+import { classifyShades } from "./shadeClassifier";
+import { useActionPassword } from "./useActionPassword";
 
 const LIP_CATEGORIES = [
   "matte-lipstick",
@@ -32,33 +34,6 @@ function hexToRgb(hex) {
   if (clean.length !== 6) return null;
   const num = parseInt(clean, 16);
   return { r: (num >> 16) & 255, g: (num >> 8) & 255, b: num & 255 };
-}
-
-function classifySkinToneFromSB(s, b) {
-  if ((b >= 90 && s <= 50) || (b >= 87 && s <= 40)) return "F";
-  if ((b >= 85 && s >= 50 && s < 60) || (b >= 80 && s <= 45) || (b >= 70 && s <= 40)) return "FM";
-  if ((b >= 78 && s >= 40 && s < 68) || (b >= 70 && s <= 50 && s >= 40) || (b >= 60 && s <= 40)) return "MD";
-  if ((b >= 68 && s >= 55 && s < 68) || (s >= 45 && s <= 50 && b >= 50)) return "D1";
-  if (b >= 50) return "D2";
-  if (b <= 50) return "VD";
-  return "";
-}
-
-function classifyUndertoneFromHue(h, s, b) {
-  if (Number.isNaN(h)) return "";
-  if (b > 90) {
-    if (h >= 0 && h <= 25) return "C";
-    if (h > 25 && h <= 28) return "N";
-    return "W";
-  }
-  if (s <= 45 && b < 90) {
-    if (h >= 0 && h <= 25) return "C";
-    return "N";
-  }
-  if (h >= 0 && h < 20) return "C";
-  if (h >= 20 && h < 24) return "N";
-  if (h >= 24) return "W";
-  return "";
 }
 
 const GL = {
@@ -122,7 +97,7 @@ const GL = {
   },
 };
 
-export default function ColorPickerToolUSA({ initialBrand = "", initialProduct = "" }) {
+export default function ColorPickerToolUSA({ initialBrand = "", initialProduct = "", initialCategory = "", initialTodoId = "" }) {
   const router = useRouter();
 
   const [brand, setBrand] = useState(initialBrand);
@@ -130,7 +105,7 @@ export default function ColorPickerToolUSA({ initialBrand = "", initialProduct =
   const [brandSuggestions, setBrandSuggestions] = useState([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [suggestionsLoading, setSuggestionsLoading] = useState(false);
-  const [category, setCategory] = useState("matte-lipstick");
+  const [category, setCategory] = useState(initialCategory || "matte-lipstick");
   const [shades, setShades] = useState([{ name: "", hex: "", skintone: "", undertone: "", link: "", price: "" }]);
   const [activeShadeIndex, setActiveShadeIndex] = useState(0);
 
@@ -266,40 +241,55 @@ export default function ColorPickerToolUSA({ initialBrand = "", initialProduct =
     }
 
     if (result.success) {
+      // Saved — take it off the USA to-do list (left-to-update-usa)
+      try {
+        await fetch('/api/shade-capture/todo', {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ market: 'usa', id: initialTodoId || undefined, brand, product }),
+        });
+      } catch { /* the save itself succeeded; the to-do entry can be removed later */ }
       alert("Saved to S3 successfully!");
     } else {
       alert("Upload failed: " + (result.error || "Unknown error"));
     }
   };
 
-  const handleMakeLive = async () => {
+  // Make Live: confirmation and result are shown in the Actions panel (no browser pop-ups, which a
+  // browser can silently block). Uses the same endpoint as "Make products live" on the database page.
+  const { runWithPassword, passwordModal } = useActionPassword();
+  const [makeLiveStep, setMakeLiveStep] = useState(null); // null | "confirm" | "busy"
+  const [makeLiveMsg, setMakeLiveMsg] = useState(null);   // { ok: boolean, text: string }
+  const handleMakeLive = () => {
+    setMakeLiveMsg(null);
     if (!brand || !product || !category) {
-      alert("Brand, Product, and Category are required!");
+      setMakeLiveMsg({ ok: false, text: "Brand, product and category are required." });
       return;
     }
-    const filteredShades = shades.filter(s => s.name && s.hex);
-    if (filteredShades.length === 0) {
-      alert("No shades with both a name and hex colour to make live.");
+    if (!shades.some(s => s.name && s.hex)) {
+      setMakeLiveMsg({ ok: false, text: "No shades with both a name and a hex colour — save the shades first." });
       return;
     }
-    const confirmed = window.confirm(
-      `Make "${product}" by ${brand} live for users?\n\nThis will run update-all-data and push ${filteredShades.length} shade(s) to the product database.`
-    );
-    if (!confirmed) return;
+    setMakeLiveStep("confirm");
+  };
+  const confirmMakeLive = async () => {
+    setMakeLiveStep("busy");
     try {
-      const res = await fetch('/api/update-all-data-usa', {
+      const res = await runWithPassword((password) => fetch('/api/shade-capture/make-live', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ brand, product, type: category })
-      });
+        body: JSON.stringify({ market: 'usa', category, items: [{ brand, product }], password }),
+      }));
       const result = await res.json();
-      if (result.success || res.ok) {
-        alert(`✓ "${product}" is now live!`);
-      } else {
-        alert("Make live failed: " + (result.error || "Unknown error"));
-      }
+      if (!res.ok || !result.success) throw new Error(result.error || "Unknown error");
+      setMakeLiveMsg({
+        ok: true,
+        text: result.alreadyLive?.length ? `"${product}" was already live in USA.` : `✓ "${product}" is now live in USA.`,
+      });
     } catch (e) {
-      alert("Make live failed: " + (e?.message || "Unknown error"));
+      setMakeLiveMsg({ ok: false, text: "Make live failed: " + (e?.message || "Unknown error") });
+    } finally {
+      setMakeLiveStep(null);
     }
   };
 
@@ -342,7 +332,7 @@ export default function ColorPickerToolUSA({ initialBrand = "", initialProduct =
     setSuggestionsLoading(true);
     setShowSuggestions(false);
     try {
-      const r = await fetch(`/api/logs/list?q=${encodeURIComponent(brand)}&usa=0`, { cache: "no-store" });
+      const r = await fetch(`/api/logs/list?q=${encodeURIComponent(brand)}&usa=1`, { cache: "no-store" });
       const j = await r.json();
       const filtered = (j.items || []).filter(
         (it) => it.brand.toLowerCase() === brand.trim().toLowerCase()
@@ -362,7 +352,7 @@ export default function ColorPickerToolUSA({ initialBrand = "", initialProduct =
     setProduct(item.product);
     try {
       const r = await fetch(
-        `/api/logs/get?brand=${encodeURIComponent(item.brand)}&product=${encodeURIComponent(item.product)}&usa=0`,
+        `/api/logs/get?brand=${encodeURIComponent(item.brand)}&product=${encodeURIComponent(item.product)}&usa=1`,
         { cache: "no-store" }
       );
       const j = await r.json();
@@ -388,7 +378,8 @@ export default function ColorPickerToolUSA({ initialBrand = "", initialProduct =
       if (!initialBrand || !initialProduct) return;
       const r = await fetch(`/api/logs/get?brand=${encodeURIComponent(initialBrand)}&product=${encodeURIComponent(initialProduct)}&usa=1`, { cache: "no-store" });
       const j = await r.json();
-      if (j?.shades) {
+      // New products (e.g. from the to-do list) have no shades yet — keep the blank row and prefilled fields
+      if (j?.shades?.length) {
         setBrand(j.brand); setProduct(j.product);
         const inferredType = j.productType || (j.shades.find((s) => !!s.type)?.type ?? "");
         if (inferredType) setCategory(inferredType);
@@ -411,16 +402,54 @@ export default function ColorPickerToolUSA({ initialBrand = "", initialProduct =
 
   const autoCategorizeFaceShades = () => {
     if (!["foundation","concealer"].includes(category)) { alert("Auto-categorize works only for foundation and concealer."); return; }
-    setShades(prev => prev.map(shade => {
-      if (!shade.hex) return shade;
-      const rgb = hexToRgb(shade.hex);
-      if (!rgb) return shade;
-      const [h, s, b] = rgbToHsb(rgb.r, rgb.g, rgb.b);
-      return { ...shade, skintone: classifySkinToneFromSB(s, b) || shade.skintone || "", undertone: classifyUndertoneFromHue(h, s, b) || shade.undertone || "" };
-    }));
+    // Classify the product's shades together: tone is judged relative to the product's own range
+    setShades(prev => {
+      const results = classifyShades(prev.map(shade => shade.hex || ""));
+      return prev.map((shade, i) => {
+        if (!shade.hex) return shade;
+        const { skintone, undertone } = results[i];
+        return { ...shade, skintone: skintone || shade.skintone || "", undertone: undertone || shade.undertone || "" };
+      });
+    });
   };
 
   const [currentUser, setCurrentUser] = useState("");
+
+  // Verified status of this product (verified-usa.json); shown in Actions
+  const [verifiedEntry, setVerifiedEntry] = useState(null);
+  const [verifiedLoaded, setVerifiedLoaded] = useState(false);
+  const [verifyBusy, setVerifyBusy] = useState(false);
+  useEffect(() => {
+    setVerifiedLoaded(false);
+    if (!brand || !product) return;
+    let active = true;
+    const t = setTimeout(async () => {
+      try {
+        const r = await fetch(`/api/shade-capture/verified?market=usa&brand=${encodeURIComponent(brand)}&product=${encodeURIComponent(product)}`, { cache: "no-store" });
+        const j = await r.json();
+        if (active && !j.error) { setVerifiedEntry(j.entry || null); setVerifiedLoaded(true); }
+      } catch { /* leave the toggle hidden */ }
+    }, 400);
+    return () => { active = false; clearTimeout(t); };
+  }, [brand, product]);
+  const toggleVerified = async () => {
+    const next = !verifiedEntry;
+    setVerifyBusy(true);
+    try {
+      const r = await runWithPassword((password) => fetch("/api/shade-capture/verified", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ market: "usa", brand, product, verified: next, password }),
+      }));
+      const j = await r.json();
+      if (!r.ok || !j.success) throw new Error(j.error || "Could not update");
+      setVerifiedEntry(next ? j.entry : null);
+    } catch (e) {
+      alert("Could not update verified: " + (e?.message || "unknown error"));
+    } finally {
+      setVerifyBusy(false);
+    }
+  };
     useEffect(() => {
       const m = document.cookie.match(/(?:^|;\s*)th_auth=([^;]+)/);
       if (m) setCurrentUser(decodeURIComponent(m[1]));
@@ -450,7 +479,9 @@ export default function ColorPickerToolUSA({ initialBrand = "", initialProduct =
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
           <button className="th-btn-ghost" onClick={() => router.push('/')} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 15, fontWeight: 600, color: "#ab1f10", padding: "8px 14px", borderRadius: 9 }}>← Home</button>
           <div style={{ width: 1, height: 20, background: "rgba(171,31,16,0.2)" }} />
-          <button className="th-btn-ghost" onClick={() => router.push('/logs')} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 15, fontWeight: 600, color: "#7b241c", padding: "8px 14px", borderRadius: 9 }}>Logs</button>
+          <button className="th-btn-ghost" onClick={() => router.push('/shade-capture?market=usa')} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 15, fontWeight: 600, color: "#7b241c", padding: "8px 14px", borderRadius: 9 }}>Database</button>
+          <div style={{ width: 1, height: 20, background: "rgba(171,31,16,0.2)" }} />
+          <button className="th-btn-ghost" onClick={() => router.push('/logs?market=usa')} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 15, fontWeight: 600, color: "#7b241c", padding: "8px 14px", borderRadius: 9 }}>Logs</button>
         </div>
         <span style={{ fontSize: 18, fontWeight: 700, color: "#ab1f10", letterSpacing: "-0.3px" }}>Shade Capture USA</span>
         <button onClick={logout} style={{ background: "none", border: "1.5px solid rgba(171,31,16,0.3)", borderRadius: 9, padding: "8px 18px", fontSize: 14, fontWeight: 600, color: "#ab1f10", cursor: "pointer" }}>Logout</button>
@@ -715,7 +746,7 @@ export default function ColorPickerToolUSA({ initialBrand = "", initialProduct =
             </button>
           </div>
 
-          {/* Actions */}
+          {passwordModal}
           {/* Actions */}
           <div style={{ ...GL.card, padding: 26, display: "flex", flexDirection: "column", gap: 12 }}>
             <div style={{ fontSize: 12, fontWeight: 700, color: "#7b241c", letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: 4 }}>Actions</div>
@@ -724,13 +755,59 @@ export default function ColorPickerToolUSA({ initialBrand = "", initialProduct =
               Save to S3
             </button>
 
-            {currentUser === "dhruvi" && (
+            {currentUser === "dhruvi" && makeLiveStep !== "confirm" && (
               <button
                 className="th-btn-outline"
                 onClick={handleMakeLive}
-                style={{ ...GL.btnOutline, borderColor: "rgba(22,163,74,0.4)", color: "#15803d", background: "rgba(22,163,74,0.06)" }}
+                disabled={makeLiveStep === "busy"}
+                style={{ ...GL.btnOutline, borderColor: "rgba(22,163,74,0.4)", color: "#15803d", background: "rgba(22,163,74,0.06)", opacity: makeLiveStep === "busy" ? 0.6 : 1 }}
               >
-                ✓ Make Product Live
+                {makeLiveStep === "busy" ? "Making live…" : "✓ Make Product Live"}
+              </button>
+            )}
+
+            {makeLiveStep === "confirm" && (
+              <div style={{ padding: "12px 14px", borderRadius: 12, background: "rgba(22,163,74,0.07)", border: "1px solid rgba(22,163,74,0.3)", display: "flex", flexDirection: "column", gap: 10 }}>
+                <div style={{ fontSize: 14, fontWeight: 600, color: "#14532d" }}>
+                  Make “{product}” by {brand} live for USA users?
+                </div>
+                <div style={{ fontSize: 12, color: "#3f6212" }}>
+                  Adds it to all-data-usa.json as {category}. It uses the shades saved in S3, so save any changes first.
+                </div>
+                <div style={{ display: "flex", gap: 8 }}>
+                  <button className="th-btn-primary" onClick={confirmMakeLive}
+                    style={{ ...GL.btnPrimary, width: "auto", flex: 1, background: "linear-gradient(135deg, #16a34a 0%, #15803d 100%)", boxShadow: "0 4px 16px rgba(22,163,74,0.25)" }}>
+                    Yes, make live
+                  </button>
+                  <button className="th-btn-outline" onClick={() => setMakeLiveStep(null)} style={{ ...GL.btnOutline, width: "auto" }}>Cancel</button>
+                </div>
+              </div>
+            )}
+
+            {makeLiveMsg && (
+              <div style={{ fontSize: 13, fontWeight: 600, padding: "10px 12px", borderRadius: 10,
+                color: makeLiveMsg.ok ? "#15803d" : "#c0392b",
+                background: makeLiveMsg.ok ? "rgba(22,163,74,0.08)" : "rgba(192,57,43,0.08)" }}>
+                {makeLiveMsg.text}
+              </div>
+            )}
+
+            {verifiedLoaded && (
+              <button
+                onClick={toggleVerified}
+                disabled={verifyBusy}
+                title={verifiedEntry ? "This product is marked as checked and correct — click to unmark" : "Mark this product as checked and correct"}
+                style={{
+                  ...GL.btnOutline,
+                  borderColor: verifiedEntry ? "rgba(37,99,235,0.45)" : "rgba(171,31,16,0.3)",
+                  color: verifiedEntry ? "#1d4ed8" : "#7b241c",
+                  background: verifiedEntry ? "rgba(37,99,235,0.08)" : "rgba(255,255,255,0.7)",
+                  opacity: verifyBusy ? 0.6 : 1,
+                }}
+              >
+                {verifyBusy ? "Saving…" : verifiedEntry
+                  ? `✓ Verified${verifiedEntry.by && verifiedEntry.by !== "live-before-verification" ? ` by ${verifiedEntry.by}` : ""} — click to unmark`
+                  : "Mark as verified"}
               </button>
             )}
           </div>

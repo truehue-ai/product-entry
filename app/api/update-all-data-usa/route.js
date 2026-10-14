@@ -4,6 +4,8 @@ import {
     PutObjectCommand,
   } from "@aws-sdk/client-s3";
 import { awsCredentialsProvider } from "@vercel/oidc-aws-credentials-provider";
+import { ensureVerifiedFile } from "../shade-capture/verifiedStore";
+import { rejectUnlessActionPassword } from "../shade-capture/actionAuth";
   import { Readable } from "stream";
   
   const s3 = new S3Client({
@@ -23,12 +25,17 @@ import { awsCredentialsProvider } from "@vercel/oidc-aws-credentials-provider";
     });
   
   export async function POST(req) {
-    const { brand, product, type } = await req.json();
+    const { brand, product, type, password } = await req.json();
+    const denied = rejectUnlessActionPassword(password);
+    if (denied) return denied;
   
     if (!brand || !product || !type) {
       return Response.json({ success: false, error: "Missing fields" }, { status: 400 });
     }
   
+    // Snapshot "verified = live" before this product goes live, so it starts unverified.
+    try { await ensureVerifiedFile("usa"); } catch (e) { console.error("verified snapshot failed:", e); }
+
     let currentData = {};
   
     try {

@@ -1,0 +1,2233 @@
+[
+  {
+    "slug": "akind",
+    "name": "Akind",
+    "aliases": []
+  },
+  {
+    "slug": "alix-avien-paris",
+    "name": "ALiX AViEN PARIS",
+    "aliases": []
+  },
+  {
+    "slug": "aminu",
+    "name": "Aminu",
+    "aliases": []
+  },
+  {
+    "slug": "anastasia-beverly-hills",
+    "name": "Anastasia Beverly Hills",
+    "aliases": []
+  },
+  {
+    "slug": "anour",
+    "name": "Anour",
+    "aliases": []
+  },
+  {
+    "slug": "aqualens",
+    "name": "Aqualens",
+    "aliases": []
+  },
+  {
+    "slug": "arcelia",
+    "name": "Arcelia",
+    "aliases": []
+  },
+  {
+    "slug": "ardell",
+    "name": "Ardell",
+    "aliases": []
+  },
+  {
+    "slug": "ariul",
+    "name": "Ariul",
+    "aliases": []
+  },
+  {
+    "slug": "armaf",
+    "name": "ARMAF",
+    "aliases": []
+  },
+  {
+    "slug": "armaf-beaute",
+    "name": "Armaf Beaute",
+    "aliases": []
+  },
+  {
+    "slug": "asa-beauty",
+    "name": "asa beauty",
+    "aliases": []
+  },
+  {
+    "slug": "augustinus-bader",
+    "name": "Augustinus Bader",
+    "aliases": []
+  },
+  {
+    "slug": "avon",
+    "name": "Avon",
+    "aliases": []
+  },
+  {
+    "slug": "aya",
+    "name": "AYA",
+    "aliases": []
+  },
+  {
+    "slug": "babila",
+    "name": "Babila",
+    "aliases": []
+  },
+  {
+    "slug": "bake",
+    "name": "BAKE",
+    "aliases": []
+  },
+  {
+    "slug": "baked-beauty",
+    "name": "Baked Beauty",
+    "aliases": []
+  },
+  {
+    "slug": "bareminerals",
+    "name": "bareMinerals",
+    "aliases": []
+  },
+  {
+    "slug": "bath-and-body-works",
+    "name": "Bath & Body Works",
+    "aliases": []
+  },
+  {
+    "slug": "battle-cry-for-men",
+    "name": "BATTLE CRY FOR MEN",
+    "aliases": []
+  },
+  {
+    "slug": "be-bodywise",
+    "name": "Be Bodywise",
+    "aliases": []
+  },
+  {
+    "slug": "beardo",
+    "name": "Beardo",
+    "aliases": []
+  },
+  {
+    "slug": "beautiliss",
+    "name": "Beautiliss",
+    "aliases": []
+  },
+  {
+    "slug": "beautiliss-professional",
+    "name": "Beautiliss Professional",
+    "aliases": []
+  },
+  {
+    "slug": "beauty-award-winners",
+    "name": "Beauty Award Winners",
+    "aliases": []
+  },
+  {
+    "slug": "beauty-of-joseon",
+    "name": "Beauty of Joseon",
+    "aliases": []
+  },
+  {
+    "slug": "beauty-people",
+    "name": "Beauty People",
+    "aliases": []
+  },
+  {
+    "slug": "belif",
+    "name": "belif",
+    "aliases": []
+  },
+  {
+    "slug": "bella",
+    "name": "Bella",
+    "aliases": []
+  },
+  {
+    "slug": "bella-vita",
+    "name": "Bella Vita Organic",
+    "aliases": []
+  },
+  {
+    "slug": "bellaoggi",
+    "name": "bellaoggi",
+    "aliases": []
+  },
+  {
+    "slug": "benefit-cosmetics",
+    "name": "Benefit Cosmetics",
+    "aliases": []
+  },
+  {
+    "slug": "best-of-makeup-kits-and-combos",
+    "name": "Best of Makeup Kits & Combos",
+    "aliases": []
+  },
+  {
+    "slug": "bie-beauty-in-everything",
+    "name": "BiE - Beauty In Everything",
+    "aliases": []
+  },
+  {
+    "slug": "bioderma",
+    "name": "Bioderma",
+    "aliases": []
+  },
+  {
+    "slug": "biossance",
+    "name": "Biossance",
+    "aliases": []
+  },
+  {
+    "slug": "biotique",
+    "name": "Biotique",
+    "aliases": []
+  },
+  {
+    "slug": "blue-heaven",
+    "name": "Blue Heaven",
+    "aliases": []
+  },
+  {
+    "slug": "blue-nectar",
+    "name": "Blue Nectar",
+    "aliases": []
+  },
+  {
+    "slug": "blur",
+    "name": "BLUR",
+    "aliases": []
+  },
+  {
+    "slug": "bobbi-brown",
+    "name": "Bobbi Brown",
+    "aliases": []
+  },
+  {
+    "slug": "bobi",
+    "name": "bobi",
+    "aliases": []
+  },
+  {
+    "slug": "born16",
+    "name": "Born16",
+    "aliases": []
+  },
+  {
+    "slug": "boujee-beauty",
+    "name": "Boujee Beauty",
+    "aliases": []
+  },
+  {
+    "slug": "bperfect-cosmetics",
+    "name": "Bperfect Cosmetics",
+    "aliases": []
+  },
+  {
+    "slug": "bring-green",
+    "name": "BRING GREEN",
+    "aliases": []
+  },
+  {
+    "slug": "bronson-professional",
+    "name": "Bronson Professional",
+    "aliases": []
+  },
+  {
+    "slug": "burberry",
+    "name": "BURBERRY",
+    "aliases": []
+  },
+  {
+    "slug": "burts-bees",
+    "name": "Burt's Bees",
+    "aliases": []
+  },
+  {
+    "slug": "by-terry",
+    "name": "By Terry",
+    "aliases": []
+  },
+  {
+    "slug": "c2p",
+    "name": "C2P Pro",
+    "aliases": []
+  },
+  {
+    "slug": "cadiveu",
+    "name": "Cadiveu",
+    "aliases": []
+  },
+  {
+    "slug": "cal-los-angeles",
+    "name": "C.A.L Los Angeles",
+    "aliases": []
+  },
+  {
+    "slug": "carlton-london",
+    "name": "Carlton London Perfume",
+    "aliases": []
+  },
+  {
+    "slug": "carmesi",
+    "name": "Carmesi",
+    "aliases": []
+  },
+  {
+    "slug": "caudalie",
+    "name": "Caudalie",
+    "aliases": []
+  },
+  {
+    "slug": "cgg-cosmetics",
+    "name": "CGG Cosmetics",
+    "aliases": []
+  },
+  {
+    "slug": "chambor",
+    "name": "Chambor",
+    "aliases": []
+  },
+  {
+    "slug": "chanel",
+    "name": "CHANEL",
+    "aliases": []
+  },
+  {
+    "slug": "chantecaille",
+    "name": "Chantecaille",
+    "aliases": []
+  },
+  {
+    "slug": "character",
+    "name": "Character",
+    "aliases": []
+  },
+  {
+    "slug": "charlotte-tilbury",
+    "name": "Charlotte Tilbury",
+    "aliases": []
+  },
+  {
+    "slug": "charmacy-milano",
+    "name": "Charmacy Milano",
+    "aliases": []
+  },
+  {
+    "slug": "chemist-at-play",
+    "name": "Chemist at Play",
+    "aliases": []
+  },
+  {
+    "slug": "clarins",
+    "name": "Clarins",
+    "aliases": []
+  },
+  {
+    "slug": "clinique",
+    "name": "Clinique",
+    "aliases": []
+  },
+  {
+    "slug": "color-fx",
+    "name": "Color Fx",
+    "aliases": []
+  },
+  {
+    "slug": "colorbar",
+    "name": "Colorbar",
+    "aliases": []
+  },
+  {
+    "slug": "coloressence",
+    "name": "Coloressence",
+    "aliases": []
+  },
+  {
+    "slug": "colorgram",
+    "name": "COLORGRAM",
+    "aliases": []
+  },
+  {
+    "slug": "colors-queen",
+    "name": "Colors Queen",
+    "aliases": []
+  },
+  {
+    "slug": "colourpop",
+    "name": "ColourPop",
+    "aliases": []
+  },
+  {
+    "slug": "conscious-chemist",
+    "name": "Conscious Chemist",
+    "aliases": []
+  },
+  {
+    "slug": "cuffs-n-lashes",
+    "name": "CUFFS N LASHES",
+    "aliases": []
+  },
+  {
+    "slug": "cureskin",
+    "name": "Cureskin",
+    "aliases": []
+  },
+  {
+    "slug": "daily-life-forever-52",
+    "name": "Daily Life Forever52",
+    "aliases": []
+  },
+  {
+    "slug": "daniel-sandler",
+    "name": "DANIEL SANDLER",
+    "aliases": []
+  },
+  {
+    "slug": "daughter-earth",
+    "name": "Daughter Earth",
+    "aliases": []
+  },
+  {
+    "slug": "dear-dahlia",
+    "name": "Dear Dahlia",
+    "aliases": []
+  },
+  {
+    "slug": "debelle",
+    "name": "DeBelle",
+    "aliases": []
+  },
+  {
+    "slug": "deconstruct",
+    "name": "Deconstruct",
+    "aliases": []
+  },
+  {
+    "slug": "dermafique",
+    "name": "Dermafique",
+    "aliases": []
+  },
+  {
+    "slug": "dermatouch",
+    "name": "Dermatouch",
+    "aliases": []
+  },
+  {
+    "slug": "dermistry",
+    "name": "DERMISTRY",
+    "aliases": []
+  },
+  {
+    "slug": "dhc-beauty",
+    "name": "DHC Beauty",
+    "aliases": []
+  },
+  {
+    "slug": "diam-beauty",
+    "name": "DIAM BEAUTY",
+    "aliases": []
+  },
+  {
+    "slug": "diego-dalla-palma",
+    "name": "Diego dalla Palma Milano",
+    "aliases": []
+  },
+  {
+    "slug": "dior",
+    "name": "DIOR",
+    "aliases": []
+  },
+  {
+    "slug": "dolce-and-gabbana",
+    "name": "Dolce&Gabbana",
+    "aliases": []
+  },
+  {
+    "slug": "dot-and-key",
+    "name": "Dot & Key",
+    "aliases": []
+  },
+  {
+    "slug": "dove",
+    "name": "Dove",
+    "aliases": []
+  },
+  {
+    "slug": "dr-sheths",
+    "name": "Dr. Sheth's",
+    "aliases": []
+  },
+  {
+    "slug": "dream-beauty",
+    "name": "Dream Beauty",
+    "aliases": []
+  },
+  {
+    "slug": "dunamiss-cosmetics",
+    "name": "Dunamiss Cosmetics",
+    "aliases": []
+  },
+  {
+    "slug": "dyou",
+    "name": "d'you",
+    "aliases": []
+  },
+  {
+    "slug": "earth-rhythm",
+    "name": "Earth Rhythm",
+    "aliases": []
+  },
+  {
+    "slug": "ecoberry",
+    "name": "Ecoberry",
+    "aliases": []
+  },
+  {
+    "slug": "elf-cosmetics",
+    "name": "e.l.f. Cosmetics",
+    "aliases": []
+  },
+  {
+    "slug": "elitty",
+    "name": "Elitty",
+    "aliases": []
+  },
+  {
+    "slug": "elizabeth-arden",
+    "name": "Elizabeth Arden",
+    "aliases": []
+  },
+  {
+    "slug": "elle-18",
+    "name": "Elle 18",
+    "aliases": []
+  },
+  {
+    "slug": "embryolisse",
+    "name": "Embryolisse",
+    "aliases": []
+  },
+  {
+    "slug": "enn",
+    "name": "ENN",
+    "aliases": []
+  },
+  {
+    "slug": "essence",
+    "name": "essence",
+    "aliases": []
+  },
+  {
+    "slug": "estee-lauder",
+    "name": "Estee Lauder",
+    "aliases": []
+  },
+  {
+    "slug": "etude-house",
+    "name": "ETUDE",
+    "aliases": []
+  },
+  {
+    "slug": "europe-girl",
+    "name": "Europe Girl",
+    "aliases": []
+  },
+  {
+    "slug": "eve-lom",
+    "name": "EVE LOM",
+    "aliases": []
+  },
+  {
+    "slug": "eveline-cosmetics",
+    "name": "Eveline Cosmetics",
+    "aliases": []
+  },
+  {
+    "slug": "fabskin",
+    "name": "Fabskin",
+    "aliases": []
+  },
+  {
+    "slug": "faces-canada",
+    "name": "Faces Canada",
+    "aliases": []
+  },
+  {
+    "slug": "fae-beauty",
+    "name": "FAE Beauty",
+    "aliases": []
+  },
+  {
+    "slug": "farmacy-beauty",
+    "name": "Farmacy Beauty",
+    "aliases": []
+  },
+  {
+    "slug": "fashion-colour",
+    "name": "FASHION COLOUR",
+    "aliases": []
+  },
+  {
+    "slug": "feel-good-club",
+    "name": "Feel Good Club",
+    "aliases": []
+  },
+  {
+    "slug": "fement",
+    "name": "FeMent",
+    "aliases": []
+  },
+  {
+    "slug": "fenty-beauty",
+    "name": "FENTY BEAUTY",
+    "aliases": []
+  },
+  {
+    "slug": "fixderma",
+    "name": "Fixderma",
+    "aliases": []
+  },
+  {
+    "slug": "fixderma-cosmetic-laboratories",
+    "name": "Fixderma Cosmetic Laboratories",
+    "aliases": []
+  },
+  {
+    "slug": "flenc",
+    "name": "FLENC",
+    "aliases": []
+  },
+  {
+    "slug": "flicka-cosmetics",
+    "name": "FLiCKA",
+    "aliases": []
+  },
+  {
+    "slug": "florence-by-mills",
+    "name": "Florence by Mills",
+    "aliases": []
+  },
+  {
+    "slug": "flossy-cosmetics",
+    "name": "Flossy Cosmetics",
+    "aliases": []
+  },
+  {
+    "slug": "flower-beauty",
+    "name": "Flower Beauty",
+    "aliases": []
+  },
+  {
+    "slug": "flurth",
+    "name": "FLURTH",
+    "aliases": []
+  },
+  {
+    "slug": "focallure",
+    "name": "Focallure",
+    "aliases": []
+  },
+  {
+    "slug": "forest-essentials",
+    "name": "Forest Essentials",
+    "aliases": []
+  },
+  {
+    "slug": "foxtale",
+    "name": "Foxtale",
+    "aliases": []
+  },
+  {
+    "slug": "fran-wilson",
+    "name": "Fran Wilson Moodmatcher",
+    "aliases": []
+  },
+  {
+    "slug": "fre",
+    "name": "Fre",
+    "aliases": []
+  },
+  {
+    "slug": "fwee",
+    "name": "fwee",
+    "aliases": []
+  },
+  {
+    "slug": "fyoli",
+    "name": "FYOLI",
+    "aliases": []
+  },
+  {
+    "slug": "ga-de",
+    "name": "GA-DE",
+    "aliases": []
+  },
+  {
+    "slug": "gala-of-london",
+    "name": "Gala of London",
+    "aliases": []
+  },
+  {
+    "slug": "garnier",
+    "name": "Garnier",
+    "aliases": []
+  },
+  {
+    "slug": "giorgio-armani",
+    "name": "Giorgio Armani",
+    "aliases": []
+  },
+  {
+    "slug": "girlactik",
+    "name": "Girlactik",
+    "aliases": []
+  },
+  {
+    "slug": "givenchy",
+    "name": "Givenchy",
+    "aliases": []
+  },
+  {
+    "slug": "glam21",
+    "name": "GLAM21",
+    "aliases": []
+  },
+  {
+    "slug": "glamveda",
+    "name": "Glamveda",
+    "aliases": []
+  },
+  {
+    "slug": "gleva",
+    "name": "GLEVA",
+    "aliases": []
+  },
+  {
+    "slug": "glow-and-lovely",
+    "name": "Glow & Lovely",
+    "aliases": []
+  },
+  {
+    "slug": "gorgeous-girl",
+    "name": "Gorgeous Girl",
+    "aliases": []
+  },
+  {
+    "slug": "gorgio-professional",
+    "name": "Gorgio Professional",
+    "aliases": []
+  },
+  {
+    "slug": "gubb",
+    "name": "GUBB",
+    "aliases": []
+  },
+  {
+    "slug": "guerlain",
+    "name": "Guerlain",
+    "aliases": []
+  },
+  {
+    "slug": "gush-beauty",
+    "name": "Gush Beauty",
+    "aliases": []
+  },
+  {
+    "slug": "h-and-m",
+    "name": "H&M",
+    "aliases": []
+  },
+  {
+    "slug": "hair4real",
+    "name": "HAIR4REAL",
+    "aliases": []
+  },
+  {
+    "slug": "half-n-half",
+    "name": "Half N Half",
+    "aliases": []
+  },
+  {
+    "slug": "healthkart",
+    "name": "HealthKart",
+    "aliases": []
+  },
+  {
+    "slug": "hilary-rhoda",
+    "name": "Hilary Rhoda",
+    "aliases": []
+  },
+  {
+    "slug": "himalaya",
+    "name": "Himalaya",
+    "aliases": []
+  },
+  {
+    "slug": "hince",
+    "name": "hince",
+    "aliases": []
+  },
+  {
+    "slug": "house-of-hur",
+    "name": "House of HUR",
+    "aliases": []
+  },
+  {
+    "slug": "house-of-makeup",
+    "name": "House of Makeup",
+    "aliases": []
+  },
+  {
+    "slug": "huda-beauty",
+    "name": "Huda Beauty",
+    "aliases": []
+  },
+  {
+    "slug": "hyue",
+    "name": "HYUE",
+    "aliases": []
+  },
+  {
+    "slug": "i-am-eyeconic",
+    "name": "I AM EYECONIC",
+    "aliases": []
+  },
+  {
+    "slug": "iba",
+    "name": "Iba",
+    "aliases": []
+  },
+  {
+    "slug": "iconic-london",
+    "name": "ICONIC London",
+    "aliases": []
+  },
+  {
+    "slug": "idun-minerals",
+    "name": "IDUN Minerals",
+    "aliases": []
+  },
+  {
+    "slug": "ilana",
+    "name": "Ilana",
+    "aliases": []
+  },
+  {
+    "slug": "illiyoon",
+    "name": "Illiyoon",
+    "aliases": []
+  },
+  {
+    "slug": "inatur",
+    "name": "Inatur",
+    "aliases": []
+  },
+  {
+    "slug": "inde-wild",
+    "name": "inde wild",
+    "aliases": []
+  },
+  {
+    "slug": "indulgeo-essentials",
+    "name": "Indulgeo Essentials",
+    "aliases": []
+  },
+  {
+    "slug": "inglot",
+    "name": "Inglot",
+    "aliases": []
+  },
+  {
+    "slug": "innisfree",
+    "name": "Innisfree",
+    "aliases": []
+  },
+  {
+    "slug": "insight-cosmetics",
+    "name": "Insight Cosmetics",
+    "aliases": []
+  },
+  {
+    "slug": "insight-professional",
+    "name": "Insight Professional",
+    "aliases": []
+  },
+  {
+    "slug": "iris-cosmetics",
+    "name": "IRIS COSMETICS",
+    "aliases": []
+  },
+  {
+    "slug": "it-cosmetics",
+    "name": "IT COSMETICS",
+    "aliases": []
+  },
+  {
+    "slug": "jeffree-star-cosmetics",
+    "name": "Jeffree Star Cosmetics",
+    "aliases": []
+  },
+  {
+    "slug": "jovan",
+    "name": "Jovan",
+    "aliases": []
+  },
+  {
+    "slug": "jovees",
+    "name": "Jovees",
+    "aliases": []
+  },
+  {
+    "slug": "joyology-beauty",
+    "name": "Joyology",
+    "aliases": []
+  },
+  {
+    "slug": "judydoll",
+    "name": "JUDYDOLL",
+    "aliases": []
+  },
+  {
+    "slug": "juice-beauty",
+    "name": "Juice Beauty",
+    "aliases": []
+  },
+  {
+    "slug": "juicy-chemistry",
+    "name": "Juicy Chemistry",
+    "aliases": []
+  },
+  {
+    "slug": "just-herbs",
+    "name": "Just Herbs",
+    "aliases": []
+  },
+  {
+    "slug": "kai",
+    "name": "Kai",
+    "aliases": []
+  },
+  {
+    "slug": "kama-ayurveda",
+    "name": "Kama Ayurveda",
+    "aliases": []
+  },
+  {
+    "slug": "kay-beauty",
+    "name": "Kay Beauty",
+    "aliases": []
+  },
+  {
+    "slug": "kayali",
+    "name": "Kayali",
+    "aliases": []
+  },
+  {
+    "slug": "kayanara",
+    "name": "Kayanara",
+    "aliases": []
+  },
+  {
+    "slug": "keauty-beauty",
+    "name": "Keauty Beauty",
+    "aliases": []
+  },
+  {
+    "slug": "kevyn-aucoin",
+    "name": "Kevyn Aucoin",
+    "aliases": []
+  },
+  {
+    "slug": "keya-seth",
+    "name": "Keya Seth Aromatherapy",
+    "aliases": []
+  },
+  {
+    "slug": "khadi-natural",
+    "name": "Khadi Natural",
+    "aliases": []
+  },
+  {
+    "slug": "kiehls",
+    "name": "Kiehl's",
+    "aliases": []
+  },
+  {
+    "slug": "kiko-milano",
+    "name": "KIKO Milano",
+    "aliases": []
+  },
+  {
+    "slug": "kinded",
+    "name": "KINDED",
+    "aliases": []
+  },
+  {
+    "slug": "kingdom-of-lashes",
+    "name": "Kingdom Of Lashes",
+    "aliases": []
+  },
+  {
+    "slug": "kiro-clean-beauty",
+    "name": "KIRO",
+    "aliases": []
+  },
+  {
+    "slug": "klairs",
+    "name": "Klairs",
+    "aliases": []
+  },
+  {
+    "slug": "klara-cosmetics",
+    "name": "Klara Cosmetics",
+    "aliases": []
+  },
+  {
+    "slug": "kloy",
+    "name": "KLOY",
+    "aliases": []
+  },
+  {
+    "slug": "kora-organics",
+    "name": "Kora Organics",
+    "aliases": []
+  },
+  {
+    "slug": "kryolan",
+    "name": "Kryolan",
+    "aliases": []
+  },
+  {
+    "slug": "kuuard",
+    "name": "KUUARD",
+    "aliases": []
+  },
+  {
+    "slug": "kylie-cosmetics",
+    "name": "Kylie Cosmetics",
+    "aliases": []
+  },
+  {
+    "slug": "l-a-girl",
+    "name": "L.A. Girl",
+    "aliases": []
+  },
+  {
+    "slug": "la-mer",
+    "name": "La Mer",
+    "aliases": []
+  },
+  {
+    "slug": "la-prairie",
+    "name": "La Prairie",
+    "aliases": []
+  },
+  {
+    "slug": "lacto-calamine",
+    "name": "Lacto Calamine",
+    "aliases": []
+  },
+  {
+    "slug": "lakme",
+    "name": "Lakme",
+    "aliases": []
+  },
+  {
+    "slug": "lakme-salon",
+    "name": "Lakme Salon",
+    "aliases": []
+  },
+  {
+    "slug": "lamel",
+    "name": "LAMEL",
+    "aliases": []
+  },
+  {
+    "slug": "lamior",
+    "name": "La Mior",
+    "aliases": []
+  },
+  {
+    "slug": "lancome",
+    "name": "Lancome",
+    "aliases": []
+  },
+  {
+    "slug": "laneige",
+    "name": "LANEIGE",
+    "aliases": []
+  },
+  {
+    "slug": "lashika",
+    "name": "LASHIKA",
+    "aliases": []
+  },
+  {
+    "slug": "laura-mercier",
+    "name": "Laura Mercier",
+    "aliases": []
+  },
+  {
+    "slug": "lavenza",
+    "name": "LAVENZA",
+    "aliases": []
+  },
+  {
+    "slug": "ln-pro",
+    "name": "LN PRO",
+    "aliases": []
+  },
+  {
+    "slug": "loccitane",
+    "name": "L'Occitane",
+    "aliases": []
+  },
+  {
+    "slug": "london-prime",
+    "name": "London Prime",
+    "aliases": []
+  },
+  {
+    "slug": "loreal-paris",
+    "name": "L'Oreal Paris",
+    "aliases": []
+  },
+  {
+    "slug": "lotus",
+    "name": "Lotus Make Up",
+    "aliases": []
+  },
+  {
+    "slug": "lotus-herbals",
+    "name": "Lotus Herbals",
+    "aliases": []
+  },
+  {
+    "slug": "love-earth",
+    "name": "Love Earth",
+    "aliases": []
+  },
+  {
+    "slug": "lovechild-masaba",
+    "name": "LoveChild Masaba",
+    "aliases": []
+  },
+  {
+    "slug": "lovetc",
+    "name": "LOVETC",
+    "aliases": []
+  },
+  {
+    "slug": "luar-beauty",
+    "name": "Luar Beauty",
+    "aliases": []
+  },
+  {
+    "slug": "lyon-beauty",
+    "name": "Lyon Beauty",
+    "aliases": []
+  },
+  {
+    "slug": "m2-beaute",
+    "name": "M2 Beaute",
+    "aliases": []
+  },
+  {
+    "slug": "mac-cosmetics",
+    "name": "M.A.C",
+    "aliases": []
+  },
+  {
+    "slug": "mae-cosmetics",
+    "name": "MAE Cosmetics",
+    "aliases": []
+  },
+  {
+    "slug": "majestique",
+    "name": "Majestique",
+    "aliases": []
+  },
+  {
+    "slug": "make-up-for-ever",
+    "name": "MAKE UP FOR EVER",
+    "aliases": []
+  },
+  {
+    "slug": "makeup-by-siti",
+    "name": "MAKEUP BY SITI",
+    "aliases": []
+  },
+  {
+    "slug": "makeup-eraser",
+    "name": "Makeup Eraser",
+    "aliases": []
+  },
+  {
+    "slug": "makeup-revolution",
+    "name": "Makeup Revolution",
+    "aliases": []
+  },
+  {
+    "slug": "mamaearth",
+    "name": "Mamaearth",
+    "aliases": []
+  },
+  {
+    "slug": "margis-international",
+    "name": "MARGIS INTERNATIONAL",
+    "aliases": []
+  },
+  {
+    "slug": "mario-badescu",
+    "name": "Mario Badescu",
+    "aliases": []
+  },
+  {
+    "slug": "mars",
+    "name": "MARS",
+    "aliases": []
+  },
+  {
+    "slug": "masking",
+    "name": "Masking",
+    "aliases": []
+  },
+  {
+    "slug": "matra",
+    "name": "Matra",
+    "aliases": []
+  },
+  {
+    "slug": "matt-look",
+    "name": "Matt look",
+    "aliases": []
+  },
+  {
+    "slug": "max-factor",
+    "name": "Max Factor",
+    "aliases": []
+  },
+  {
+    "slug": "maybelline-new-york",
+    "name": "Maybelline New York",
+    "aliases": []
+  },
+  {
+    "slug": "mcaffeine",
+    "name": "MCaffeine",
+    "aliases": [
+      "MCaffeine Shades"
+    ]
+  },
+  {
+    "slug": "mediheal",
+    "name": "MEDIHEAL",
+    "aliases": []
+  },
+  {
+    "slug": "mepoint",
+    "name": "MEPOINT",
+    "aliases": []
+  },
+  {
+    "slug": "mila-beaute",
+    "name": "Mila Beauté",
+    "aliases": []
+  },
+  {
+    "slug": "milagro-beauty",
+    "name": "Milagro Beauty",
+    "aliases": []
+  },
+  {
+    "slug": "milani",
+    "name": "Milani",
+    "aliases": []
+  },
+  {
+    "slug": "milk-makeup",
+    "name": "MILK MAKEUP",
+    "aliases": []
+  },
+  {
+    "slug": "milk-touch",
+    "name": "MILKTOUCH",
+    "aliases": []
+  },
+  {
+    "slug": "minimalist",
+    "name": "Minimalist",
+    "aliases": []
+  },
+  {
+    "slug": "mirabelle-korea",
+    "name": "Mirabelle Korea",
+    "aliases": []
+  },
+  {
+    "slug": "miss-claire",
+    "name": "Miss Claire",
+    "aliases": []
+  },
+  {
+    "slug": "missha",
+    "name": "Missha",
+    "aliases": []
+  },
+  {
+    "slug": "moira",
+    "name": "Moira",
+    "aliases": []
+  },
+  {
+    "slug": "moody",
+    "name": "Moody",
+    "aliases": []
+  },
+  {
+    "slug": "morphe",
+    "name": "MORPHE",
+    "aliases": []
+  },
+  {
+    "slug": "mountainor",
+    "name": "Mountainor",
+    "aliases": []
+  },
+  {
+    "slug": "muzigae-mansion",
+    "name": "Muzigae Mansion",
+    "aliases": []
+  },
+  {
+    "slug": "myglamm",
+    "name": "MyGlamm",
+    "aliases": []
+  },
+  {
+    "slug": "naftun",
+    "name": "NAFTUN BEAUTY",
+    "aliases": []
+  },
+  {
+    "slug": "nars",
+    "name": "NARS",
+    "aliases": []
+  },
+  {
+    "slug": "nat-habit",
+    "name": "Nat Habit",
+    "aliases": []
+  },
+  {
+    "slug": "natasha-denona",
+    "name": "Natasha Denona",
+    "aliases": []
+  },
+  {
+    "slug": "natasha-moor",
+    "name": "Natasha Moor",
+    "aliases": []
+  },
+  {
+    "slug": "natio",
+    "name": "Natio",
+    "aliases": []
+  },
+  {
+    "slug": "natural-vibes",
+    "name": "Natural Vibes",
+    "aliases": []
+  },
+  {
+    "slug": "neud",
+    "name": "Neud",
+    "aliases": []
+  },
+  {
+    "slug": "nidhis-grandmaa-secret",
+    "name": "NIDHI'S GRANDMAA SECRET",
+    "aliases": []
+  },
+  {
+    "slug": "nish-hair",
+    "name": "Nish Hair",
+    "aliases": []
+  },
+  {
+    "slug": "nivea",
+    "name": "Nivea",
+    "aliases": []
+  },
+  {
+    "slug": "note-cosmetics",
+    "name": "Note Cosmetique",
+    "aliases": []
+  },
+  {
+    "slug": "nouba",
+    "name": "Nouba",
+    "aliases": []
+  },
+  {
+    "slug": "nourish-mantra",
+    "name": "Nourish Mantra",
+    "aliases": []
+  },
+  {
+    "slug": "nudestix",
+    "name": "Nudestix",
+    "aliases": []
+  },
+  {
+    "slug": "nuse",
+    "name": "NUSE",
+    "aliases": []
+  },
+  {
+    "slug": "nykaa-cosmetics",
+    "name": "Nykaa Cosmetics",
+    "aliases": []
+  },
+  {
+    "slug": "nykaa-hair",
+    "name": "Nykaa Hair",
+    "aliases": []
+  },
+  {
+    "slug": "nykaa-perfumes",
+    "name": "Nykaa Perfumes",
+    "aliases": []
+  },
+  {
+    "slug": "nykaa-skin",
+    "name": "Nykaa Skin",
+    "aliases": []
+  },
+  {
+    "slug": "nykaa-tools-and-accessories",
+    "name": "Nykaa Tools & Accessories",
+    "aliases": []
+  },
+  {
+    "slug": "nyx-professional-makeup",
+    "name": "NYX Professional Makeup",
+    "aliases": []
+  },
+  {
+    "slug": "o-lens",
+    "name": "O-Lens",
+    "aliases": []
+  },
+  {
+    "slug": "oceglow",
+    "name": "Oceglow",
+    "aliases": []
+  },
+  {
+    "slug": "olaplex",
+    "name": "Olaplex",
+    "aliases": []
+  },
+  {
+    "slug": "olay",
+    "name": "Olay",
+    "aliases": []
+  },
+  {
+    "slug": "old-school",
+    "name": "Old School",
+    "aliases": []
+  },
+  {
+    "slug": "olivia",
+    "name": "Olivia",
+    "aliases": []
+  },
+  {
+    "slug": "one-on-one",
+    "name": "ONE on ONE",
+    "aliases": []
+  },
+  {
+    "slug": "one-size",
+    "name": "One/Size",
+    "aliases": []
+  },
+  {
+    "slug": "opi",
+    "name": "O.P.I",
+    "aliases": []
+  },
+  {
+    "slug": "optify",
+    "name": "Optify",
+    "aliases": []
+  },
+  {
+    "slug": "ora-doro",
+    "name": "Ora d'oro Beauty",
+    "aliases": []
+  },
+  {
+    "slug": "orgatre",
+    "name": "Orgatre",
+    "aliases": []
+  },
+  {
+    "slug": "oshea-herbals",
+    "name": "Oshea Herbals",
+    "aliases": []
+  },
+  {
+    "slug": "oulac-cosmetics",
+    "name": "Oulac",
+    "aliases": []
+  },
+  {
+    "slug": "pac-cosmetics",
+    "name": "PAC",
+    "aliases": []
+  },
+  {
+    "slug": "paese-cosmetics",
+    "name": "Paese Cosmetics",
+    "aliases": []
+  },
+  {
+    "slug": "palmers",
+    "name": "Palmer's",
+    "aliases": []
+  },
+  {
+    "slug": "parnell",
+    "name": "Parnell",
+    "aliases": []
+  },
+  {
+    "slug": "parul-garg-beauty",
+    "name": "Parul Garg Beauty",
+    "aliases": []
+  },
+  {
+    "slug": "passion-indulge",
+    "name": "Passion Indulge",
+    "aliases": []
+  },
+  {
+    "slug": "pat-mcgrath-labs",
+    "name": "PAT McGRATH LABS",
+    "aliases": []
+  },
+  {
+    "slug": "paulas-choice",
+    "name": "Paula's Choice",
+    "aliases": []
+  },
+  {
+    "slug": "peep-beauty",
+    "name": "Peep Beauty",
+    "aliases": []
+  },
+  {
+    "slug": "perenne",
+    "name": "Perenne",
+    "aliases": []
+  },
+  {
+    "slug": "perpaa",
+    "name": "PERPAA",
+    "aliases": []
+  },
+  {
+    "slug": "pierre-cardin-paris",
+    "name": "Pierre Cardin Paris",
+    "aliases": []
+  },
+  {
+    "slug": "pigment-play",
+    "name": "Pigment Play",
+    "aliases": []
+  },
+  {
+    "slug": "pilgrim",
+    "name": "Pilgrim",
+    "aliases": []
+  },
+  {
+    "slug": "pinkflash",
+    "name": "PINKFLASH",
+    "aliases": []
+  },
+  {
+    "slug": "pinky-goat",
+    "name": "Pinky Goat",
+    "aliases": []
+  },
+  {
+    "slug": "pinq",
+    "name": "PINQ",
+    "aliases": []
+  },
+  {
+    "slug": "pixi",
+    "name": "PIXI",
+    "aliases": []
+  },
+  {
+    "slug": "plum",
+    "name": "Plum",
+    "aliases": []
+  },
+  {
+    "slug": "plush",
+    "name": "Plush",
+    "aliases": []
+  },
+  {
+    "slug": "ponds",
+    "name": "Pond's",
+    "aliases": [
+      "Ponds"
+    ]
+  },
+  {
+    "slug": "power-beauty",
+    "name": "Power Beauty",
+    "aliases": []
+  },
+  {
+    "slug": "prada",
+    "name": "PRADA",
+    "aliases": []
+  },
+  {
+    "slug": "praush-beauty",
+    "name": "Praush",
+    "aliases": []
+  },
+  {
+    "slug": "precise-beauty",
+    "name": "PRECISE BEAUTY",
+    "aliases": []
+  },
+  {
+    "slug": "prishe-beauty",
+    "name": "prishe beauty",
+    "aliases": []
+  },
+  {
+    "slug": "proarte",
+    "name": "Pro Arte",
+    "aliases": [
+      "PROARTE"
+    ]
+  },
+  {
+    "slug": "profusion-cosmetics",
+    "name": "Profusion Cosmetics",
+    "aliases": []
+  },
+  {
+    "slug": "protouch",
+    "name": "Protouch",
+    "aliases": []
+  },
+  {
+    "slug": "pupa-milano",
+    "name": "Pupa Milano",
+    "aliases": []
+  },
+  {
+    "slug": "purearth",
+    "name": "Purearth",
+    "aliases": []
+  },
+  {
+    "slug": "purecon",
+    "name": "Purecon",
+    "aliases": []
+  },
+  {
+    "slug": "purito-seoul",
+    "name": "Purito Seoul",
+    "aliases": []
+  },
+  {
+    "slug": "puttisu-india",
+    "name": "Puttisu India",
+    "aliases": []
+  },
+  {
+    "slug": "quench",
+    "name": "Quench",
+    "aliases": []
+  },
+  {
+    "slug": "rare-beauty",
+    "name": "Rare Beauty",
+    "aliases": []
+  },
+  {
+    "slug": "ras-luxury-oils",
+    "name": "RAS Luxury Oils",
+    "aliases": []
+  },
+  {
+    "slug": "recode",
+    "name": "Recode",
+    "aliases": []
+  },
+  {
+    "slug": "redo-beauty",
+    "name": "Redo Beauty",
+    "aliases": []
+  },
+  {
+    "slug": "renee-cosmetics",
+    "name": "Renee Cosmetics",
+    "aliases": []
+  },
+  {
+    "slug": "revlon",
+    "name": "Revlon",
+    "aliases": []
+  },
+  {
+    "slug": "revolution-pro",
+    "name": "Revolution Pro",
+    "aliases": []
+  },
+  {
+    "slug": "revolution-relove",
+    "name": "Revolution Relove",
+    "aliases": []
+  },
+  {
+    "slug": "rhe-cosmetics",
+    "name": "Rhe Cosmetics",
+    "aliases": []
+  },
+  {
+    "slug": "rimmel-london",
+    "name": "Rimmel London",
+    "aliases": []
+  },
+  {
+    "slug": "rivona-naturals",
+    "name": "Rivona Naturals",
+    "aliases": []
+  },
+  {
+    "slug": "rom-and-nd",
+    "name": "Rom&nd",
+    "aliases": []
+  },
+  {
+    "slug": "ronzille",
+    "name": "Ronzille",
+    "aliases": []
+  },
+  {
+    "slug": "rubys-organics",
+    "name": "Ruby's Organics",
+    "aliases": []
+  },
+  {
+    "slug": "rude-cosmetics",
+    "name": "Rude Cosmetics",
+    "aliases": []
+  },
+  {
+    "slug": "rufa-beauty",
+    "name": "Rufa Beauty",
+    "aliases": []
+  },
+  {
+    "slug": "sacred-herbs",
+    "name": "Sacred Herbs",
+    "aliases": []
+  },
+  {
+    "slug": "sadhev",
+    "name": "SADHEV",
+    "aliases": []
+  },
+  {
+    "slug": "saffrn",
+    "name": "Saffrn",
+    "aliases": []
+  },
+  {
+    "slug": "samer-khouzami",
+    "name": "SAMER KHOUZAMI",
+    "aliases": []
+  },
+  {
+    "slug": "sammmm",
+    "name": "Sammmm",
+    "aliases": []
+  },
+  {
+    "slug": "sandiva",
+    "name": "Sandiva",
+    "aliases": []
+  },
+  {
+    "slug": "sanfe",
+    "name": "Sanfe",
+    "aliases": []
+  },
+  {
+    "slug": "sangria",
+    "name": "SANGRIA BEAUTY",
+    "aliases": []
+  },
+  {
+    "slug": "sebamed",
+    "name": "Sebamed",
+    "aliases": []
+  },
+  {
+    "slug": "sephora-collection",
+    "name": "Sephora Collection",
+    "aliases": []
+  },
+  {
+    "slug": "shahnaz-husain",
+    "name": "Shahnaz Husain",
+    "aliases": []
+  },
+  {
+    "slug": "sheglam",
+    "name": "Sheglam",
+    "aliases": []
+  },
+  {
+    "slug": "shiseido",
+    "name": "Shiseido",
+    "aliases": []
+  },
+  {
+    "slug": "shopaarel",
+    "name": "Shopaarel",
+    "aliases": []
+  },
+  {
+    "slug": "shryoan",
+    "name": "Shryoan",
+    "aliases": []
+  },
+  {
+    "slug": "silkera-hair-care-professional",
+    "name": "SILKERA HAIR CARE PROFESSIONAL",
+    "aliases": []
+  },
+  {
+    "slug": "simihaze-beauty",
+    "name": "Simihaze",
+    "aliases": []
+  },
+  {
+    "slug": "simplynam",
+    "name": "Simply Nam",
+    "aliases": []
+  },
+  {
+    "slug": "sisley",
+    "name": "Sisley",
+    "aliases": []
+  },
+  {
+    "slug": "smashbox",
+    "name": "Smashbox",
+    "aliases": []
+  },
+  {
+    "slug": "soku",
+    "name": "SOKU",
+    "aliases": []
+  },
+  {
+    "slug": "sol-de-janeiro",
+    "name": "Sol de Janeiro",
+    "aliases": []
+  },
+  {
+    "slug": "sotrue",
+    "name": "Sotrue",
+    "aliases": []
+  },
+  {
+    "slug": "soulflower",
+    "name": "Soulflower",
+    "aliases": []
+  },
+  {
+    "slug": "soultree",
+    "name": "SoulTree",
+    "aliases": []
+  },
+  {
+    "slug": "spawake",
+    "name": "Spawake",
+    "aliases": []
+  },
+  {
+    "slug": "spekta-cosmetics",
+    "name": "Spekta Cosmetics",
+    "aliases": []
+  },
+  {
+    "slug": "spinz",
+    "name": "Spinz",
+    "aliases": []
+  },
+  {
+    "slug": "star-struck-by-sunny-leone",
+    "name": "Star Struck by Sunny Leone",
+    "aliases": []
+  },
+  {
+    "slug": "stars-cosmetics",
+    "name": "Stars Cosmetics",
+    "aliases": []
+  },
+  {
+    "slug": "staze",
+    "name": "STAZE",
+    "aliases": []
+  },
+  {
+    "slug": "stila",
+    "name": "Stila Cosmetics",
+    "aliases": []
+  },
+  {
+    "slug": "streax",
+    "name": "Streax",
+    "aliases": []
+  },
+  {
+    "slug": "street-wear",
+    "name": "Street Wear",
+    "aliases": []
+  },
+  {
+    "slug": "sugar",
+    "name": "SUGAR",
+    "aliases": []
+  },
+  {
+    "slug": "sugar-pop",
+    "name": "SUGAR POP",
+    "aliases": []
+  },
+  {
+    "slug": "sulwhasoo",
+    "name": "Sulwhasoo",
+    "aliases": []
+  },
+  {
+    "slug": "supergoop",
+    "name": "Supergoop",
+    "aliases": []
+  },
+  {
+    "slug": "suroskie",
+    "name": "SUROSKIE",
+    "aliases": []
+  },
+  {
+    "slug": "swati-cosmetics",
+    "name": "Swati Cosmetics",
+    "aliases": []
+  },
+  {
+    "slug": "swiss-beauty",
+    "name": "Swiss Beauty",
+    "aliases": []
+  },
+  {
+    "slug": "tbc-the-bath-and-care",
+    "name": "TBC - The Bath and Care",
+    "aliases": []
+  },
+  {
+    "slug": "teaology",
+    "name": "Teaology",
+    "aliases": []
+  },
+  {
+    "slug": "teen-teen",
+    "name": "TEEN.TEEN",
+    "aliases": []
+  },
+  {
+    "slug": "tfit",
+    "name": "TFIT",
+    "aliases": []
+  },
+  {
+    "slug": "thalgo",
+    "name": "Thalgo",
+    "aliases": []
+  },
+  {
+    "slug": "thank-you-farmer",
+    "name": "Thank You Farmer",
+    "aliases": []
+  },
+  {
+    "slug": "the-balm-cosmetics",
+    "name": "theBalm Cosmetics",
+    "aliases": []
+  },
+  {
+    "slug": "the-bare-bar",
+    "name": "THE BARE BAR",
+    "aliases": []
+  },
+  {
+    "slug": "the-body-shop",
+    "name": "The Body Shop",
+    "aliases": []
+  },
+  {
+    "slug": "the-derma-co",
+    "name": "The Derma Co",
+    "aliases": []
+  },
+  {
+    "slug": "the-face-shop",
+    "name": "The Face Shop",
+    "aliases": []
+  },
+  {
+    "slug": "the-natural-wash",
+    "name": "TNW The Natural Wash",
+    "aliases": []
+  },
+  {
+    "slug": "the-ordinary",
+    "name": "The Ordinary",
+    "aliases": []
+  },
+  {
+    "slug": "the-real-ritual",
+    "name": "The Real Ritual",
+    "aliases": []
+  },
+  {
+    "slug": "the-sass-bar",
+    "name": "The Sass Bar",
+    "aliases": []
+  },
+  {
+    "slug": "the-shell-hair",
+    "name": "THE SHELL HAIR",
+    "aliases": []
+  },
+  {
+    "slug": "the-skin-diet-company",
+    "name": "THE SKIN DIET COMPANY",
+    "aliases": []
+  },
+  {
+    "slug": "the-wellness-shop",
+    "name": "The Wellness Shop",
+    "aliases": []
+  },
+  {
+    "slug": "thou",
+    "name": "Thou",
+    "aliases": []
+  },
+  {
+    "slug": "tinge",
+    "name": "Tinge",
+    "aliases": []
+  },
+  {
+    "slug": "tint-cosmetics",
+    "name": "Tint Cosmetics",
+    "aliases": []
+  },
+  {
+    "slug": "tira",
+    "name": "Tira",
+    "aliases": []
+  },
+  {
+    "slug": "tirtir",
+    "name": "TIRTIR",
+    "aliases": []
+  },
+  {
+    "slug": "tom-ford",
+    "name": "Tom Ford",
+    "aliases": []
+  },
+  {
+    "slug": "tonymoly",
+    "name": "TONYMOLY",
+    "aliases": []
+  },
+  {
+    "slug": "too-faced",
+    "name": "Too Faced",
+    "aliases": []
+  },
+  {
+    "slug": "truth-be-told",
+    "name": "Truth Be Told",
+    "aliases": []
+  },
+  {
+    "slug": "tuco",
+    "name": "Tuco",
+    "aliases": []
+  },
+  {
+    "slug": "tulips",
+    "name": "Tulips",
+    "aliases": []
+  },
+  {
+    "slug": "type-beauty",
+    "name": "TYPE Beauty",
+    "aliases": []
+  },
+  {
+    "slug": "typsy-beauty",
+    "name": "Typsy Beauty",
+    "aliases": []
+  },
+  {
+    "slug": "urban-decay",
+    "name": "Urban Decay",
+    "aliases": []
+  },
+  {
+    "slug": "uroparis",
+    "name": "Uroparis",
+    "aliases": []
+  },
+  {
+    "slug": "vaadi-herbals",
+    "name": "Vaadi Herbals",
+    "aliases": []
+  },
+  {
+    "slug": "valentino",
+    "name": "Valentino",
+    "aliases": []
+  },
+  {
+    "slug": "vaseline",
+    "name": "Vaseline",
+    "aliases": []
+  },
+  {
+    "slug": "vega",
+    "name": "VEGA",
+    "aliases": []
+  },
+  {
+    "slug": "venihea",
+    "name": "Venihea",
+    "aliases": []
+  },
+  {
+    "slug": "veoni-belle",
+    "name": "Veoni Belle",
+    "aliases": []
+  },
+  {
+    "slug": "verymiss",
+    "name": "VERYMISS",
+    "aliases": []
+  },
+  {
+    "slug": "victorias-secret",
+    "name": "Victoria's Secret",
+    "aliases": []
+  },
+  {
+    "slug": "vilvah",
+    "name": "VILVAH",
+    "aliases": []
+  },
+  {
+    "slug": "vlcc",
+    "name": "VLCC",
+    "aliases": []
+  },
+  {
+    "slug": "volamena",
+    "name": "Volamena",
+    "aliases": []
+  },
+  {
+    "slug": "vt-cosmetics",
+    "name": "VT Cosmetics",
+    "aliases": []
+  },
+  {
+    "slug": "wearified",
+    "name": "Wearified",
+    "aliases": []
+  },
+  {
+    "slug": "wet-n-wild",
+    "name": "Wet n Wild",
+    "aliases": []
+  },
+  {
+    "slug": "winq-cosmetics",
+    "name": "Winq Cosmetics",
+    "aliases": []
+  },
+  {
+    "slug": "wishcare",
+    "name": "WishCare",
+    "aliases": []
+  },
+  {
+    "slug": "wishful",
+    "name": "WISHFUL",
+    "aliases": []
+  },
+  {
+    "slug": "wow",
+    "name": "WOW",
+    "aliases": []
+  },
+  {
+    "slug": "xx-revolution",
+    "name": "XX Revolution",
+    "aliases": []
+  },
+  {
+    "slug": "yves-rocher",
+    "name": "Yves Rocher",
+    "aliases": []
+  },
+  {
+    "slug": "yves-saint-laurent",
+    "name": "Yves Saint Laurent",
+    "aliases": []
+  },
+  {
+    "slug": "zobha",
+    "name": "Zobha",
+    "aliases": []
+  }
+]

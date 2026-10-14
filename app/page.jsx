@@ -1,33 +1,66 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { Suspense, useEffect, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 
-const CARDS = {
+// Tools inside the "Product Database" section
+const PRODUCT_DATABASE = {
   dhruvi: [
     {
-      href: '/color-picker',
+      href: '/shade-capture',
       label: 'Shade Capture',
-      description: 'Pick & upload shades to S3, product database, and Shopify.',
+      description: 'To-do queue, brands and capture for India & USA — pick shades, save to S3, make products live.',
       icon: '🎨',
     },
     {
-    href: '/color-picker-usa',
-    label: 'Shade Capture USA',
-    description: 'Pick & upload shades for the US market (brands_usa prefix, all-data-usa.json).',
-    icon: '🇺🇸',
-  },
-    {
       href: '/logs',
       label: 'Product Logs',
-      description: 'Browse every saved product, view shades, links, and prices.',
+      description: 'Browse every saved product by brand — shades, links, prices, live & verified.',
       icon: '📦',
+    },
+    {
+      href: '/activity',
+      label: 'Activity',
+      description: "Aastha's daily work — new products (4+ shades) per day, monthly average and pay.",
+      icon: '🗓️',
     },
     {
       href: '/audit',
       label: 'Audit',
       description: 'See which shades were added by which user on any date.',
       icon: '🔍',
+    },
+  ],
+  aastha: [
+    {
+      href: '/shade-capture',
+      label: 'Shade Capture',
+      description: 'To-do queue, brands and capture for India & USA — pick shades and save to S3.',
+      icon: '🎨',
+    },
+    {
+      href: '/logs',
+      label: 'Product Logs',
+      description: 'Browse every saved product by brand — shades, links and prices.',
+      icon: '📦',
+    },
+    {
+      href: '/activity',
+      label: 'My Activity',
+      description: 'Your daily work — products added per day, monthly average and pay.',
+      icon: '🗓️',
+    },
+  ],
+};
+
+// Main dashboard cards; `section` opens a group of tools instead of a page
+const CARDS = {
+  dhruvi: [
+    {
+      section: 'product-database',
+      label: 'Product Database',
+      description: 'Shade capture, product logs, activity and audit — everything for adding and checking products.',
+      icon: '🗄️',
     },
     {
       href: '/analytics',
@@ -56,28 +89,27 @@ const CARDS = {
   ],
   aastha: [
     {
-      href: '/color-picker',
-      label: 'Shade Capture',
-      description: 'Pick & upload shades to S3, product database, and Shopify.',
-      icon: '🎨',
-    },
-    {
-    href: '/color-picker-usa',
-    label: 'Shade Capture USA',
-    description: 'Pick & upload shades for the US market (brands_usa prefix, all-data-usa.json).',
-    icon: '🇺🇸',
-  },
-    {
-      href: '/logs',
-      label: 'Product Logs',
-      description: 'Browse every saved product, view shades, links, and prices.',
-      icon: '📦',
+      section: 'product-database',
+      label: 'Product Database',
+      description: 'Shade capture, product logs and your activity.',
+      icon: '🗄️',
     },
   ],
 };
 
+const SECTIONS = { 'product-database': { label: 'Product Database', icon: '🗄️', tools: PRODUCT_DATABASE } };
+
 export default function DashboardPage() {
+  return (
+    <Suspense fallback={null}>
+      <Dashboard />
+    </Suspense>
+  );
+}
+
+function Dashboard() {
   const router = useRouter();
+  const sp = useSearchParams();
   const [user, setUser] = useState(null);
 
   useEffect(() => {
@@ -97,7 +129,11 @@ export default function DashboardPage() {
 
   if (!user) return null;
 
-  const cards = CARDS[user] ?? CARDS.aastha;
+  const sectionKey = sp.get('section');
+  const section = SECTIONS[sectionKey];
+  const tools = section ? (section.tools[user] ?? section.tools.aastha) : null;
+  const cards = tools ?? CARDS[user] ?? CARDS.aastha;
+  const openCard = (card) => (card.section ? router.push(`/?section=${card.section}`) : router.push(card.href));
 
   return (
     <main style={{
@@ -146,6 +182,25 @@ export default function DashboardPage() {
           box-shadow: 0 24px 48px rgba(171,31,16,0.16);
           background: rgba(255,255,255,0.72);
         }
+
+        .dash-card-group {
+          background: linear-gradient(135deg, rgba(255,255,255,0.78) 0%, rgba(253,232,228,0.85) 100%);
+          border: 1.5px solid rgba(171,31,16,0.22);
+          box-shadow: 0 8px 32px rgba(171,31,16,0.12);
+        }
+        .dash-card-group:hover { background: linear-gradient(135deg, rgba(255,255,255,0.9) 0%, rgba(253,232,228,0.95) 100%); }
+
+        .back-btn {
+          font-size: 13px;
+          font-weight: 600;
+          color: #ab1f10;
+          background: rgba(255,255,255,0.6);
+          border: 1.5px solid rgba(171,31,16,0.25);
+          border-radius: 999px;
+          padding: 7px 16px;
+          cursor: pointer;
+        }
+        .back-btn:hover { background: rgba(171,31,16,0.07); border-color: #ab1f10; }
 
         .logout-btn {
           font-size: 13px;
@@ -220,24 +275,45 @@ export default function DashboardPage() {
         position: 'relative',
         zIndex: 1,
       }}>
-        <h1 style={{
-          fontSize: 'clamp(28px, 4.5vw, 48px)',
-          fontWeight: 700,
-          color: '#1a0a09',
-          margin: 0,
-          lineHeight: 1.15,
-          letterSpacing: '-0.5px',
-        }}>
-          Welcome back, {user} 👋
-        </h1>
-        <p style={{
-          marginTop: 10,
-          fontSize: 15,
-          color: '#9b4a42',
-          fontWeight: 400,
-        }}>
-          What would you like to work on today?
-        </p>
+        {section ? (
+          <>
+            <button className="back-btn" onClick={() => router.push('/')}>← All tools</button>
+            <h1 style={{
+              fontSize: 'clamp(28px, 4.5vw, 44px)',
+              fontWeight: 700,
+              color: '#1a0a09',
+              margin: '14px 0 0',
+              lineHeight: 1.15,
+              letterSpacing: '-0.5px',
+            }}>
+              {section.icon} {section.label}
+            </h1>
+            <p style={{ marginTop: 10, fontSize: 15, color: '#9b4a42', fontWeight: 400 }}>
+              Add, check and track products.
+            </p>
+          </>
+        ) : (
+          <>
+            <h1 style={{
+              fontSize: 'clamp(28px, 4.5vw, 48px)',
+              fontWeight: 700,
+              color: '#1a0a09',
+              margin: 0,
+              lineHeight: 1.15,
+              letterSpacing: '-0.5px',
+            }}>
+              Welcome back, {user} 👋
+            </h1>
+            <p style={{
+              marginTop: 10,
+              fontSize: 15,
+              color: '#9b4a42',
+              fontWeight: 400,
+            }}>
+              What would you like to work on today?
+            </p>
+          </>
+        )}
       </div>
 
       {/* Cards grid */}
@@ -253,9 +329,9 @@ export default function DashboardPage() {
       }}>
         {cards.map((card, i) => (
           <button
-            key={card.href}
-            className="dash-card"
-            onClick={() => router.push(card.href)}
+            key={`${sectionKey || 'main'}:${card.href || card.section}`}
+            className={`dash-card ${card.section ? 'dash-card-group' : ''}`}
+            onClick={() => openCard(card)}
             style={{ animationDelay: `${i * 80}ms` }}
           >
             <span style={{ fontSize: 34 }}>{card.icon}</span>
@@ -289,7 +365,16 @@ export default function DashboardPage() {
               gap: 4,
               opacity: 0.85,
             }}>
-              Open →
+              {card.section ? (
+                <>
+                  {(SECTIONS[card.section].tools[user] ?? SECTIONS[card.section].tools.aastha).map((t) => (
+                    <span key={t.href} title={t.label} style={{ fontSize: 16 }}>{t.icon}</span>
+                  ))}
+                  <span style={{ marginLeft: 6 }}>
+                    {(SECTIONS[card.section].tools[user] ?? SECTIONS[card.section].tools.aastha).length} tools →
+                  </span>
+                </>
+              ) : 'Open →'}
             </span>
           </button>
         ))}

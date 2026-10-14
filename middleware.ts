@@ -21,5 +21,5 @@ export function middleware(req: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/', '/logs', '/audit', '/api/audit/:path*'], // <— added /audit and its API
+  matcher: ['/', '/logs', '/logs/:path*', '/shade-capture', '/activity', '/audit', '/api/audit/:path*'], // <— added /audit and its API
 };

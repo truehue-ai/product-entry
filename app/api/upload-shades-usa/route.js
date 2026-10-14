@@ -3,8 +3,9 @@ export const runtime = 'nodejs';
 
 import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
-import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
+import { S3Client, PutObjectCommand, HeadObjectCommand } from '@aws-sdk/client-s3';
 import { awsCredentialsProvider } from "@vercel/oidc-aws-credentials-provider";
+import { recordSave } from "../activity/store";
 
 const s3 = new S3Client({
   region: process.env.X_AWS_REGION,
@@ -45,6 +46,14 @@ export async function POST(req) {
 
     const base = `brands_usa/${brand}/product_shade_values/${product}`;
     const shadesKey = `${base}/shades.json`;
+
+    // Is this a brand-new product? (for the activity page)
+    let isNew = false;
+    try {
+      await s3.send(new HeadObjectCommand({ Bucket: BUCKET, Key: shadesKey }));
+    } catch (e) {
+      isNew = e?.name === 'NotFound' || e?.$metadata?.httpStatusCode === 404;
+    }
 
     // 2) Write shades.json
     await s3.send(
@@ -118,6 +127,13 @@ export async function POST(req) {
         ContentType: 'application/json',
       })
     );
+
+    // 5) Activity log (activity/activity.json) — never blocks the save
+    try {
+      await recordSave({ user, market: 'usa', brand, product, productType: category, shades: savedNames.length, isNew });
+    } catch (e) {
+      console.error('activity log failed:', e);
+    }
 
     return NextResponse.json({ success: true, added: savedNames });
   } catch (error) {
