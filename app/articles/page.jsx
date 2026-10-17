@@ -154,7 +154,7 @@ export default function ArticlesPage() {
       <div className="blob" style={{ width: 340, height: 340, background: '#fadbd8', bottom: -80, right: -60 }} />
 
       {/* Top bar */}
-      <div style={{
+      <div className="m-topbar" style={{
         backdropFilter: 'blur(16px)', WebkitBackdropFilter: 'blur(16px)',
         background: 'rgba(255,255,255,0.6)',
         borderBottom: '1px solid rgba(255,255,255,0.75)',

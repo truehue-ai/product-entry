@@ -196,6 +196,7 @@ function ShadeCaptureDatabase() {
 
   const [catalog, setCatalog] = useState({});
   const [todos, setTodos] = useState({});
+  const [skippedCount, setSkippedCount] = useState({}); // market -> number of skipped products
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [search, setSearch] = useState("");
@@ -221,10 +222,12 @@ function ShadeCaptureDatabase() {
     setLoading(true);
     setError("");
     try {
-      const [catRes, todoRes] = await Promise.all([
+      const [catRes, todoRes, skipRes] = await Promise.all([
         fetch(`/api/shade-capture/catalog?usa=${MARKETS[mk].usa ? "1" : "0"}`, { cache: "no-store" }).then((r) => r.json()),
         fetch(`/api/shade-capture/todo?market=${mk}`, { cache: "no-store" }).then((r) => r.json()),
+        fetch(`/api/shade-capture/skipped?market=${mk}`, { cache: "no-store" }).then((r) => r.json()).catch(() => ({ items: [] })),
       ]);
+      setSkippedCount((prev) => ({ ...prev, [mk]: (skipRes.items || []).length }));
       const errs = [catRes.error, todoRes.error].filter(Boolean);
       if (errs.length) setError(errs.join(" · "));
       setCatalog((prev) => ({ ...prev, [mk]: catRes.products || [] }));
@@ -395,6 +398,21 @@ function ShadeCaptureDatabase() {
     setEditingId(null);
   };
 
+  // Skip from Up next: move the item from the to-do list into skipped/skipped-<market>.json
+  const skipTodo = async (row, reason, duplicateOf = null) => {
+    const item = (todos[market]?.items || []).find((it) => it.id === row.id) ||
+      { id: row.id, brand: row.brand, product: row.product, category: row.type, links: row.links || [] };
+    const r = await fetch("/api/shade-capture/skipped", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ market, item, reason, ...(duplicateOf ? { duplicateOf } : {}) }),
+    });
+    const j = await r.json();
+    if (!r.ok || !j.success) throw new Error(j.error || "Could not skip");
+    setTodos((prev) => ({ ...prev, [market]: { ...prev[market], items: j.todo || [] } }));
+    setSkippedCount((prev) => ({ ...prev, [market]: (j.skipped || []).length }));
+  };
+
   const doneCount = rows ? rows.filter((r) => r.status === "done").length : 0;
   const todoRows = useMemo(
     () => (rows || []).filter((r) => r.status === "todo").sort((a, b) => a.queue - b.queue),
@@ -539,7 +557,7 @@ function ShadeCaptureDatabase() {
       `}</style>
 
       {/* ── Top Nav ── */}
-      <div style={{
+      <div className="m-topbar" style={{
         backdropFilter: "blur(16px)", WebkitBackdropFilter: "blur(16px)",
         background: "rgba(255,255,255,0.65)",
         borderBottom: "1px solid rgba(255,255,255,0.8)",
@@ -560,7 +578,7 @@ function ShadeCaptureDatabase() {
         />
       </div>
 
-      <div style={{ padding: "24px 28px", maxWidth: 1180, margin: "0 auto", display: "flex", flexDirection: "column", gap: 18 }}>
+      <div className="m-pad" style={{ padding: "24px 28px", maxWidth: 1180, margin: "0 auto", display: "flex", flexDirection: "column", gap: 18 }}>
 
         {/* ── Progress ── */}
         <div className="stats-grid">
@@ -591,6 +609,10 @@ function ShadeCaptureDatabase() {
           onUploadCsv={() => fileRef.current?.click()}
           onAddNew={() => router.push(M.editor)}
           onSeeAll={seeAllTodos}
+          onSkip={skipTodo}
+          savedProducts={catalog[market] || []}
+          skippedCount={skippedCount[market] ?? null}
+          onOpenSkipped={() => router.push(`/shade-capture/skipped${market === "usa" ? "?market=usa" : ""}`)}
         />
 
         {/* ── Make live ── */}
@@ -918,13 +940,136 @@ function Row({ r, secondary, onOpen, canFix, editing, onEdit, onSaveFix }) {
   );
 }
 
+const SKIP_OPTIONS = [
+  ["already-added", "✓ Already added"],
+  ["website-not-found", "🔍 Couldn't find website"],
+  ["discontinued", "⛔ Product discontinued"],
+  ["out-of-stock", "📦 All shades out of stock"],
+];
+
+// "Already added": pick which saved product this to-do already is, with one saved shade link to cross-check
+function DuplicatePicker({ usa, brand, saved, brandInfo, busy, onPick, onCancel }) {
+  const brands = useMemo(() => [...new Set(saved.map((p) => p.brand))].sort((a, b) => a.trim().localeCompare(b.trim())), [saved]);
+  const [chosenBrand, setChosenBrand] = useState(() => brands.find((b) => normKey(b) === normKey(brand)) || brand || "");
+  const [q, setQ] = useState("");
+  const [picked, setPicked] = useState(null);
+  const [details, setDetails] = useState({}); // "brand:::product" -> { link, shades }
+  const [loadingLinks, setLoadingLinks] = useState(false);
+
+  const products = useMemo(
+    () => saved.filter((p) => normKey(p.brand) === normKey(chosenBrand)).sort((a, b) => a.product.localeCompare(b.product)),
+    [saved, chosenBrand]
+  );
+  const keyOf = (p) => `${p.brand}:::${p.product}`;
+
+  // one saved shade link per product, for cross-checking
+  useEffect(() => {
+    setPicked(null);
+    if (!products.length) return;
+    let active = true;
+    setLoadingLinks(true);
+    fetch("/api/logs/brand", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ usa, items: products.map((p) => ({ brand: p.brand, product: p.product })) }),
+    })
+      .then((r) => r.json())
+      .then((j) => {
+        if (!active) return;
+        const map = {};
+        (j.products || []).forEach((p) => {
+          map[`${p.brand}:::${p.product}`] = { link: (p.shades || []).find((s) => s.link)?.link || "", shades: (p.shades || []).length };
+        });
+        setDetails(map);
+      })
+      .catch(() => {})
+      .finally(() => { if (active) setLoadingLinks(false); });
+    return () => { active = false; };
+  }, [products, usa]);
+
+  const needle = q.trim().toLowerCase();
+  const shown = products.filter((p) => !needle || p.product.toLowerCase().includes(needle));
+
+  return (
+    <div style={{ flexBasis: "100%", marginTop: 4, borderRadius: 12, background: "rgba(255,255,255,0.85)", border: "1px solid rgba(171,31,16,0.12)",
+      padding: "12px 12px 10px", display: "flex", flexDirection: "column", gap: 10 }}>
+      <div style={{ fontSize: 13, fontWeight: 600, color: "#1a0a09" }}>Which saved product is it?</div>
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+        <label style={{ flex: "1 1 200px", fontSize: 11, fontWeight: 700, color: "#7b241c" }}>
+          BRAND
+          <input className="th-input" list="th-dup-brands" value={chosenBrand} onChange={(e) => setChosenBrand(e.target.value)}
+            style={{ ...GL.input, padding: "8px 11px", fontSize: 13 }} />
+          <datalist id="th-dup-brands">{brands.map((b) => <option key={b} value={b} />)}</datalist>
+        </label>
+        <label style={{ flex: "2 1 220px", fontSize: 11, fontWeight: 700, color: "#7b241c" }}>
+          SEARCH {products.length ? `${products.length} SAVED PRODUCTS` : ""}
+          <input className="th-input" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Filter products…"
+            style={{ ...GL.input, padding: "8px 11px", fontSize: 13 }} />
+        </label>
+      </div>
+
+      {products.length === 0 ? (
+        <div style={{ fontSize: 13, color: "#9b4a42" }}>
+          No saved products for “{chosenBrand || "—"}”. If it's saved under another brand spelling, pick that brand above.
+        </div>
+      ) : (
+        <div style={{ maxHeight: 260, overflowY: "auto", borderRadius: 10, border: "1px solid rgba(171,31,16,0.08)" }}>
+          {shown.map((p) => {
+            const d = details[keyOf(p)];
+            const on = picked && keyOf(picked) === keyOf(p);
+            return (
+              <div key={keyOf(p)} onClick={() => setPicked(p)}
+                style={{ display: "grid", gridTemplateColumns: "18px minmax(0, 1fr)", gap: 10, alignItems: "start", padding: "8px 10px", cursor: "pointer",
+                  borderBottom: "1px solid rgba(171,31,16,0.05)", background: on ? "rgba(171,31,16,0.07)" : "transparent" }}>
+                <input type="radio" readOnly checked={!!on} style={{ accentColor: "#ab1f10", marginTop: 3 }} />
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontSize: 13.5, fontWeight: 600, color: "#1a0a09" }}>{p.product}</div>
+                  <div style={{ fontSize: 12, color: "#9b4a42" }}>
+                    {categoryLabel(p.type)}{d ? ` · ${d.shades} shade${d.shades === 1 ? "" : "s"}` : ""}{p.live ? " · Live" : ""}
+                  </div>
+                  <div style={{ fontSize: 12, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    {d?.link ? (
+                      <a href={d.link} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()} style={{ color: "#7b241c" }}>{d.link}</a>
+                    ) : (
+                      <span style={{ color: "#c0b0b0" }}>{loadingLinks && !d ? "Loading link…" : "No saved link"}</span>
+                    )}
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+          {shown.length === 0 && <div style={{ padding: 12, fontSize: 13, color: "#9b4a42" }}>No products match.</div>}
+        </div>
+      )}
+
+      <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+        <button className="th-btn-primary" disabled={!picked || busy}
+          onClick={() => onPick({ brand: picked.brand, product: picked.product, link: details[keyOf(picked)]?.link || "" })}
+          style={{ ...GL.btnPrimary, padding: "9px 16px", fontSize: 13, opacity: !picked || busy ? 0.5 : 1, cursor: !picked || busy ? "not-allowed" : "pointer" }}>
+          {busy ? "Skipping…" : picked ? `Skip — already added as “${picked.product}”` : "Pick the saved product"}
+        </button>
+        <button onClick={onCancel} disabled={busy} style={{ ...linkBtn, fontSize: 13 }}>Back</button>
+      </div>
+    </div>
+  );
+}
+
 function UpNextPanel({ loaded, loading, queue, totalTodo, cats, cat, onPickCat, brandInfo, hasTodoList, market,
-  onOpen, onSaveFix, onUploadCsv, onAddNew, onSeeAll }) {
+  onOpen, onSaveFix, onUploadCsv, onAddNew, onSeeAll, onSkip, skippedCount, onOpenSkipped, savedProducts }) {
   const next = queue[0];
   const later = queue.slice(1, 7);
   const [fixing, setFixing] = useState(false);
   const [showLinks, setShowLinks] = useState(false);
-  useEffect(() => { setFixing(false); setShowLinks(false); }, [next?.id]);
+  const [skipping, setSkipping] = useState(false); // showing the reason choice
+  const [skipBusy, setSkipBusy] = useState("");    // reason being saved
+  const [skipErr, setSkipErr] = useState("");
+  const [pickingDup, setPickingDup] = useState(false); // "already added": choosing the saved product
+  useEffect(() => { setFixing(false); setShowLinks(false); setSkipping(false); setSkipBusy(""); setSkipErr(""); setPickingDup(false); }, [next?.id]);
+  const skip = async (reason, duplicateOf = null) => {
+    setSkipBusy(reason); setSkipErr("");
+    try { await onSkip(next, reason, duplicateOf); }
+    catch (e) { setSkipErr(e?.message || "Could not skip"); setSkipBusy(""); }
+  };
   const info = next ? brandInfo(next.brand) : null;
   const catCount = cat ? (cats.find(([c]) => c === cat)?.[1] || 0) : totalTodo;
 
@@ -944,6 +1089,9 @@ function UpNextPanel({ loaded, loading, queue, totalTodo, cats, cat, onPickCat, 
           <button className="th-btn-outline" style={GL.btnOutline} onClick={onUploadCsv} disabled={!loaded}
             title="CSV with columns: brand, product (category optional)">⬆ Upload CSV</button>
           <button className="th-btn-outline" style={GL.btnOutline} onClick={onAddNew}>+ Product not on the list</button>
+          <button className="th-btn-outline" style={GL.btnOutline} onClick={onOpenSkipped} title="Products skipped from the queue">
+            ⏭ Skipped{skippedCount != null ? ` (${skippedCount})` : ""}
+          </button>
         </div>
       </div>
 
@@ -1022,12 +1170,42 @@ function UpNextPanel({ loaded, loading, queue, totalTodo, cats, cat, onPickCat, 
               <button className="th-btn-outline" style={GL.btnOutline} onClick={() => setFixing((v) => !v)}>
                 {fixing ? "Cancel" : "Fix name"}
               </button>
+              {!skipping && (
+                <button className="th-btn-outline" style={GL.btnOutline} onClick={() => setSkipping(true)}>Skip ⏭</button>
+              )}
               {next.links?.length > 0 && (
                 <button onClick={() => setShowLinks((v) => !v)} style={{ ...linkBtn, fontSize: 13 }}>
                   {showLinks ? "Hide" : "Show"} {next.links.length} source link{next.links.length === 1 ? "" : "s"}
                 </button>
               )}
             </div>
+            {skipping && (
+              <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", padding: "10px 12px", borderRadius: 12,
+                background: "rgba(171,31,16,0.04)", border: "1px solid rgba(171,31,16,0.12)" }}>
+                <span style={{ fontSize: 13, fontWeight: 600, color: "#7b241c", marginRight: 4 }}>Why skip?</span>
+                {SKIP_OPTIONS.map(([reason, label]) => (
+                  <button key={reason} className="th-btn-outline" disabled={!!skipBusy}
+                    onClick={() => (reason === "already-added" ? setPickingDup(true) : skip(reason))}
+                    style={{ ...GL.btnOutline, opacity: skipBusy && skipBusy !== reason ? 0.5 : 1,
+                      ...(reason === "already-added" && pickingDup ? { background: "#ab1f10", color: "#fff", borderColor: "#ab1f10" } : {}) }}>
+                    {skipBusy === reason ? "Skipping…" : label}
+                  </button>
+                ))}
+                <button onClick={() => { setSkipping(false); setPickingDup(false); setSkipErr(""); }} disabled={!!skipBusy} style={{ ...linkBtn, fontSize: 13 }}>Cancel</button>
+                {skipErr && <span style={{ flexBasis: "100%", fontSize: 13, fontWeight: 600, color: "#c0392b" }}>{skipErr}</span>}
+                {pickingDup && (
+                  <DuplicatePicker
+                    usa={market === "usa"}
+                    brand={next.brand}
+                    saved={savedProducts || []}
+                    brandInfo={brandInfo}
+                    busy={skipBusy === "already-added"}
+                    onPick={(dup) => skip("already-added", dup)}
+                    onCancel={() => setPickingDup(false)}
+                  />
+                )}
+              </div>
+            )}
             {showLinks && <SourceLinks links={next.links} open />}
             {fixing && (
               <div style={{ margin: "0 -12px -6px -40px" }}>

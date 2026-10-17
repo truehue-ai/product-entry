@@ -341,6 +341,21 @@ function normalizeSteps(raw) {
 
 /* -------------------- Helpers -------------------- */
 
+// User folder names only (permanent/shopify/<id>/) — one Delimiter listing, no per-user reads.
+async function listUserIdsFast() {
+  const ids = [];
+  let ContinuationToken;
+  do {
+    const resp = await s3.send(new ListObjectsV2Command({ Bucket: BUCKET, Prefix: ROOT_PREFIX, Delimiter: "/", ContinuationToken }));
+    (resp.CommonPrefixes || []).forEach((p) => {
+      const id = p.Prefix?.slice(ROOT_PREFIX.length, -1);
+      if (id) ids.push(id);
+    });
+    ContinuationToken = resp.IsTruncated ? resp.NextContinuationToken : undefined;
+  } while (ContinuationToken);
+  return ids;
+}
+
 async function listUserIds() {
   const all = await listAllKeys(ROOT_PREFIX);
   const ids = new Set();
@@ -544,6 +559,52 @@ export async function GET(req) {
         JSON.stringify({ rows: uniqueRows, count: uniqueRows.length }),
         { headers: { "Content-Type": "application/json", "Cache-Control": "no-store" } }
       );
+    }
+
+    // IDs only: /api/analytics/users?mode=ids  (fast — just the user folder names)
+    if (searchParams.get("mode") === "ids") {
+      const ids = await listUserIdsFast();
+      return new Response(JSON.stringify({ ids }), { headers: { "Content-Type": "application/json", "Cache-Control": "no-store" } });
+    }
+
+    // Global summaries only (viewed / premium / perfect-product files), no per-user reads: ?mode=summary
+    if (searchParams.get("mode") === "summary") {
+      const [viewedRaw, premiumRootRaw, perfect5Raw, perfect24Raw] = await Promise.all([
+        getJSON("viewed.json"), getJSON("premium_products.json"),
+        getJSON("perfect_product_premium_5.json"), getJSON("perfect_product_premium_24.json"),
+      ]);
+      const viewedGlobal = normalizeViewedGlobal(viewedRaw);
+      const premiumGlobal = normalizePremiumGlobal(premiumRootRaw);
+      const perfect5 = normalizePerfectProductGlobal(perfect5Raw);
+      const perfect24 = normalizePerfectProductGlobal(perfect24Raw);
+      return new Response(JSON.stringify({
+        generatedAt: Date.now(),
+        topViewedBrands: viewedGlobal.byBrand.slice(0, 10),
+        topViewedProducts: viewedGlobal.byBrandProduct.slice(0, 20),
+        topPremiumBrands: premiumGlobal.topBrands.slice(0, 10),
+        topPremiumProducts: premiumGlobal.topProducts.slice(0, 20),
+        premiumUpdatedAt: premiumGlobal.updatedAt || null,
+        topPerfectProduct5Categories: perfect5.categories.slice(0, 20),
+        perfectProduct5UpdatedAt: perfect5.updatedAt || null,
+        topPerfectProduct24Categories: perfect24.categories.slice(0, 20),
+        perfectProduct24UpdatedAt: perfect24.updatedAt || null,
+      }), { headers: { "Content-Type": "application/json", "Cache-Control": "no-store" } });
+    }
+
+    // Push tokens only (one read per user — on demand): ?mode=push
+    if (searchParams.get("mode") === "push") {
+      const ids = await listUserIdsFast();
+      const usersWithPushTokens = [];
+      for (let i = 0; i < ids.length; i += 25) {
+        await Promise.all(ids.slice(i, i + 25).map(async (uid) => {
+          const val = await getJSON(`${ROOT_PREFIX}${uid}/push_token.json`);
+          if (val) {
+            const token = typeof val === "string" ? val : val.token ?? val.push_token ?? val.fcmToken ?? val.deviceToken ?? null;
+            usersWithPushTokens.push({ id: uid, number: uid, token: token ? String(token) : null });
+          }
+        }));
+      }
+      return new Response(JSON.stringify({ usersWithPushTokens }), { headers: { "Content-Type": "application/json", "Cache-Control": "no-store" } });
     }
 
     // Detail mode: /api/analytics/users?id=<userId>

@@ -360,7 +360,7 @@ function LogsInner() {
       `}</style>
 
       {/* ── Top Nav ── */}
-      <div style={{
+      <div className="m-topbar" style={{
         backdropFilter: "blur(16px)", WebkitBackdropFilter: "blur(16px)",
         background: "rgba(255,255,255,0.65)",
         borderBottom: "1px solid rgba(255,255,255,0.8)",
@@ -411,7 +411,7 @@ function LogsInner() {
         </div>
       </div>
 
-      <div style={{ padding: "24px 28px", display: "flex", flexDirection: "column", gap: 20 }}>
+      <div className="m-pad" style={{ padding: "24px 28px", display: "flex", flexDirection: "column", gap: 20 }}>
 
         {passwordModal}
         {currentUser === "dhruvi" && <BuildDatabasePanel />}

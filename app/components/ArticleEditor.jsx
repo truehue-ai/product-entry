@@ -215,7 +215,7 @@ function ProductSlotEditor({ section, index, onChange }) {
 
       {/* LMD params */}
       {resolver === 'LMD_lookup' && (
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 12 }}>
+        <div className="m-grid-2" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 12 }}>
           <div>
             <label style={labelStyle}>Product Source</label>
             <select value={params.source || ''} onChange={e => updateParams({ source: e.target.value })} style={selectStyle}>
@@ -253,7 +253,7 @@ function ProductSlotEditor({ section, index, onChange }) {
 
       {/* Shade rec params */}
       {resolver === 'shade_rec' && (
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 12 }}>
+        <div className="m-grid-2" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 12 }}>
           <div>
             <label style={labelStyle}>Product Type</label>
             <select value={params.product_type || ''} onChange={e => updateParams({ product_type: e.target.value })} style={selectStyle}>
@@ -328,7 +328,7 @@ function PreviewPanel({ template, apiBase }) {
       }}>
         <div style={{ fontSize: 14, fontWeight: 700, color: '#1a0a09' }}>Preview Settings</div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+        <div className="m-grid-1" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
           <div>
             <label style={labelStyle}>Skin Tone (L / M / D)</label>
             <div style={{ display: 'flex', gap: 8 }}>
@@ -667,7 +667,7 @@ async function uploadOverlayImage(file) {
       `}</style>
 
       {/* Top bar */}
-      <div style={{
+      <div className="m-topbar" style={{
         backdropFilter: 'blur(16px)', WebkitBackdropFilter: 'blur(16px)',
         background: 'rgba(255,255,255,0.6)',
         borderBottom: '1px solid rgba(255,255,255,0.75)',
@@ -747,7 +747,7 @@ async function uploadOverlayImage(file) {
                 Article Details
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+              <div className="m-grid-1" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
                 <div style={{ gridColumn: '1 / -1' }}>
                   <label style={labelStyle}>Title</label>
                   <input
@@ -874,7 +874,7 @@ async function uploadOverlayImage(file) {
                   <div style={{ fontSize: 12, fontWeight: 700, color: '#ab1f10', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
                     Personalised Cover
                   </div>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+                  <div className="m-grid-1" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
                     <div>
                       <label style={labelStyle}>Cover Slot <span style={{ color: '#9b4a42', fontWeight: 400 }}>(which slot's try-on goes on the cover)</span></label>
                       <select

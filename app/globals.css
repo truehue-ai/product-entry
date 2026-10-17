@@ -24,3 +24,25 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+/* ── Phone layout ──────────────────────────────────────────────────────────────
+   Pages are styled inline; these classes (added on their containers) adapt them on small screens. */
+@media (max-width: 760px) {
+  html, body { overflow-x: hidden; }
+  /* 16px stops iOS Safari zooming into inputs */
+  input, select, textarea { font-size: 16px !important; }
+
+  .m-topbar { flex-wrap: wrap !important; padding: 10px 12px !important; gap: 6px 8px !important; }
+  .m-topbar > * { min-width: 0; }
+  .m-pad { padding-left: 12px !important; padding-right: 12px !important; padding-top: 16px !important; }
+  .m-stack { flex-direction: column !important; align-items: stretch !important; }
+  .m-full { width: 100% !important; max-width: 100% !important; flex-shrink: 1 !important; }
+  .m-grid-1 { grid-template-columns: minmax(0, 1fr) !important; }
+  .m-grid-2 { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
+  .m-scroll-x { overflow-x: auto !important; -webkit-overflow-scrolling: touch; }
+  .m-chart-tall { height: 380px !important; }
+
+  /* chart tooltips stay on screen and wrap */
+  .recharts-tooltip-wrapper { max-width: calc(100vw - 24px); z-index: 50; }
+  .recharts-tooltip-wrapper > * { max-width: calc(100vw - 24px); white-space: normal !important; }
+}

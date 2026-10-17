@@ -128,7 +128,7 @@ export default function SBPickerPanel({
       <div style={{
         position: "relative",
         height: "100%",
-        width: panelWidth,
+        width: `min(${panelWidth}px, 100vw)`,
         background: "rgba(255,255,255,0.72)",
         backdropFilter: "blur(28px)",
         WebkitBackdropFilter: "blur(28px)",

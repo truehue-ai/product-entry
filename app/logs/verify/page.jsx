@@ -225,7 +225,7 @@ function VerifyQueue() {
       `}</style>
 
       {/* Top nav */}
-      <div style={{
+      <div className="m-topbar" style={{
         backdropFilter: "blur(16px)", WebkitBackdropFilter: "blur(16px)", background: "rgba(255,255,255,0.65)",
         borderBottom: "1px solid rgba(255,255,255,0.8)", padding: "14px 28px", display: "flex", alignItems: "center",
         justifyContent: "space-between", flexWrap: "wrap", gap: 12, position: "sticky", top: 0, zIndex: 40,
@@ -240,7 +240,7 @@ function VerifyQueue() {
       </div>
 
       {passwordModal}
-      <div style={{ padding: "24px 28px", maxWidth: 1180, margin: "0 auto", display: "flex", flexDirection: "column", gap: 18 }}>
+      <div className="m-pad" style={{ padding: "24px 28px", maxWidth: 1180, margin: "0 auto", display: "flex", flexDirection: "column", gap: 18 }}>
 
         {/* Progress */}
         <div className="stats-grid">

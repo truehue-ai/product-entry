@@ -63,6 +63,12 @@ const CARDS = {
       icon: '🗄️',
     },
     {
+      href: '/analytics/usage',
+      label: 'User Metrics',
+      description: 'How often people use the app — daily/weekly/monthly actives, first-days usage, retention, premium users and features per day.',
+      icon: '📈',
+    },
+    {
       href: '/analytics',
       label: 'Analytics',
       description: 'User funnel, coin actions, premium products, and steps graph.',
@@ -225,7 +231,7 @@ function Dashboard() {
       <div className="blob" style={{ width: 220, height: 220, background: '#e74c3c', top: '40%', right: '15%', opacity: 0.12 }} />
 
       {/* Top bar */}
-      <div style={{
+      <div className="m-topbar" style={{
         backdropFilter: 'blur(16px)',
         WebkitBackdropFilter: 'blur(16px)',
         background: 'rgba(255,255,255,0.6)',

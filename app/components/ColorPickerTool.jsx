@@ -7,6 +7,7 @@ import SBPickerPanel from "./SBPickerPanel";
 import { rgbToHsb } from "./SBPickerPanel";
 import { classifyShades } from "./shadeClassifier";
 import { useActionPassword } from "./useActionPassword";
+import ImportFromOtherMarket from "./ImportFromOtherMarket";
 
 const LIP_CATEGORIES = [
   "matte-lipstick",
@@ -201,6 +202,18 @@ export default function ColorPickerTool({ initialBrand = "", initialProduct = ""
     setLockedIndex(activeShadeIndex);
   };
 
+  // Shades copied from the other market's database (so Activity only counts shades added on top)
+  const [importedFrom, setImportedFrom] = useState(null); // { market, brand, product, shades }
+  const handleImport = ({ shades: imported, category: importedCategory, source }) => {
+    setShades(imported.length ? imported : [{ name: "", hex: "", skintone: "", undertone: "", link: "", price: "" }]);
+    if (importedCategory) setCategory(importedCategory);
+    if (!brand) setBrand(source.brand);
+    if (!product) setProduct(source.product);
+    setActiveShadeIndex(0);
+    setLockedIndex(null);
+    setImportedFrom({ ...source, shades: imported.length });
+  };
+
   const handleSave = async () => {
     if (!brand || !product || !category) {
       alert("Brand, Product, and Category are required!");
@@ -216,7 +229,7 @@ export default function ColorPickerTool({ initialBrand = "", initialProduct = ""
     const res = await fetch('/api/upload-shades', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ brand, product, category, shades: structuredShades })
+      body: JSON.stringify({ brand, product, category, shades: structuredShades, ...(importedFrom ? { importedFrom } : {}) })
     });
     let result = {};
     try { result = await res.json(); } catch { alert("Upload failed: invalid response"); return; }
@@ -425,7 +438,7 @@ export default function ColorPickerTool({ initialBrand = "", initialProduct = ""
       `}</style>
 
       {/* ── Top Nav ── */}
-      <div style={{ backdropFilter: "blur(16px)", WebkitBackdropFilter: "blur(16px)", background: "rgba(255,255,255,0.65)", borderBottom: "1px solid rgba(255,255,255,0.8)", padding: "16px 36px", display: "flex", alignItems: "center", justifyContent: "space-between", position: "sticky", top: 0, zIndex: 40, boxShadow: "0 1px 12px rgba(171,31,16,0.06)" }}>
+      <div className="m-topbar" style={{ backdropFilter: "blur(16px)", WebkitBackdropFilter: "blur(16px)", background: "rgba(255,255,255,0.65)", borderBottom: "1px solid rgba(255,255,255,0.8)", padding: "16px 36px", display: "flex", alignItems: "center", justifyContent: "space-between", position: "sticky", top: 0, zIndex: 40, boxShadow: "0 1px 12px rgba(171,31,16,0.06)" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
           <button className="th-btn-ghost" onClick={() => router.push('/')} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 15, fontWeight: 600, color: "#ab1f10", padding: "8px 14px", borderRadius: 9 }}>← Home</button>
           <div style={{ width: 1, height: 20, background: "rgba(171,31,16,0.2)" }} />
@@ -437,10 +450,10 @@ export default function ColorPickerTool({ initialBrand = "", initialProduct = ""
         <button onClick={logout} style={{ background: "none", border: "1.5px solid rgba(171,31,16,0.3)", borderRadius: 9, padding: "8px 18px", fontSize: 14, fontWeight: 600, color: "#ab1f10", cursor: "pointer" }}>Logout</button>
       </div>
 
-      <div style={{ padding: "28px 28px", display: "flex", gap: 24, alignItems: "flex-start" }}>
+      <div className="m-pad m-stack" style={{ padding: "28px 28px", display: "flex", gap: 24, alignItems: "flex-start" }}>
 
         {/* ── Left Panel ── */}
-        <div style={{ width: 480, flexShrink: 0, display: "flex", flexDirection: "column", gap: 16 }}>
+        <div className="m-full" style={{ width: 480, flexShrink: 0, display: "flex", flexDirection: "column", gap: 16 }}>
 
           {/* Product Info */}
           <div style={{ ...GL.card, padding: 26 }}>
@@ -486,6 +499,20 @@ export default function ColorPickerTool({ initialBrand = "", initialProduct = ""
               </div>
             </div>
 
+            <ImportFromOtherMarket
+              fromMarket="usa"
+              brand={brand}
+              product={product}
+              currentShadeCount={shades.filter(s => s.name || s.hex).length}
+              onImport={handleImport}
+            />
+            {importedFrom && (
+              <div style={{ marginTop: 10, marginBottom: 14, fontSize: 12, color: "#14532d", background: "rgba(22,163,74,0.08)", borderRadius: 10, padding: "8px 11px" }}>
+                📥 Imported {importedFrom.shades} shade{importedFrom.shades === 1 ? "" : "s"} from {importedFrom.market === "usa" ? "🇺🇸 USA" : "🇮🇳 India"}: {importedFrom.brand} · {importedFrom.product}.
+                Add this market's links & prices, then save. Activity only counts shades added on top of these.
+              </div>
+            )}
+            {!importedFrom && <div style={{ marginBottom: 14 }} />}
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
               <div>
                 <label style={GL.label}>Type</label>

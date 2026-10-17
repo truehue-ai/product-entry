@@ -38,115 +38,156 @@ const formatShort = (dateStr) => {
   return d.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
 };
 
-const PLATFORM_METRICS = [
-  { key: "logins", label: "Logins", color: "#1F2937" },
+// ── iOS vs Android ──
+// Two fixed categorical slots (validated: CVD ΔE 24.7, normal-vision ΔE 33.6, both ≥ 3:1 on the light surface).
+const PLATFORMS = [
+  { key: "ios", field: "loginPlatformIos", label: "iOS", icon: "🍎", color: "#2a78d6" },
+  { key: "android", field: "loginPlatformAndroid", label: "Android", icon: "🤖", color: "#eb6834" },
 ];
+const RANGES = [["14", "14 days"], ["30", "30 days"], ["all", "All"]];
+const pct = (a, total) => (total ? Math.round((a / total) * 100) : 0);
 
 const PlatformTooltip = ({ active, payload, label }) => {
   if (!active || !payload?.length) return null;
-  const ios = {};
-  const android = {};
-  payload.forEach(p => {
-    if (p.dataKey.startsWith("ios_")) ios[p.dataKey.replace("ios_", "")] = p.value;
-    else if (p.dataKey.startsWith("android_")) android[p.dataKey.replace("android_", "")] = p.value;
-  });
-  const d = new Date(label);
-  const dateLabel = d.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", year: "numeric" });
-
-  const PBlock = ({ platform, map, color, icon }) => {
-    const total = PLATFORM_METRICS.reduce((s, m) => s + (map[m.key] || 0), 0);
-    if (total === 0) return null;
-    return (
-      <div style={{ marginBottom: 12 }}>
-        <div style={{ fontSize: 12, fontWeight: 800, color, marginBottom: 6, display: "flex", alignItems: "center", gap: 6 }}>
-          <span>{icon}</span> {platform} — {total} total
-        </div>
-        {PLATFORM_METRICS.map(m => map[m.key] > 0 ? (
-          <div key={m.key} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-              <div style={{ width: 8, height: 8, borderRadius: "50%", background: m.color }} />
-              <span style={{ fontSize: 12, color: "#374151" }}>{m.label}</span>
-            </div>
-            <span style={{ fontSize: 13, fontWeight: 700, color: "#111827" }}>{map[m.key]}</span>
-          </div>
-        ) : null)}
-      </div>
-    );
-  };
-
+  const row = payload[0].payload;
+  const total = row.ios + row.android;
   return (
-    <div style={{ background: "#fff", borderRadius: 14, padding: "16px 20px", boxShadow: "0 12px 32px rgba(0,0,0,0.14)", border: "1px solid rgba(0,0,0,0.06)", minWidth: 220, zIndex: 99999 }}>
-      <div style={{ fontWeight: 800, fontSize: 14, color: "#111827", marginBottom: 12 }}>{dateLabel}</div>
-      <div style={{ fontSize: 11, color: "#9CA3AF", marginBottom: 12 }}>Platform login counts only</div>
-      <PBlock platform="iOS" map={ios} color="#007AFF" icon="🍎" />
-      <PBlock platform="Android" map={android} color="#3DDC84" icon="🤖" />
+    <div style={{ background: "#fff", borderRadius: 12, padding: "12px 14px", boxShadow: "0 8px 24px rgba(0,0,0,0.12)", border: "1px solid rgba(0,0,0,0.06)", minWidth: 180 }}>
+      <div style={{ fontSize: 12, fontWeight: 700, color: "#1a0a09", marginBottom: 8 }}>{formatDate(label)}</div>
+      {PLATFORMS.map((p) => (
+        <div key={p.key} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "#374151", marginBottom: 4 }}>
+          <span style={{ width: 10, height: 10, borderRadius: 3, background: p.color }} />
+          <span style={{ flex: 1 }}>{p.icon} {p.label}</span>
+          <b style={{ color: "#1a0a09" }}>{row[p.key]}</b>
+          <span style={{ color: "#9CA3AF", width: 34, textAlign: "right" }}>{pct(row[p.key], total)}%</span>
+        </div>
+      ))}
+      <div style={{ borderTop: "1px solid rgba(0,0,0,0.06)", marginTop: 6, paddingTop: 6, fontSize: 12, color: "#6b7280", display: "flex", justifyContent: "space-between" }}>
+        <span>Total logins</span><b style={{ color: "#1a0a09" }}>{total}</b>
+      </div>
     </div>
   );
 };
 
 function PlatformBreakdownChart({ sortedData }) {
+  const [range, setRange] = useState("30");
+  const [showTable, setShowTable] = useState(false);
+
   // Only days that have at least one platform login recorded
-  const platformDays = useMemo(() => {
-    return sortedData.filter(d => (d.loginPlatformIos || 0) > 0 || (d.loginPlatformAndroid || 0) > 0);
-  }, [sortedData]);
+  const allDays = useMemo(
+    () => sortedData
+      .filter((d) => (d.loginPlatformIos || 0) > 0 || (d.loginPlatformAndroid || 0) > 0)
+      .map((d) => ({ date: d.date, ios: d.loginPlatformIos || 0, android: d.loginPlatformAndroid || 0 })),
+    [sortedData]
+  );
+  const days = useMemo(() => (range === "all" ? allDays : allDays.slice(-Number(range))), [allDays, range]);
 
-  if (platformDays.length === 0) return null;
+  if (allDays.length === 0) return null;
 
-  // Build chart data: for each day, create ios_<metric> and android_<metric> keys
-  // We distribute each metric proportionally based on ios vs android login split
-  const chartData = platformDays.map(d => {
-    const iosLogins = d.loginPlatformIos || 0;
-    const androidLogins = d.loginPlatformAndroid || 0;
-    const row = { date: d.date, ios_logins: iosLogins, android_logins: androidLogins };
-    // Only ritual steps are tracked per-platform via the login-platform step
-    // All other metrics are not per-platform tagged so we only show logins
-    return row;
-  });
+  const totals = { ios: days.reduce((a, d) => a + d.ios, 0), android: days.reduce((a, d) => a + d.android, 0) };
+  const total = totals.ios + totals.android;
+  const iosShare = pct(totals.ios, total);
 
   return (
-    <div style={{ marginTop: 48 }}>
-      <div style={{ fontSize: 13, fontWeight: 800, color: "#7b241c", letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: 6 }}>
-        Platform Breakdown (iOS vs Android)
-      </div>
-      <div style={{ fontSize: 12, color: "#9CA3AF", marginBottom: 20 }}>
-        Only days with platform data shown. Shows actual iOS vs Android login counts.
+    <div style={{ marginTop: 48, display: "flex", flexDirection: "column", gap: 16 }}>
+      {/* Title + filters in one row */}
+      <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+        <div>
+          <div style={{ fontSize: 13, fontWeight: 800, color: "#7b241c", letterSpacing: "0.08em", textTransform: "uppercase" }}>iOS vs Android</div>
+          <div style={{ fontSize: 12, color: "#9CA3AF", marginTop: 2 }}>Logins by platform · {days.length} day{days.length === 1 ? "" : "s"} with platform data</div>
+        </div>
+        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+          <div style={{ display: "flex", background: "rgba(171,31,16,0.07)", borderRadius: 10, padding: 3, gap: 3 }}>
+            {RANGES.map(([k, l]) => (
+              <button key={k} onClick={() => setRange(k)} style={{
+                border: "none", cursor: "pointer", borderRadius: 8, padding: "6px 12px", fontSize: 12, fontWeight: 600,
+                background: range === k ? "#fff" : "transparent", color: range === k ? "#ab1f10" : "#9b4a42",
+                boxShadow: range === k ? "0 2px 8px rgba(171,31,16,0.15)" : "none",
+              }}>{l}</button>
+            ))}
+          </div>
+          <button onClick={() => setShowTable((v) => !v)} style={{
+            border: "1.5px solid rgba(171,31,16,0.25)", background: "rgba(255,255,255,0.7)", color: "#ab1f10",
+            borderRadius: 9, padding: "6px 12px", fontSize: 12, fontWeight: 600, cursor: "pointer",
+          }}>{showTable ? "Chart" : "Table"}</button>
+        </div>
       </div>
 
-      {/* Legend */}
-      <div style={{ display: "flex", flexWrap: "wrap", gap: 12, marginBottom: 20, padding: "12px 16px", background: "rgba(255,255,255,0.5)", borderRadius: 12, border: "1px solid rgba(0,0,0,0.05)" }}>
-        <div style={{ fontSize: 11, fontWeight: 700, color: "#7b241c", letterSpacing: "0.07em", textTransform: "uppercase", width: "100%", marginBottom: 4 }}>🍎 iOS (left bar) · 🤖 Android (right bar)</div>
-        {PLATFORM_METRICS.map(m => (
-          <div key={m.key} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "#374151" }}>
-            <div style={{ width: 12, height: 12, borderRadius: 3, background: m.color }} />
-            {m.label}
+      {/* Totals + share */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 12 }}>
+        {PLATFORMS.map((p) => (
+          <div key={p.key} style={{ background: "rgba(255,255,255,0.65)", borderRadius: 14, padding: "14px 16px", border: "1px solid rgba(0,0,0,0.05)" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12, fontWeight: 700, color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.05em" }}>
+              <span style={{ width: 10, height: 10, borderRadius: 3, background: p.color }} /> {p.icon} {p.label}
+            </div>
+            <div style={{ fontSize: 28, fontWeight: 800, color: "#1a0a09", marginTop: 4 }}>{totals[p.key].toLocaleString()}</div>
+            <div style={{ fontSize: 12, color: "#9CA3AF" }}>
+              logins · {pct(totals[p.key], total)}% · {(totals[p.key] / Math.max(1, days.length)).toFixed(1)} / day
+            </div>
           </div>
         ))}
+        <div style={{ background: "rgba(255,255,255,0.65)", borderRadius: 14, padding: "14px 16px", border: "1px solid rgba(0,0,0,0.05)", display: "flex", flexDirection: "column", justifyContent: "center", gap: 8 }}>
+          <div style={{ fontSize: 12, fontWeight: 700, color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.05em" }}>Share</div>
+          <div role="img" aria-label={`iOS ${iosShare}%, Android ${100 - iosShare}%`}
+            style={{ display: "flex", height: 14, borderRadius: 7, overflow: "hidden", gap: 2, background: "#fff" }}>
+            {total > 0 && <div style={{ width: `${iosShare}%`, background: PLATFORMS[0].color, borderRadius: "7px 0 0 7px" }} />}
+            {total > 0 && <div style={{ flex: 1, background: PLATFORMS[1].color, borderRadius: "0 7px 7px 0" }} />}
+          </div>
+          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, color: "#374151" }}>
+            <span>🍎 <b>{iosShare}%</b></span>
+            <span><b>{total ? 100 - iosShare : 0}%</b> 🤖</span>
+          </div>
+        </div>
       </div>
 
-      <ResponsiveContainer width="100%" height={380}>
-        <BarChart data={chartData} margin={{ top: 8, right: 16, left: 0, bottom: 8 }} barCategoryGap="30%" barGap={4}>
-          <CartesianGrid stroke="rgba(0,0,0,0.05)" vertical={false} />
-          <XAxis dataKey="date" tickFormatter={formatShort} stroke="#9CA3AF" tick={{ fontSize: 12, fontWeight: 500 }} />
-          <YAxis stroke="#9CA3AF" tick={{ fontSize: 12 }} width={36} />
-          <Tooltip content={<PlatformTooltip />} cursor={{ fill: "rgba(0,0,0,0.03)" }} />
-
-          {/* iOS stacked bars */}
-          {PLATFORM_METRICS.map((m, i) => (
-            <Bar key={`ios_${m.key}`} dataKey={`ios_${m.key}`} name={`iOS ${m.label}`}
-              stackId="ios" fill={m.color}
-              radius={i === PLATFORM_METRICS.length - 1 ? [4, 4, 0, 0] : [0, 0, 0, 0]}
-              maxBarSize={40} />
-          ))}
-
-          {/* Android stacked bars */}
-          {PLATFORM_METRICS.map((m, i) => (
-            <Bar key={`android_${m.key}`} dataKey={`android_${m.key}`} name={`Android ${m.label}`}
-              stackId="android" fill={m.color} opacity={0.65}
-              radius={i === PLATFORM_METRICS.length - 1 ? [4, 4, 0, 0] : [0, 0, 0, 0]}
-              maxBarSize={40} />
-          ))}
-        </BarChart>
-      </ResponsiveContainer>
+      {showTable ? (
+        <div style={{ maxHeight: 380, overflowY: "auto", background: "rgba(255,255,255,0.65)", borderRadius: 14, border: "1px solid rgba(0,0,0,0.05)" }}>
+          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+            <thead>
+              <tr style={{ color: "#6b7280", textAlign: "right" }}>
+                <th style={{ textAlign: "left", padding: "10px 14px", fontWeight: 700 }}>Date</th>
+                <th style={{ padding: "10px 14px", fontWeight: 700 }}>🍎 iOS</th>
+                <th style={{ padding: "10px 14px", fontWeight: 700 }}>🤖 Android</th>
+                <th style={{ padding: "10px 14px", fontWeight: 700 }}>Total</th>
+                <th style={{ padding: "10px 14px", fontWeight: 700 }}>iOS share</th>
+              </tr>
+            </thead>
+            <tbody>
+              {[...days].reverse().map((d) => (
+                <tr key={d.date} style={{ borderTop: "1px solid rgba(0,0,0,0.05)", textAlign: "right", color: "#1a0a09" }}>
+                  <td style={{ textAlign: "left", padding: "8px 14px" }}>{formatShort(d.date)}</td>
+                  <td style={{ padding: "8px 14px" }}>{d.ios}</td>
+                  <td style={{ padding: "8px 14px" }}>{d.android}</td>
+                  <td style={{ padding: "8px 14px", fontWeight: 600 }}>{d.ios + d.android}</td>
+                  <td style={{ padding: "8px 14px", color: "#6b7280" }}>{pct(d.ios, d.ios + d.android)}%</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ) : (
+        <div style={{ background: "rgba(255,255,255,0.5)", borderRadius: 14, padding: "14px 8px 6px", border: "1px solid rgba(0,0,0,0.04)" }}>
+          {/* Legend (2 series) */}
+          <div style={{ display: "flex", gap: 16, padding: "0 12px 8px", fontSize: 12, color: "#374151" }}>
+            {PLATFORMS.map((p) => (
+              <span key={p.key} style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                <span style={{ width: 12, height: 12, borderRadius: 3, background: p.color }} /> {p.icon} {p.label}
+              </span>
+            ))}
+          </div>
+          <ResponsiveContainer width="100%" height={320}>
+            <BarChart data={days} margin={{ top: 8, right: 16, left: 0, bottom: 4 }} barCategoryGap="22%" barGap={2}>
+              <CartesianGrid stroke="rgba(0,0,0,0.05)" vertical={false} />
+              <XAxis dataKey="date" tickFormatter={formatShort} stroke="#D1D5DB" tick={{ fontSize: 11, fill: "#6b7280" }} tickLine={false} minTickGap={16} />
+              <YAxis stroke="#D1D5DB" tick={{ fontSize: 11, fill: "#6b7280" }} width={36} axisLine={false} tickLine={false} allowDecimals={false} />
+              <Tooltip content={<PlatformTooltip />} cursor={{ fill: "rgba(0,0,0,0.04)" }} />
+              {PLATFORMS.map((p) => (
+                <Bar key={p.key} dataKey={p.key} name={p.label} fill={p.color} radius={[4, 4, 0, 0]} maxBarSize={22} />
+              ))}
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      )}
     </div>
   );
 }
@@ -256,9 +297,10 @@ const CustomTooltip = ({ active, payload, label, coordinate, viewBox, allData, v
   const ritualCheckinDone = map.ritualCheckinDone || 0;
   const ritualPaywallCtaTapped = map.ritualPaywallCtaTapped || 0;
 
-  const tooltipWidth = 340;
-  const tooltipHeight = 520; // approximate full height
   const margin = 16;
+  // never wider than the screen (phones)
+  const tooltipWidth = Math.min(340, window.innerWidth - margin * 2);
+  const tooltipHeight = 520; // approximate full height
 
   // coordinate is relative to the chart container — we need viewport position
   // viewBox gives us the chart's position within ResponsiveContainer
@@ -272,6 +314,7 @@ const CustomTooltip = ({ active, payload, label, coordinate, viewBox, allData, v
   if (left + tooltipWidth > screenW - margin) {
     left = barX - tooltipWidth - 20;
   }
+  left = Math.max(margin, Math.min(left, screenW - tooltipWidth - margin)); // keep it on screen
 
   // Flip up if tooltip would overflow bottom edge
   const rawTop = (coordinate?.y ?? 100) - 40;
@@ -375,9 +418,9 @@ const AlphaCustomTooltip = ({ active, payload, label, coordinate, viewBox, allDa
   const paymentSuccess249 = map.paymentSuccess249 || 0;
   const paymentSuccess199 = map.paymentSuccess199 || 0;
 
-  const tooltipWidth = 340;
-  const tooltipHeight = 420;
   const margin = 16;
+  const tooltipWidth = Math.min(340, window.innerWidth - margin * 2);
+  const tooltipHeight = 420;
 
   const barX = (viewBox?.left ?? 0) + (coordinate?.x ?? 0);
   const screenW = window.innerWidth;
@@ -385,6 +428,7 @@ const AlphaCustomTooltip = ({ active, payload, label, coordinate, viewBox, allDa
 
   let left = barX + 20;
   if (left + tooltipWidth > screenW - margin) left = barX - tooltipWidth - 20;
+  left = Math.max(margin, Math.min(left, screenW - tooltipWidth - margin)); // keep it on screen
 
   const rawTop = (coordinate?.y ?? 100) - 40;
   let top = rawTop;
@@ -531,7 +575,8 @@ export default function StepsAnalyticsGraph({ data, userType = "numeric" }) {
       </div>
 
       {/* Chart */}
-      <ResponsiveContainer width="100%" height={560} style={{ overflow: "visible" }}>
+      <div className="m-chart-tall" style={{ height: 560 }}>
+      <ResponsiveContainer width="100%" height="100%" style={{ overflow: "visible" }}>
         <BarChart data={weeklyData} margin={{ top: 8, right: 16, left: 0, bottom: 8 }}>
           <CartesianGrid stroke="rgba(0,0,0,0.05)" vertical={false} />
           <XAxis dataKey="date" tickFormatter={formatShort} stroke="#9CA3AF" tick={{ fontSize: 12, fontWeight: 500 }} />
@@ -554,6 +599,7 @@ export default function StepsAnalyticsGraph({ data, userType = "numeric" }) {
           )}
         </BarChart>
       </ResponsiveContainer>
+      </div>
 
       {/* Legend */}
       <div style={{ display: "flex", flexWrap: "wrap", gap: 14, marginTop: 18, padding: "14px 18px", background: "rgba(255,255,255,0.4)", borderRadius: 12 }}>

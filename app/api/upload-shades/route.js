@@ -6,6 +6,7 @@ import { cookies } from 'next/headers';
 import { S3Client, PutObjectCommand, HeadObjectCommand } from '@aws-sdk/client-s3';
 import { awsCredentialsProvider } from "@vercel/oidc-aws-credentials-provider";
 import { recordSave } from "../activity/store";
+import { countNewShades } from "../activity/newShades";
 
 const s3 = new S3Client({
   region: process.env.X_AWS_REGION,
@@ -19,7 +20,7 @@ const getNamesFromIncoming = (arr) =>
 
 export async function POST(req) {
   try {
-    const { brand, product, shades, category } = await req.json();
+    const { brand, product, shades, category, importedFrom } = await req.json();
     if (!brand || !product || !Array.isArray(shades) || !category) {
       return NextResponse.json(
         { success: false, error: 'Missing fields' },
@@ -130,7 +131,18 @@ export async function POST(req) {
 
     // 5) Activity log (activity/activity.json) — never blocks the save
     try {
-      await recordSave({ user, market: 'india', brand, product, productType: category, shades: savedNames.length, isNew });
+      // only shades not already in the other market's database count as new work
+      const savedShades = shades.filter((s) => s?.name && s?.hex);
+      let compared = { newShades: savedShades.length, comparedWith: null };
+      try {
+        compared = await countNewShades({ market: 'india', brand, product, shades: savedShades, importedFrom });
+      } catch (e) {
+        console.error('new-shade check failed:', e);
+      }
+      await recordSave({
+        user, market: 'india', brand, product, productType: category, shades: savedNames.length, isNew,
+        newShades: compared.newShades, comparedWith: compared.comparedWith,
+      });
     } catch (e) {
       console.error('activity log failed:', e);
     }

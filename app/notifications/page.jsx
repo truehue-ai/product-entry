@@ -402,7 +402,7 @@ export default function NotificationsPage() {
       `}</style>
 
       {/* ── Top Nav ── */}
-      <div style={{ backdropFilter: 'blur(16px)', WebkitBackdropFilter: 'blur(16px)', background: 'rgba(255,255,255,0.65)', borderBottom: '1px solid rgba(255,255,255,0.8)', padding: '16px 36px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', position: 'sticky', top: 0, zIndex: 40, boxShadow: '0 1px 12px rgba(171,31,16,0.06)' }}>
+      <div className="m-topbar" style={{ backdropFilter: 'blur(16px)', WebkitBackdropFilter: 'blur(16px)', background: 'rgba(255,255,255,0.65)', borderBottom: '1px solid rgba(255,255,255,0.8)', padding: '16px 36px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', position: 'sticky', top: 0, zIndex: 40, boxShadow: '0 1px 12px rgba(171,31,16,0.06)' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
           <button className="th-btn-ghost" onClick={() => router.push('/')} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 15, fontWeight: 600, color: '#ab1f10', padding: '8px 14px', borderRadius: 9 }}>← Home</button>
           <div style={{ width: 1, height: 20, background: 'rgba(171,31,16,0.2)' }} />
@@ -588,7 +588,7 @@ export default function NotificationsPage() {
           )}
 
           {filteredUsers.length > 0 && (
-            <>
+            <div className="m-scroll-x"><div style={{ minWidth: 520 }}>
               <div style={{ display: 'grid', gridTemplateColumns: '140px 1fr 110px 90px', gap: 14, padding: '0 14px', fontSize: 11, fontWeight: 700, color: '#9b4a42', letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: 8 }}>
                 <span>User</span><span>Token</span><span>Unique steps</span><span style={{ textAlign: 'right' }}>Status</span>
               </div>
@@ -610,7 +610,7 @@ export default function NotificationsPage() {
                   );
                 })}
               </div>
-            </>
+            </div></div>
           )}
         </div>
 

@@ -7,7 +7,8 @@ import BRANDS_USA from "../shade-capture/brands-usa.json";
 import { useActionPassword } from "../components/useActionPassword";
 
 // Daily work log from activity/activity.json. A product counts for a day when it was newly added to S3
-// that day with more than 3 shades; edits to existing products are listed but not counted.
+// that day with more than 3 NEW shades — shades already in the other market's database (imported or copied)
+// don't count. Edits to existing products are listed but not counted.
 // Days marked as holidays are left out of every average (their products still show in totals).
 
 const MIN_SHADES = 4; // "more than 3"
@@ -55,17 +56,20 @@ function summarise(entries = []) {
   const byProduct = new Map();
   for (const e of entries) {
     const k = `${e.market}:::${e.brand}:::${e.product}`;
-    const cur = byProduct.get(k) || { ...e, saves: 0, isNew: false, shades: 0 };
+    const cur = byProduct.get(k) || { ...e, saves: 0, isNew: false, shades: 0, newShades: 0 };
     cur.saves += 1;
     cur.isNew = cur.isNew || !!e.isNew;
     cur.shades = Math.max(cur.shades, e.shades || 0);
+    // older entries have no newShades: all their shades were new
+    cur.newShades = Math.max(cur.newShades, typeof e.newShades === "number" ? e.newShades : e.shades || 0);
+    if (e.comparedWith) cur.comparedWith = e.comparedWith;
     cur.at = e.at > (cur.at || "") ? e.at : cur.at;
     cur.productType = e.productType || cur.productType;
     byProduct.set(k, cur);
   }
   const all = [...byProduct.values()].sort((a, b) => String(b.at).localeCompare(String(a.at)));
-  const counted = all.filter((p) => p.isNew && p.shades >= MIN_SHADES);
-  const fewShades = all.filter((p) => p.isNew && p.shades < MIN_SHADES);
+  const counted = all.filter((p) => p.isNew && p.newShades >= MIN_SHADES);
+  const fewShades = all.filter((p) => p.isNew && p.newShades < MIN_SHADES);
   const edits = all.filter((p) => !p.isNew);
   return { counted, fewShades, edits, count: counted.length };
 }
@@ -225,7 +229,7 @@ export default function ActivityPage() {
       {passwordModal}
 
       {/* Top nav */}
-      <div style={{
+      <div className="m-topbar" style={{
         backdropFilter: "blur(16px)", WebkitBackdropFilter: "blur(16px)", background: "rgba(255,255,255,0.65)",
         borderBottom: "1px solid rgba(255,255,255,0.8)", padding: "14px 28px", display: "flex", alignItems: "center",
         justifyContent: "space-between", flexWrap: "wrap", gap: 12, position: "sticky", top: 0, zIndex: 40, boxShadow: "0 1px 12px rgba(171,31,16,0.06)",
@@ -248,7 +252,7 @@ export default function ActivityPage() {
         )}
       </div>
 
-      <div style={{ padding: "24px 28px", maxWidth: 1100, margin: "0 auto", display: "flex", flexDirection: "column", gap: 18 }}>
+      <div className="m-pad" style={{ padding: "24px 28px", maxWidth: 1100, margin: "0 auto", display: "flex", flexDirection: "column", gap: 18 }}>
 
         {/* Running average */}
         <div className="stats">
@@ -275,7 +279,8 @@ export default function ActivityPage() {
           <div style={{ ...GL.card, padding: "18px 20px", display: "flex", flexDirection: "column", gap: 6 }}>
             <div style={GL.sectionHeader}>What counts</div>
             <div style={{ fontSize: 13, color: "#7b241c", lineHeight: 1.5 }}>
-              New products saved to S3 with <b>more than 3 shades</b>, India + USA. Edits to existing products are listed, not counted.
+              New products saved to S3 with <b>more than 3 new shades</b>, India + USA. Shades imported or copied from the other
+              market's database don't count. Edits to existing products are listed, not counted.
               🌴 Holidays are left out of averages{canEdit ? " — open a day to mark one" : ""}. Pay: average above {PAY_AVG_THRESHOLD} → active
               working days × {inr(PAY_PER_UNIT)}, otherwise products ÷ 10 × {inr(PAY_PER_UNIT)}.
             </div>
@@ -430,8 +435,8 @@ function DayDetails({ day, summary, onClose, holiday, holidayBusy, onToggleHolid
         </div>
       )}
       {!summary && <div style={{ fontSize: 13, color: "#9b4a42" }}>Nothing saved this day.</div>}
-      <ProductList title="Counted — new products with more than 3 shades" items={s.counted} color="#15803d" />
-      <ProductList title="New, 3 shades or fewer (not counted)" items={s.fewShades} color="#b45309" muted />
+      <ProductList title="Counted — new products with more than 3 new shades" items={s.counted} color="#15803d" />
+      <ProductList title="New, 3 or fewer new shades — e.g. imported from the other market (not counted)" items={s.fewShades} color="#b45309" muted />
       <ProductList title="Edits to existing products (not counted)" items={s.edits} color="#8a7a7a" muted />
     </div>
   );
@@ -454,10 +459,14 @@ function ProductList({ title, items, color, muted }) {
               <div style={{ fontSize: 12, color: "#9b4a42", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                 {brandName(p.market, p.brand)}{p.productType ? ` · ${prettyType(p.productType)}` : ""}
                 {p.saves > 1 ? ` · saved ${p.saves}×` : ""}
+                {p.comparedWith ? ` · ${p.comparedWith.imported ? "imported from" : "also in"} ${MARKET_FLAG[p.comparedWith.market] || p.comparedWith.market}` : ""}
                 {p.at ? ` · ${new Date(p.at).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit", timeZone: "Asia/Kolkata" })}` : ""}
               </div>
             </div>
-            <span style={{ ...GL.pill, background: "rgba(171,31,16,0.07)", color: "#7b241c" }}>{p.shades} shade{p.shades === 1 ? "" : "s"}</span>
+            <span style={{ ...GL.pill, background: "rgba(171,31,16,0.07)", color: "#7b241c" }}
+              title={p.newShades !== p.shades ? `${p.shades - p.newShades} shade(s) were already in the other market's database` : undefined}>
+              {p.newShades !== p.shades ? `${p.newShades} new of ${p.shades}` : `${p.shades} shade${p.shades === 1 ? "" : "s"}`}
+            </span>
           </div>
         ))}
       </div>

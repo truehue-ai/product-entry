@@ -56,13 +56,20 @@ async function writeActivity(change) {
 }
 
 // Called after a successful Shade Capture save.
-export async function recordSave({ user, market, brand, product, productType, shades, isNew, at = new Date() }) {
+// newShades: shades not already in the other market's database (imported/copied ones don't count as new work);
+// comparedWith: { market, brand, product, shades, imported } when the product exists in the other market.
+export async function recordSave({ user, market, brand, product, productType, shades, isNew, newShades, comparedWith, at = new Date() }) {
   if (!user || !brand || !product) return;
   const day = istDay(at);
   await writeActivity((data) => {
     data.users ||= {};
     const days = (data.users[user] ||= {});
-    (days[day] ||= []).push({ market, brand, product, productType: productType || "", shades: shades || 0, isNew: !!isNew, at: at.toISOString() });
+    (days[day] ||= []).push({
+      market, brand, product, productType: productType || "", shades: shades || 0, isNew: !!isNew,
+      ...(typeof newShades === "number" ? { newShades } : {}),
+      ...(comparedWith ? { comparedWith } : {}),
+      at: at.toISOString(),
+    });
     return data;
   });
 }
