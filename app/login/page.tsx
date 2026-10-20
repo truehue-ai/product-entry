@@ -3,11 +3,6 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 
-const USERS = {
-  aastha: 'aastha-truehue',
-  dhruvi: 'dhruvi-truehue',
-} as const;
-
 export default function LoginPage() {
   const router = useRouter();
   const [user, setUser] = useState<'aastha' | 'dhruvi' | ''>('');
@@ -15,15 +10,30 @@ export default function LoginPage() {
   const [err, setErr] = useState('');
   const [showPw, setShowPw] = useState(false);
 
-  const onSubmit = (e: React.FormEvent) => {
+  const [busy, setBusy] = useState(false);
+
+  // The password is checked on the server, which sets a signed HttpOnly session cookie
+  const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErr('');
     if (!user) return setErr('Pick a user');
-    if (password !== USERS[user]) return setErr('Invalid password');
-
-    document.cookie = `th_auth=${user}; Max-Age=${60 * 60 * 24 * 30}; Path=/; SameSite=Lax`;
-    localStorage.setItem('th_user', user);
-    router.push('/');
+    setBusy(true);
+    try {
+      const r = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ user, password }),
+      });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) return setErr(j.error || 'Sign in failed');
+      try { localStorage.setItem('th_user', user); } catch {}
+      const next = new URLSearchParams(window.location.search).get('next');
+      router.push(next && next.startsWith('/') && !next.startsWith('//') ? next : '/');
+    } catch {
+      setErr('Sign in failed — check your connection');
+    } finally {
+      setBusy(false);
+    }
   };
 
   return (
@@ -259,8 +269,8 @@ export default function LoginPage() {
             </div>
           )}
 
-          <button type="submit" className="submit-btn">
-            Sign in
+          <button type="submit" className="submit-btn" disabled={busy} style={{ opacity: busy ? 0.7 : 1 }}>
+            {busy ? 'Signing in…' : 'Sign in'}
           </button>
         </form>
       </div>

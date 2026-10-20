@@ -1,7 +1,7 @@
 export const runtime = "nodejs";
 export const maxDuration = 300;
 
-import { cookies } from "next/headers";
+import { getSessionUser } from "../../../lib/auth";
 import { S3Client, GetObjectCommand, PutObjectCommand, ListObjectsV2Command } from "@aws-sdk/client-s3";
 import { awsCredentialsProvider } from "@vercel/oidc-aws-credentials-provider";
 import { NodeHttpHandler } from "@smithy/node-http-handler";
@@ -133,7 +133,7 @@ export async function POST(req) {
     const { password } = await req.json().catch(() => ({}));
     const denied = rejectUnlessActionPassword(password);
     if (denied) return denied;
-    if ((await cookies()).get("th_auth")?.value !== "dhruvi") return json({ error: "Only dhruvi can rebuild metrics" }, 403);
+    if ((await getSessionUser()) !== "dhruvi") return json({ error: "Only dhruvi can rebuild metrics" }, 403);
 
     const ids = await listUserIds();
     const users = [];

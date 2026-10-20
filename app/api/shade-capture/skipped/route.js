@@ -1,6 +1,6 @@
 export const runtime = "nodejs";
 
-import { cookies } from "next/headers";
+import { getSessionUser } from "../../../lib/auth";
 import { S3Client, GetObjectCommand, PutObjectCommand } from "@aws-sdk/client-s3";
 import { awsCredentialsProvider } from "@vercel/oidc-aws-credentials-provider";
 
@@ -87,7 +87,7 @@ export async function POST(req) {
     const body = await req.json();
     const keys = keysFor(body.market || "india");
     if (!keys) return json({ error: "Unknown market" }, 400);
-    const user = (await cookies()).get("th_auth")?.value || "unknown";
+    const user = (await getSessionUser()) || "unknown";
 
     if (body.action === "restore") {
       const target = { id: body.id, brand: body.brand, product: body.product };

@@ -1,6 +1,6 @@
 export const runtime = "nodejs";
 
-import { cookies } from "next/headers";
+import { getSessionUser } from "../../../lib/auth";
 import { readVerified, setVerified, readJSONWithEtag, VERIFIED_KEYS, ALL_DATA_KEYS } from "../verifiedStore";
 import { rejectUnlessActionPassword } from "../actionAuth";
 
@@ -37,7 +37,7 @@ export async function POST(req) {
     if (denied) return denied;
     if (!VERIFIED_KEYS[market]) return json({ error: "Unknown market" }, 400);
     if (!brand || !product || typeof verified !== "boolean") return json({ error: "Missing brand, product or verified" }, 400);
-    const user = (await cookies()).get("th_auth")?.value || "unknown";
+    const user = (await getSessionUser()) || "unknown";
     const { entry } = await setVerified(market, brand, product, verified, user);
     return json({ success: true, verified, entry });
   } catch (e) {

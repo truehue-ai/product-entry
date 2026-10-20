@@ -1,6 +1,6 @@
 export const runtime = "nodejs";
 
-import { cookies } from "next/headers";
+import { getSessionUser } from "../../../lib/auth";
 import { rejectUnlessActionPassword } from "../../shade-capture/actionAuth";
 
 // Grant premium (subscriber=true, lifetime) to one user via the backend's /give_premium_access.
@@ -16,7 +16,7 @@ export async function POST(req) {
     const { number, password } = await req.json();
     const denied = rejectUnlessActionPassword(password);
     if (denied) return denied;
-    if ((await cookies()).get("th_auth")?.value !== "dhruvi") return json({ error: "Only dhruvi can grant premium" }, 403);
+    if ((await getSessionUser()) !== "dhruvi") return json({ error: "Only dhruvi can grant premium" }, 403);
     const n = String(number || "").trim();
     if (!n) return json({ error: "Missing number" }, 400);
 

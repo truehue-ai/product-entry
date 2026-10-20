@@ -8,6 +8,7 @@ import { rgbToHsb } from "./SBPickerPanel";
 import { classifyShades } from "./shadeClassifier";
 import { useActionPassword } from "./useActionPassword";
 import ImportFromOtherMarket from "./ImportFromOtherMarket";
+import { logout as logoutSession } from "./currentUser";
 
 const LIP_CATEGORIES = [
   "matte-lipstick",
@@ -318,11 +319,8 @@ export default function ColorPickerToolUSA({ initialBrand = "", initialProduct =
     else { alert("Failed to add product: " + result.error); }
   };
 
-  const logout = () => {
-    document.cookie = 'th_auth=; Max-Age=0; Path=/; SameSite=Lax';
-    localStorage.removeItem('th_user');
-    router.push('/login');
-  };
+  // the session cookie is HttpOnly — the server clears it
+  const logout = () => logoutSession();
 
   const exportText = useMemo(() => {
     const headerLabel = product ? `// ${product}` : `// ${category?.replace(/-/g, " ") || "Shades"}`;
@@ -464,7 +462,7 @@ export default function ColorPickerToolUSA({ initialBrand = "", initialProduct =
     }
   };
     useEffect(() => {
-      const m = document.cookie.match(/(?:^|;\s*)th_auth=([^;]+)/);
+      const m = document.cookie.match(/(?:^|;\s*)th_user=([^;]+)/);
       if (m) setCurrentUser(decodeURIComponent(m[1]));
     }, []);
 

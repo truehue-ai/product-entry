@@ -1,7 +1,7 @@
 export const runtime = "nodejs";
 export const maxDuration = 300;
 
-import { cookies } from "next/headers";
+import { getSessionUser } from "../../lib/auth";
 import { readActivity, rebuildFromAudit, setHoliday } from "./store";
 import { rejectUnlessActionPassword } from "../shade-capture/actionAuth";
 
@@ -12,7 +12,7 @@ const json = (data, status = 200) =>
 export async function GET(req) {
   try {
     const { searchParams } = new URL(req.url, "http://localhost");
-    const me = (await cookies()).get("th_auth")?.value || "";
+    const me = (await getSessionUser()) || "";
     const user = searchParams.get("user") || "aastha";
     // dhruvi can see anyone's activity; everyone else only their own
     if (me !== "dhruvi" && user !== me) return json({ error: "You can only view your own activity" }, 403);
@@ -32,13 +32,13 @@ export async function POST(req) {
   try {
     const { action, user, password, day, holiday } = await req.json();
     if (action === "holiday") {
-      const me = (await cookies()).get("th_auth")?.value || "";
+      const me = (await getSessionUser()) || "";
       if (me !== "dhruvi") return json({ error: "Only dhruvi can mark holidays" }, 403);
       if (!user || !day || typeof holiday !== "boolean") return json({ error: "Missing user, day or holiday" }, 400);
       const holidays = await setHoliday(user, day, holiday, me);
       return json({ success: true, holidays });
     }
-    if ((await cookies()).get("th_auth")?.value !== "dhruvi") return json({ error: "Only dhruvi can rebuild activity" }, 403);
+    if ((await getSessionUser()) !== "dhruvi") return json({ error: "Only dhruvi can rebuild activity" }, 403);
     const denied = rejectUnlessActionPassword(password);
     if (denied) return denied;
     if (action !== "rebuild" || !user) return json({ error: "Unknown action" }, 400);

@@ -178,7 +178,7 @@ function LogsInner() {
   const { runWithPassword, passwordModal } = useActionPassword();
 
   useEffect(() => {
-    const m = document.cookie.match(/(?:^|;\s*)th_auth=([^;]+)/);
+    const m = document.cookie.match(/(?:^|;\s*)th_user=([^;]+)/);
     if (m) setCurrentUser(decodeURIComponent(m[1]));
   }, []);
 

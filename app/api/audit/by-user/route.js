@@ -1,7 +1,7 @@
 export const runtime = 'nodejs';
 
 import { NextResponse } from 'next/server';
-import { cookies } from 'next/headers';
+import { getSessionUser } from '../../../lib/auth';
 import { S3Client, GetObjectCommand } from '@aws-sdk/client-s3';
 import { awsCredentialsProvider } from "@vercel/oidc-aws-credentials-provider";
 
@@ -23,7 +23,7 @@ async function getJSON(Key) {
 
 export async function GET(req) {
   // Only dhruvi can query audit
-  const currentUser = cookies().get('th_auth')?.value || '';
+  const currentUser = (await getSessionUser()) || '';
   if (currentUser !== 'dhruvi') {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }

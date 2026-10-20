@@ -2,6 +2,7 @@
 
 import { Suspense, useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { logout as logoutSession } from './components/currentUser';
 
 // Tools inside the "Product Database" section
 const PRODUCT_DATABASE = {
@@ -75,6 +76,18 @@ const CARDS = {
       icon: '📊',
     },
     {
+      href: '/meta-ads',
+      label: 'Meta Ads',
+      description: 'Which ads are working — spend, revenue, ROAS vs target, week on week, time of day, day of week and breakdowns.',
+      icon: '📣',
+    },
+    {
+      href: '/meta-ads/persona',
+      label: 'Meta Persona',
+      description: 'Who buys from our ads — age, gender, region, device, placement — and how buyers compare with our Instagram followers.',
+      icon: '🧑‍🤝‍🧑',
+    },
+    {
       href: '/product-analytics',
       label: 'Product Analytics',
       description: 'Brand & product search demand — buy-now clicks, redirects, skintone/undertone breakdown.',
@@ -119,7 +132,7 @@ function Dashboard() {
   const [user, setUser] = useState(null);
 
   useEffect(() => {
-    const m = document.cookie.match(/(?:^|;\s*)th_auth=([^;]+)/);
+    const m = document.cookie.match(/(?:^|;\s*)th_user=([^;]+)/);
     if (!m) {
       router.push('/login');
       return;
@@ -127,11 +140,8 @@ function Dashboard() {
     setUser(decodeURIComponent(m[1]));
   }, [router]);
 
-  const logout = () => {
-    document.cookie = 'th_auth=; Max-Age=0; Path=/; SameSite=Lax';
-    localStorage.removeItem('th_user');
-    router.push('/login');
-  };
+  // the session cookie is HttpOnly — the server clears it
+  const logout = () => logoutSession();
 
   if (!user) return null;
 

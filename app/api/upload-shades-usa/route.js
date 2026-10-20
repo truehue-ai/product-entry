@@ -2,7 +2,7 @@
 export const runtime = 'nodejs';
 
 import { NextResponse } from 'next/server';
-import { cookies } from 'next/headers';
+import { getSessionUser } from '../../lib/auth';
 import { S3Client, PutObjectCommand, HeadObjectCommand } from '@aws-sdk/client-s3';
 import { awsCredentialsProvider } from "@vercel/oidc-aws-credentials-provider";
 import { recordSave } from "../activity/store";
@@ -67,8 +67,7 @@ export async function POST(req) {
     );
 
     // 3) Write meta.json (who/when/type) for “Saved by” in Logs
-    const cookieStore = await cookies(); // cookies() is async now
-    const user = cookieStore.get('th_auth')?.value || 'unknown';
+    const user = (await getSessionUser()) || 'unknown';
 
     const nowISO = new Date().toISOString();
     const meta = {

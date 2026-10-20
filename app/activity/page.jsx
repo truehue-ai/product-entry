@@ -87,7 +87,7 @@ export default function ActivityPage() {
   const { runWithPassword, passwordModal } = useActionPassword();
 
   useEffect(() => {
-    const m = document.cookie.match(/(?:^|;\s*)th_auth=([^;]+)/);
+    const m = document.cookie.match(/(?:^|;\s*)th_user=([^;]+)/);
     setMe(m ? decodeURIComponent(m[1]) : "");
   }, []);
 

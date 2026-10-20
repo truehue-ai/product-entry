@@ -207,7 +207,7 @@ export default function NotificationsPage() {
 
   const [user, setUser] = useState(null);
   useEffect(() => {
-    const m = document.cookie.match(/(?:^|;\s*)th_auth=([^;]+)/);
+    const m = document.cookie.match(/(?:^|;\s*)th_user=([^;]+)/);
     if (!m) { router.push('/login'); return; }
     const u = decodeURIComponent(m[1]);
     if (u !== 'dhruvi') { router.push('/'); return; }
