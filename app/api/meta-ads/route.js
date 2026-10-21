@@ -11,7 +11,7 @@ import { addDays, istToday, dataWindow, computeRange, PRESET_KEYS } from "../../
 // Meta Ads snapshot — ONE S3 file: permanent/analytics/meta_ads/snapshot.json (read by /meta-ads and /meta-ads/persona).
 // One refresh fetches a fixed window (last 90 days, and always all of last quarter — see dataWindow); every range tab and
 // custom date is then cut from it in the browser, so switching ranges never calls Meta. Only Meta data.
-//   { schema: 5, fetchedAt, apiVersion, account, since, until, compareSince,
+//   { schema: 6, fetchedAt, apiVersion, account, since, until, compareSince,
 //     ads:     { ad_id: { name, adset, campaign_id, campaign } },
 //     daily:   [ { date, ad_id, spend, impressions, clicks, linkClicks, lpv, purchases, revenue } ]   // compareSince → until
 //     totals:  { "7d" | "14d" | "30d" | "90d" | "tq" | "lq": { since, until, ad: { id: { reach, frequency } }, campaign: { id: {…} } } }
@@ -25,7 +25,7 @@ import { addDays, istToday, dataWindow, computeRange, PRESET_KEYS } from "../../
 const s3 = new S3Client({ region: awsRegion, credentials: awsCredentials });
 const BUCKET = process.env.X_AWS_BUCKET_NAME;
 const SNAPSHOT_KEY = "permanent/analytics/meta_ads/snapshot.json";
-const SCHEMA = 5;
+const SCHEMA = 6; // 6: daily delivery + conversions fetched separately (Meta zeroed spend when combined)
 const REFRESH_COOLDOWN_MIN = 30;
 const CHUNK_DAYS = 92; // ad-level daily rows are fetched a quarter at a time
 
@@ -90,17 +90,29 @@ async function fetchSnapshot() {
   const win = dataWindow(today);
   const account = await graphGet(AD_ACCOUNT_ID, { fields: "name,currency,timezone_name" });
 
-  // Per ad per day, compareSince → today (a quarter per request)
+  // Per ad per day, compareSince → today (a quarter per request).
+  // Meta quirk: on daily rows without a breakdown, asking for inline_link_clicks / actions / action_values in the same
+  // request zeroes spend and impressions. So delivery and conversions are fetched separately and joined by (day, ad).
   const ads = {};
-  const daily = [];
+  const byKey = new Map();
   for (let s = win.compareSince; s <= today; s = addDays(s, CHUNK_DAYS)) {
     const e = addDays(s, CHUNK_DAYS - 1) < today ? addDays(s, CHUNK_DAYS - 1) : today;
-    const rows = await insights({ level: "ad", time_increment: "1", time_range: timeRange(s, e), fields: `campaign_id,campaign_name,adset_name,ad_name,ad_id,${METRICS}` });
-    for (const r of rows) {
+    const p = { level: "ad", time_increment: "1", time_range: timeRange(s, e) };
+    const delivery = await insights({ ...p, fields: "campaign_id,campaign_name,adset_name,ad_name,ad_id,spend,impressions,clicks" });
+    const conversions = await insights({ ...p, fields: "ad_id,inline_link_clicks,actions,action_values" });
+    const conv = new Map(conversions.map((r) => [`${r.date_start}|${r.ad_id}`, r]));
+    for (const r of delivery) {
       ads[r.ad_id] ||= { name: r.ad_name, adset: r.adset_name, campaign_id: r.campaign_id, campaign: r.campaign_name };
-      daily.push({ date: r.date_start, ad_id: r.ad_id, ...base(r) });
+      const k = `${r.date_start}|${r.ad_id}`;
+      byKey.set(k, { date: r.date_start, ad_id: r.ad_id, ...base({ ...(conv.get(k) || {}), spend: r.spend, impressions: r.impressions, clicks: r.clicks }) });
+    }
+    // conversions on a day with no delivery row (e.g. a late-attributed purchase)
+    for (const [k, r] of conv) {
+      if (byKey.has(k)) continue;
+      byKey.set(k, { date: r.date_start, ad_id: r.ad_id, ...base({ ...r, spend: 0, impressions: 0, clicks: 0 }) });
     }
   }
+  const daily = [...byKey.values()];
 
   // Reach / frequency per preset (not summable by day) — one ad-level and one campaign-level call each
   const totals = {};
