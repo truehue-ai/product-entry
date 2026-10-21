@@ -7,7 +7,11 @@ import { SignJWT, jwtVerify } from "jose";
 export const SESSION_COOKIE = "th_auth";
 export const USER_COOKIE = "th_user";
 export const SESSION_MAX_AGE = 7 * 24 * 60 * 60; // 7 days
-export const USERS = ["dhruvi", "aastha"];
+export const USERS = ["dhruvi", "aastha", "riddhi", "jagat"];
+
+// riddhi and jagat can only use Meta Ads (overview): the home page, /meta-ads and its data / refresh API. Checked in middleware.
+export const META_ADS_ONLY = new Set(["riddhi", "jagat"]);
+export const META_ADS_ONLY_PATHS = (p) => p === "/" || p === "/meta-ads" || p === "/api/meta-ads" || p.startsWith("/api/auth/");
 
 function secretKey() {
   const s = process.env.SESSION_SECRET;

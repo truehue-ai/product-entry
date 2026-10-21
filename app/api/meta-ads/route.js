@@ -2,7 +2,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
 
-import { isDhruvi } from "../../lib/auth";
+import { canViewMetaAds } from "../../lib/auth";
 import { S3Client, GetObjectCommand, PutObjectCommand } from "@aws-sdk/client-s3";
 import { awsCredentials, awsRegion } from "./aws";
 import { graphGet, insightsAuto, assertConfigured, safeErrorMessage, AD_ACCOUNT_ID, API_VERSION } from "./metaClient";
@@ -20,7 +20,7 @@ import { addDays, istToday, dataWindow, computeRange, PRESET_KEYS } from "../../
 //     hourly:  [ { date, hour, …metrics } ] }                                                                         // since → until
 // Metrics Meta doesn't report are null, never 0.
 // GET  -> the snapshot (the page never calls Meta)
-// POST -> refresh from Meta, at most once every 30 min (dhruvi only)
+// POST -> refresh from Meta, at most once every 30 min (dhruvi + Meta-Ads-only users)
 
 const s3 = new S3Client({ region: awsRegion, credentials: awsCredentials });
 const BUCKET = process.env.X_AWS_BUCKET_NAME;
@@ -139,7 +139,7 @@ async function fetchSnapshot() {
 
 export async function GET() {
   try {
-    if (!(await isDhruvi())) return json({ error: "Only dhruvi can view Meta Ads" }, 403);
+    if (!(await canViewMetaAds())) return json({ error: "You don't have access to Meta Ads" }, 403);
     const snap = await getJSON(SNAPSHOT_KEY);
     if (!snap || snap.schema !== SCHEMA) return json({ exists: false, cooldownMin: REFRESH_COOLDOWN_MIN });
     return json({ exists: true, cooldownMin: REFRESH_COOLDOWN_MIN, ...snap });
@@ -151,7 +151,7 @@ export async function GET() {
 
 export async function POST() {
   try {
-    if (!(await isDhruvi())) return json({ error: "Only dhruvi can refresh Meta Ads" }, 403);
+    if (!(await canViewMetaAds())) return json({ error: "You don't have access to Meta Ads" }, 403);
     const prev = await getJSON(SNAPSHOT_KEY);
     const ageMin = prev?.fetchedAt ? (Date.now() - Date.parse(prev.fetchedAt)) / 60000 : Infinity;
     if (prev?.schema === SCHEMA && ageMin < REFRESH_COOLDOWN_MIN) {

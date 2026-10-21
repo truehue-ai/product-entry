@@ -5,9 +5,9 @@ import { NextResponse } from "next/server";
 import { USERS, SESSION_COOKIE, USER_COOKIE, signSession, cookieOptions } from "../../../lib/session";
 
 // POST { user, password } -> sets the signed session cookie (HttpOnly) + a display-only user cookie.
-// Passwords live in env vars (LOGIN_PASSWORD_DHRUVI / LOGIN_PASSWORD_AASTHA), never in the browser bundle.
+// Passwords live in env vars (LOGIN_PASSWORD_DHRUVI / _AASTHA / _RIDDHI / _JAGAT), never in the browser bundle.
 
-const PASSWORD_ENV = { dhruvi: "LOGIN_PASSWORD_DHRUVI", aastha: "LOGIN_PASSWORD_AASTHA" };
+const PASSWORD_ENV = { dhruvi: "LOGIN_PASSWORD_DHRUVI", aastha: "LOGIN_PASSWORD_AASTHA", riddhi: "LOGIN_PASSWORD_RIDDHI", jagat: "LOGIN_PASSWORD_JAGAT" };
 
 // constant-time compare (hash first so lengths match)
 const same = (a, b) => timingSafeEqual(createHash("sha256").update(String(a)).digest(), createHash("sha256").update(String(b)).digest());

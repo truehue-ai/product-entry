@@ -47,7 +47,8 @@ export default function MetaAdsPage() {
 
 function MetaAds() {
   const user = useDhruvi();
-  const data = useMetaSnapshot(user === "dhruvi");
+  const allowed = ["dhruvi", "riddhi", "jagat"].includes(user);
+  const data = useMetaSnapshot(allowed);
   const { snap, error } = data;
   const rp = useRangeParam(snap);
   const money = useMoney(snap?.account?.currency);
@@ -83,7 +84,7 @@ function MetaAds() {
   }, [view, level, sort]);
 
   if (!user) return null;
-  if (user !== "dhruvi") return <PageShell title="Meta Ads"><div style={{ ...GL.card, padding: 18, fontSize: 14, color: "#7b241c" }}>Only dhruvi can view Meta Ads.</div></PageShell>;
+  if (!allowed) return <PageShell title="Meta Ads"><div style={{ ...GL.card, padding: 18, fontSize: 14, color: "#7b241c" }}>You don't have access to Meta Ads.</div></PageShell>;
 
   const s = view?.summary;
   const tz = snap?.account?.timezone || "the ad account's time zone";

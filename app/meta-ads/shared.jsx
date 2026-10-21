@@ -6,6 +6,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import { addDays, daysBetween, istToday, fmtDay, dataWindow, computeRange, PRESETS } from "./ranges";
+import { readUser } from "../components/currentUser";
 
 export const GL = {
   card: {
@@ -231,6 +232,8 @@ export function PageShell({ title, children, right }) {
   const pathname = usePathname();
   const sp = useSearchParams();
   const q = sp.toString() ? `?${sp}` : "";
+  const [me, setMe] = useState(null); // read after mount so server and browser render the same
+  useEffect(() => { setMe(readUser()); }, []);
   const tab = (href, label) => (
     <button key={href} className="th-btn-ghost" onClick={() => router.push(`${href}${q}`)}
       style={{ background: pathname === href ? "rgba(171,31,16,0.08)" : "none", border: "none", cursor: "pointer", fontSize: 14, fontWeight: 600,
@@ -266,7 +269,7 @@ export function PageShell({ title, children, right }) {
           <button className="th-btn-ghost" onClick={() => router.push("/")}
             style={{ background: "none", border: "none", cursor: "pointer", fontSize: 14, fontWeight: 600, color: "#ab1f10", padding: "8px 12px", borderRadius: 9 }}>← Home</button>
           {tab("/meta-ads", "Overview")}
-          {tab("/meta-ads/persona", "Persona")}
+          {me === "dhruvi" && tab("/meta-ads/persona", "Persona")}
         </div>
         <span style={{ fontSize: 18, fontWeight: 700, color: "#ab1f10", letterSpacing: "-0.3px" }}>{title}</span>
         {right || <span />}

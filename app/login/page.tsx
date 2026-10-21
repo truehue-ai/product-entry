@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 
 export default function LoginPage() {
   const router = useRouter();
-  const [user, setUser] = useState<'aastha' | 'dhruvi' | ''>('');
+  const [user, setUser] = useState<'aastha' | 'dhruvi' | 'riddhi' | 'jagat' | ''>('');
   const [password, setPassword] = useState('');
   const [err, setErr] = useState('');
   const [showPw, setShowPw] = useState(false);
@@ -211,6 +211,8 @@ export default function LoginPage() {
               >
                 <option value="">Select user…</option>
                 <option value="aastha">aastha</option>
+                <option value="riddhi">riddhi</option>
+                <option value="jagat">jagat</option>
                 <option value="dhruvi">dhruvi</option>
               </select>
               {/* custom chevron */}

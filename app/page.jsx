@@ -116,6 +116,10 @@ const CARDS = {
   ],
 };
 
+// riddhi, jagat: Meta Ads only
+CARDS.riddhi = CARDS.dhruvi.filter((c) => c.href === '/meta-ads');
+CARDS.jagat = CARDS.riddhi;
+
 const SECTIONS = { 'product-database': { label: 'Product Database', icon: '🗄️', tools: PRODUCT_DATABASE } };
 
 export default function DashboardPage() {
@@ -147,8 +151,8 @@ function Dashboard() {
 
   const sectionKey = sp.get('section');
   const section = SECTIONS[sectionKey];
-  const tools = section ? (section.tools[user] ?? section.tools.aastha) : null;
-  const cards = tools ?? CARDS[user] ?? CARDS.aastha;
+  const tools = section ? (section.tools[user] ?? []) : null;
+  const cards = tools ?? CARDS[user] ?? [];
   const openCard = (card) => (card.section ? router.push(`/?section=${card.section}`) : router.push(card.href));
 
   return (
@@ -383,11 +387,11 @@ function Dashboard() {
             }}>
               {card.section ? (
                 <>
-                  {(SECTIONS[card.section].tools[user] ?? SECTIONS[card.section].tools.aastha).map((t) => (
+                  {(SECTIONS[card.section].tools[user] ?? []).map((t) => (
                     <span key={t.href} title={t.label} style={{ fontSize: 16 }}>{t.icon}</span>
                   ))}
                   <span style={{ marginLeft: 6 }}>
-                    {(SECTIONS[card.section].tools[user] ?? SECTIONS[card.section].tools.aastha).length} tools →
+                    {(SECTIONS[card.section].tools[user] ?? []).length} tools →
                   </span>
                 </>
               ) : 'Open →'}
