@@ -9,9 +9,22 @@ export const USER_COOKIE = "th_user";
 export const SESSION_MAX_AGE = 7 * 24 * 60 * 60; // 7 days
 export const USERS = ["dhruvi", "aastha", "riddhi", "jagat"];
 
-// riddhi and jagat can only use Meta Ads (overview): the home page, /meta-ads and its data / refresh API. Checked in middleware.
-export const META_ADS_ONLY = new Set(["riddhi", "jagat"]);
+// riddhi can only use Meta Ads (overview): the home page, /meta-ads and its data / refresh API. Checked in middleware.
+export const META_ADS_ONLY = new Set(["riddhi"]);
 export const META_ADS_ONLY_PATHS = (p) => p === "/" || p === "/meta-ads" || p === "/api/meta-ads" || p.startsWith("/api/auth/");
+
+// jagat can only view Analytics, User Metrics, Product Analytics and Ads Platform Metrics: those pages, plus GET on
+// the APIs they read. No POSTs there (scans, rebuilds, give premium). Plus Meta Ads overview, same as riddhi
+// (/meta-ads and its data / Refresh now API). Checked in middleware.
+export const ANALYTICS_VIEWERS = new Set(["jagat"]);
+const under = (p, base) => p === base || p.startsWith(`${base}/`);
+const VIEWER_PAGES = ["/analytics", "/product-analytics", "/ads-platform-metrics"]; // /analytics covers /analytics/usage
+const VIEWER_API = ["/api/analytics/users", "/api/analytics/buyers", "/api/analytics/steps", "/api/analytics/steps-graph",
+  "/api/analytics/usage", "/api/analytics/ads-platform"];
+export const ANALYTICS_VIEWER_PATHS = (p, method) => p === "/" || p.startsWith("/api/auth/")
+  || p === "/meta-ads" || p === "/api/meta-ads"
+  || VIEWER_PAGES.some((b) => under(p, b))
+  || (method === "GET" && VIEWER_API.some((b) => under(p, b)));
 
 function secretKey() {
   const s = process.env.SESSION_SECRET;

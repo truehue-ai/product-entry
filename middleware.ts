@@ -1,11 +1,11 @@
 // middleware.ts
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
-import { SESSION_COOKIE, verifySession, META_ADS_ONLY, META_ADS_ONLY_PATHS } from './app/lib/session';
+import { SESSION_COOKIE, verifySession, META_ADS_ONLY, META_ADS_ONLY_PATHS, ANALYTICS_VIEWERS, ANALYTICS_VIEWER_PATHS } from './app/lib/session';
 
 // API routes that need a signed-in session. Other API routes keep working without one (as before) — some may be
 // called from outside the dashboard — but signed-in Meta-Ads-only users are still kept out of them.
-const PROTECTED_API = ['/api/audit', '/api/meta-ads'];
+const PROTECTED_API = ['/api/audit', '/api/meta-ads', '/api/marketing', '/api/analytics/ads-platform'];
 const under = (p: string, base: string) => p === base || p.startsWith(`${base}/`);
 
 export async function middleware(req: NextRequest) {
@@ -37,6 +37,15 @@ export async function middleware(req: NextRequest) {
     if (isApi) return NextResponse.json({ error: "You don't have access to this" }, { status: 403 });
     const url = req.nextUrl.clone();
     url.pathname = '/meta-ads';
+    url.search = '';
+    return NextResponse.redirect(url);
+  }
+
+  // Analytics viewers (jagat): Analytics, User Metrics, Product Analytics, Ads Platform Metrics — view only
+  if (ANALYTICS_VIEWERS.has(user) && !ANALYTICS_VIEWER_PATHS(pathname, req.method)) {
+    if (isApi) return NextResponse.json({ error: "You don't have access to this" }, { status: 403 });
+    const url = req.nextUrl.clone();
+    url.pathname = '/';
     url.search = '';
     return NextResponse.redirect(url);
   }

@@ -139,6 +139,12 @@ export default function AnalyticsPage() {
   const [backfilling, setBackfilling] = useState(false);
   const [backfillResult, setBackfillResult] = useState(null);
   const [userType, setUserType] = useState("numeric"); // "numeric" | "alpha"
+  // view-only users (jagat) don't get the scan / backfill / give-premium buttons or the Logs / Audit links
+  const [viewOnly, setViewOnly] = useState(false);
+  useEffect(() => {
+    const m = document.cookie.match(/(?:^|;\s*)th_user=([^;]+)/);
+    setViewOnly(!!m && decodeURIComponent(m[1]) === "jagat");
+  }, []);
   useEffect(() => {
     let active = true;
     (async () => {
@@ -259,10 +265,14 @@ export default function AnalyticsPage() {
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
           <button className="th-btn-ghost" onClick={() => router.push('/')} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 15, fontWeight: 600, color: "#ab1f10", padding: "8px 14px", borderRadius: 9 }}>← Home</button>
           <div style={{ width: 1, height: 20, background: "rgba(171,31,16,0.2)" }} />
-          <button className="th-btn-ghost" onClick={() => router.push('/logs')} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 15, fontWeight: 600, color: "#7b241c", padding: "8px 14px", borderRadius: 9 }}>Logs</button>
-          <div style={{ width: 1, height: 20, background: "rgba(171,31,16,0.2)" }} />
-          <button className="th-btn-ghost" onClick={() => router.push('/audit')} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 15, fontWeight: 600, color: "#7b241c", padding: "8px 14px", borderRadius: 9 }}>Audit</button>
-          <div style={{ width: 1, height: 20, background: "rgba(171,31,16,0.2)" }} />
+          {!viewOnly && (
+            <>
+            <button className="th-btn-ghost" onClick={() => router.push('/logs')} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 15, fontWeight: 600, color: "#7b241c", padding: "8px 14px", borderRadius: 9 }}>Logs</button>
+            <div style={{ width: 1, height: 20, background: "rgba(171,31,16,0.2)" }} />
+            <button className="th-btn-ghost" onClick={() => router.push('/audit')} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 15, fontWeight: 600, color: "#7b241c", padding: "8px 14px", borderRadius: 9 }}>Audit</button>
+            <div style={{ width: 1, height: 20, background: "rgba(171,31,16,0.2)" }} />
+            </>
+          )}
           <button className="th-btn-ghost" onClick={() => router.push('/analytics/usage')} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 15, fontWeight: 700, color: "#ab1f10", padding: "8px 14px", borderRadius: 9 }}>📈 User Metrics</button>
         </div>
         <span style={{ fontSize: 18, fontWeight: 700, color: "#ab1f10", letterSpacing: "-0.3px" }}>User Analytics</span>
@@ -275,7 +285,7 @@ export default function AnalyticsPage() {
             }}>
             {stepsLoading ? "Analysing…" : "Analyse Steps"}
           </button>
-          <button className="th-btn-outline" style={{ ...GL.btnOutline, opacity: buyersScanning ? 0.6 : 1 }}
+          {!viewOnly && <button className="th-btn-outline" style={{ ...GL.btnOutline, opacity: buyersScanning ? 0.6 : 1 }}
             disabled={buyersScanning}
             onClick={async () => {
               if (!confirm("This will scan all users and save purchase_data.json to S3. Continue?")) return;
@@ -287,8 +297,8 @@ export default function AnalyticsPage() {
               } catch { /* silent */ } finally { setBuyersScanning(false); }
             }}>
             {buyersScanning ? "Scanning…" : "💳 List Buyers"}
-          </button>
-          <button className="th-btn-outline" style={{ ...GL.btnOutline, opacity: backfilling ? 0.6 : 1 }}
+          </button>}
+          {!viewOnly && <button className="th-btn-outline" style={{ ...GL.btnOutline, opacity: backfilling ? 0.6 : 1 }}
             disabled={backfilling}
             onClick={async () => {
               if (!confirm("This will scan all users and overwrite daily_graph.json. Continue?")) return;
@@ -313,7 +323,7 @@ export default function AnalyticsPage() {
               }
             }}>
             {backfilling ? "Backfilling…" : "Backfill Graph"}
-          </button>
+          </button>}
           <button className="th-btn-primary" style={GL.btnPrimary}
             onClick={async () => {
               try {
@@ -527,7 +537,7 @@ export default function AnalyticsPage() {
                       <button className="th-btn-outline" style={GL.btnOutline} onClick={() => setShowImages((v) => !v)}>
                         {showImages ? "Hide Images" : "View Images"}
                       </button>
-                      {grant.step !== "confirm" && (
+                      {!viewOnly && grant.step !== "confirm" && (
                         <button className="th-btn-primary" disabled={grant.step === "busy"} onClick={() => setGrant({ step: "confirm", msg: "" })}
                           style={{ ...GL.btnPrimary, opacity: grant.step === "busy" ? 0.6 : 1 }}>
                           {grant.step === "busy" ? "Giving premium…" : detail.wallet?.subscriber ? "✓ Subscriber · give again" : "👑 Give premium access"}

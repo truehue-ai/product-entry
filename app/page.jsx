@@ -88,6 +88,18 @@ const CARDS = {
       icon: '🧑‍🤝‍🧑',
     },
     {
+      href: '/ads-platform-metrics',
+      label: 'Ads Platform Metrics',
+      description: 'Is the paid community ready to sell ad placements to brands — each metric vs the Pilot, Stage 2 and Platform goals.',
+      icon: '🎯',
+    },
+    {
+      href: '/marketing',
+      label: 'Marketing Organiser',
+      description: 'Plan the week for Instagram and Meta ads — what to post, shoot and edit when, ad quota, and the Inspo library.',
+      icon: '🎬',
+    },
+    {
       href: '/product-analytics',
       label: 'Product Analytics',
       description: 'Brand & product search demand — buy-now clicks, redirects, skintone/undertone breakdown.',
@@ -116,9 +128,10 @@ const CARDS = {
   ],
 };
 
-// riddhi, jagat: Meta Ads only
+// riddhi: Meta Ads only
 CARDS.riddhi = CARDS.dhruvi.filter((c) => c.href === '/meta-ads');
-CARDS.jagat = CARDS.riddhi;
+// jagat: analytics pages (view only) + Meta Ads
+CARDS.jagat = CARDS.dhruvi.filter((c) => ['/analytics/usage', '/analytics', '/product-analytics', '/ads-platform-metrics', '/meta-ads'].includes(c.href));
 
 const SECTIONS = { 'product-database': { label: 'Product Database', icon: '🗄️', tools: PRODUCT_DATABASE } };
 

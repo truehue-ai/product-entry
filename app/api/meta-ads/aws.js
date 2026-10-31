@@ -1,6 +1,6 @@
 import "server-only";
 
-// One AWS credentials setup for the Meta Ads routes (S3 cache + SSM token): the same Vercel OIDC role
+// One AWS credentials setup for the Meta Ads routes (S3 cache + SSM token) and the Marketing Organiser's S3 files: the same Vercel OIDC role
 // (AWS_ROLE_ARN) and region the rest of the app's S3Clients use.
 import { awsCredentialsProvider } from "@vercel/oidc-aws-credentials-provider";
 

@@ -51,7 +51,7 @@ const FEATURES = [
   ["Paywall & passes", (s) => s === "payment-popup close" || s.startsWith("pass-selected") || s.startsWith("cta-clicked") || s.includes("paywall")],
   ["Purchases", (s) => s.startsWith("bought-") || s.startsWith("payment-success")],
 ];
-const isOpenStep = (s) => s === "login" || s.startsWith("login-platform");
+const isOpenStep = (s) => s === "login" || s.startsWith("login-platform") || s === "session-start";
 const featureOf = (s) => (isOpenStep(s) ? null : (FEATURES.find(([, t]) => t(s)) || ["Other"])[0]);
 const FEATURE_NAMES = [...FEATURES.map(([n]) => n), "Other"];
 
@@ -81,6 +81,12 @@ export default function UserMetricsPage() {
   const [rebuild, setRebuild] = useState({ busy: false, msg: "", confirm: false });
   const [now, setNow] = useState(() => Date.now()); // ticks so "updated N min ago" stays current
   const { runWithPassword, passwordModal } = useActionPassword();
+  // view-only users (jagat) don't get the full rescan
+  const [viewOnly, setViewOnly] = useState(false);
+  useEffect(() => {
+    const m = document.cookie.match(/(?:^|;\s*)th_user=([^;]+)/);
+    setViewOnly(!!m && decodeURIComponent(m[1]) === "jagat");
+  }, []);
 
   // quiet = background refresh (keeps showing the current numbers while it loads)
   const load = useCallback(async (quiet = false) => {
@@ -301,7 +307,7 @@ export default function UserMetricsPage() {
           <button className="th-btn-outline" style={{ ...GL.btnOutline, opacity: loading ? 0.6 : 1 }} disabled={loading} onClick={() => load(true)}>
             ↻ Refresh
           </button>
-          {!rebuild.confirm ? (
+          {viewOnly ? null : !rebuild.confirm ? (
             <button onClick={() => setRebuild((r) => ({ ...r, confirm: true, msg: "" }))} disabled={rebuild.busy}
               title="Rescans every user and overwrites the metrics file — only needed if the automatic updates break"
               style={{ background: "none", border: "none", padding: 0, cursor: "pointer", fontSize: 12, fontWeight: 600, color: "#9b8b88", textDecoration: "underline" }}>

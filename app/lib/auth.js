@@ -10,5 +10,7 @@ export async function getSessionUser() {
 }
 
 export const isDhruvi = async () => (await getSessionUser()) === "dhruvi";
-// Meta Ads overview (data + Refresh now): dhruvi, plus the Meta-Ads-only users
-export const canViewMetaAds = async () => { const u = await getSessionUser(); return u === "dhruvi" || META_ADS_ONLY.has(u); };
+// Meta Ads overview (data + Refresh now): dhruvi, the Meta-Ads-only users and jagat
+export const canViewMetaAds = async () => { const u = await getSessionUser(); return u === "dhruvi" || u === "jagat" || META_ADS_ONLY.has(u); };
+// Ads Platform Metrics (view): dhruvi and jagat. Rebuilding stays dhruvi only.
+export const canViewAdsPlatform = async () => { const u = await getSessionUser(); return u === "dhruvi" || u === "jagat"; };
