@@ -1,6 +1,7 @@
 // Who saved what, per day — activity/activity.json:
 //   { users: { <user>: { "YYYY-MM-DD": [ { market, brand, product, productType, shades, isNew, at } ] } },
-//     holidays: { <user>: { "YYYY-MM-DD": { by, at } } }, updatedAt }
+//     holidays: { <user>: { "YYYY-MM-DD": { by, at } } },
+//     paid: { <user>: { "YYYY-MM": { by, at, amount } } }, updatedAt }
 // One entry per save (a product saved twice in a day has two entries; the activity page shows it once).
 // Days are India time (IST). Written with an ETag check so two saves at once don't overwrite each other.
 import { S3Client, GetObjectCommand, PutObjectCommand, ListObjectsV2Command } from "@aws-sdk/client-s3";
@@ -85,6 +86,19 @@ export async function setHoliday(user, day, holiday, by) {
     return data;
   });
   return next.holidays?.[user] || {};
+}
+
+// Mark / unmark a month as paid for a user (amount = the pay shown when it was marked, for the record).
+export async function setPaid(user, month, paid, by, amount) {
+  if (!user || !/^\d{4}-\d{2}$/.test(month)) throw new Error("Bad user or month");
+  const next = await writeActivity((data) => {
+    data.paid ||= {};
+    const p = (data.paid[user] ||= {});
+    if (paid) p[month] = { by: by || "unknown", at: new Date().toISOString(), ...(Number.isFinite(amount) ? { amount: Math.round(amount) } : {}) };
+    else delete p[month];
+    return data;
+  });
+  return next.paid?.[user] || {};
 }
 
 async function listKeys(Prefix) {

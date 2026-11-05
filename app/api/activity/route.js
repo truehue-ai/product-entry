@@ -2,7 +2,7 @@ export const runtime = "nodejs";
 export const maxDuration = 300;
 
 import { getSessionUser } from "../../lib/auth";
-import { readActivity, rebuildFromAudit, setHoliday } from "./store";
+import { readActivity, rebuildFromAudit, setHoliday, setPaid } from "./store";
 import { rejectUnlessActionPassword } from "../shade-capture/actionAuth";
 
 const json = (data, status = 200) =>
@@ -18,7 +18,7 @@ export async function GET(req) {
     if (me !== "dhruvi" && user !== me) return json({ error: "You can only view your own activity" }, 403);
     const data = await readActivity();
     return json({
-      user, days: data.users?.[user] || {}, holidays: data.holidays?.[user] || {},
+      user, days: data.users?.[user] || {}, holidays: data.holidays?.[user] || {}, paid: data.paid?.[user] || {},
       users: Object.keys(data.users || {}), updatedAt: data.updatedAt || null,
     });
   } catch (e) {
@@ -28,9 +28,17 @@ export async function GET(req) {
 
 // POST { action: "rebuild", user, password } -> rebuild that user's activity from the audit logs
 // POST { action: "holiday", user, day, holiday: true|false } -> mark / unmark a holiday (dhruvi only)
+// POST { action: "paid", user, month: "YYYY-MM", paid: true|false, amount } -> mark / unmark a month as paid (dhruvi only)
 export async function POST(req) {
   try {
-    const { action, user, password, day, holiday } = await req.json();
+    const { action, user, password, day, holiday, month, paid, amount } = await req.json();
+    if (action === "paid") {
+      const me = (await getSessionUser()) || "";
+      if (me !== "dhruvi") return json({ error: "Only dhruvi can mark months as paid" }, 403);
+      if (!user || !month || typeof paid !== "boolean") return json({ error: "Missing user, month or paid" }, 400);
+      const paidMap = await setPaid(user, month, paid, me, Number(amount));
+      return json({ success: true, paid: paidMap });
+    }
     if (action === "holiday") {
       const me = (await getSessionUser()) || "";
       if (me !== "dhruvi") return json({ error: "Only dhruvi can mark holidays" }, 403);

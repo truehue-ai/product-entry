@@ -113,6 +113,7 @@ export default function ActivityPage() {
 
   const days = data[user]?.days || {};
   const holidays = data[user]?.holidays || {};
+  const paidMonths = data[user]?.paid || {};
   const isHoliday = (d) => !!holidays[d];
   // average products/day over the given days, leaving holidays out (0-done days count as 0)
   const avgOver = (list) => {
@@ -155,6 +156,26 @@ export default function ActivityPage() {
   }, [days, thisMonth]);
 
   const toggleMonth = (m) => setOpenMonths((prev) => { const n = new Set(prev); n.has(m) ? n.delete(m) : n.add(m); return n; });
+
+  const [paidBusy, setPaidBusy] = useState("");
+  const togglePaid = async (month, paid, amount) => {
+    if (paid && !confirm(`Mark ${fmtDay(`${month}-01`, { month: "long", year: "numeric" })} as paid (${inr(amount)})?`)) return;
+    if (!paid && !confirm(`Mark ${fmtDay(`${month}-01`, { month: "long", year: "numeric" })} as NOT paid?`)) return;
+    setPaidBusy(month); setError("");
+    try {
+      const r = await fetch("/api/activity", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "paid", user, month, paid, amount }),
+      });
+      const j = await r.json();
+      if (!r.ok || !j.success) throw new Error(j.error || "Could not update paid");
+      setData((prev) => ({ ...prev, [user]: { ...prev[user], paid: j.paid || {} } }));
+    } catch (e) {
+      setError(e?.message || "Could not update paid");
+    } finally {
+      setPaidBusy("");
+    }
+  };
 
   const [holidayBusy, setHolidayBusy] = useState(false);
   const toggleHoliday = async (day, holiday) => {
@@ -347,6 +368,25 @@ export default function ActivityPage() {
                     <span style={{ ...GL.pill, background: "rgba(217,119,6,0.14)", color: "#92400e", fontSize: 12 }}>
                       {m === thisMonth ? "so far " : ""}{inr(mPay.amount)}
                     </span>
+                    {(() => {
+                      const pd = paidMonths[m];
+                      const label = pd ? `✓ Paid${pd.amount != null ? ` ${inr(pd.amount)}` : ""}` : "Not paid";
+                      const tip = pd ? `Marked paid by ${pd.by} on ${new Date(pd.at).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}` : "";
+                      const style = {
+                        ...GL.pill, fontSize: 12, border: "none",
+                        background: pd ? "rgba(22,163,74,0.16)" : "rgba(120,120,120,0.1)",
+                        color: pd ? "#15803d" : "#6b5b5a",
+                      };
+                      if (!canEdit) return <span style={style} title={tip}>{label}</span>;
+                      return (
+                        <button type="button" title={pd ? `${tip} — click to unmark` : "Mark this month as paid"}
+                          disabled={paidBusy === m}
+                          onClick={(e) => { e.stopPropagation(); togglePaid(m, !pd, mPay.amount); }}
+                          style={{ ...style, cursor: paidBusy === m ? "wait" : "pointer", opacity: paidBusy === m ? 0.6 : 1 }}>
+                          {paidBusy === m ? "Saving…" : pd ? label : "Mark paid"}
+                        </button>
+                      );
+                    })()}
                     <span style={{ fontSize: 12, color: "#9b4a42" }}>
                       {mAvg.workDays} working day{mAvg.workDays === 1 ? "" : "s"} · {activeDays} with work{mAvg.holidaysIn ? ` · 🌴 ${mAvg.holidaysIn} holiday${mAvg.holidaysIn === 1 ? "" : "s"}` : ""}
                     </span>
@@ -355,6 +395,12 @@ export default function ActivityPage() {
                     <div style={{ padding: "0 20px 18px", display: "flex", flexDirection: "column", gap: 12 }}>
                       <div style={{ fontSize: 13, color: "#92400e", background: "rgba(254,243,199,0.6)", borderRadius: 10, padding: "8px 12px" }}>
                         💰 <b>{inr(mPay.amount)}</b>{m === thisMonth ? " so far" : ""} — {mPay.working}
+                        {paidMonths[m] && (
+                          <div style={{ marginTop: 4, color: "#15803d", fontWeight: 600 }}>
+                            ✓ Paid{paidMonths[m].amount != null ? ` ${inr(paidMonths[m].amount)}` : ""} · marked by {paidMonths[m].by} on {new Date(paidMonths[m].at).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}
+                            {paidMonths[m].amount != null && Math.round(paidMonths[m].amount) !== Math.round(mPay.amount) ? ` (pay now works out to ${inr(mPay.amount)})` : ""}
+                          </div>
+                        )}
                       </div>
                       <div className="cal">
                         {WEEKDAYS.map((w) => <div key={w} style={{ fontSize: 11, fontWeight: 700, color: "#b08080", textAlign: "center" }}>{w}</div>)}
