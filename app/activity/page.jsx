@@ -10,9 +10,10 @@ import { useActionPassword } from "../components/useActionPassword";
 // that day with more than 3 NEW shades — shades already in the other market's database (imported or copied)
 // don't count. Edits to existing products are listed but not counted.
 // Days marked as holidays are left out of every average (their products still show in totals).
+// Every other day is a working day — a day with 0 done still counts in the average (as 0) and is paid.
 
 const MIN_SHADES = 4; // "more than 3"
-// Monthly pay: average above PAY_AVG_THRESHOLD -> active working days × PAY_PER_UNIT,
+// Monthly pay: average PAY_AVG_THRESHOLD or more -> working days (every non-holiday day, 0-done days too) × PAY_PER_UNIT,
 // otherwise (products ÷ 10) × PAY_PER_UNIT.
 const PAY_AVG_THRESHOLD = 9;
 const PAY_PER_UNIT = 800;
@@ -113,22 +114,23 @@ export default function ActivityPage() {
   const days = data[user]?.days || {};
   const holidays = data[user]?.holidays || {};
   const isHoliday = (d) => !!holidays[d];
-  // average products/day over the given days, leaving holidays out
+  // average products/day over the given days, leaving holidays out (0-done days count as 0)
   const avgOver = (list) => {
     const work = list.filter((d) => !isHoliday(d));
     return { avg: work.length ? work.reduce((a, d) => a + countOn(d), 0) / work.length : 0, workDays: work.length, holidaysIn: list.length - work.length };
   };
   // Pay for a month, from its elapsed days
   const payFor = (list) => {
-    const { avg } = avgOver(list);
+    const { avg, workDays } = avgOver(list);
     const products = list.reduce((a, d) => a + countOn(d), 0);
     const activeDays = list.filter((d) => !isHoliday(d) && countOn(d) > 0).length;
-    const byDays = avg > PAY_AVG_THRESHOLD;
-    const amount = byDays ? activeDays * PAY_PER_UNIT : (products / 10) * PAY_PER_UNIT;
+    const zeroDays = workDays - activeDays;
+    const byDays = avg >= PAY_AVG_THRESHOLD;
+    const amount = byDays ? workDays * PAY_PER_UNIT : (products / 10) * PAY_PER_UNIT;
     const working = byDays
-      ? `Average ${avg.toFixed(1)} is above ${PAY_AVG_THRESHOLD} → ${activeDays} active working day${activeDays === 1 ? "" : "s"} × ${inr(PAY_PER_UNIT)}`
-      : `Average ${avg.toFixed(1)} is not above ${PAY_AVG_THRESHOLD} → ${products} product${products === 1 ? "" : "s"} ÷ 10 × ${inr(PAY_PER_UNIT)}`;
-    return { amount, working, byDays, activeDays, products, avg };
+      ? `Average ${avg.toFixed(1)} is ${PAY_AVG_THRESHOLD} or more → ${workDays} working day${workDays === 1 ? "" : "s"}${zeroDays ? ` (incl. ${zeroDays} with 0 done)` : ""} × ${inr(PAY_PER_UNIT)}`
+      : `Average ${avg.toFixed(1)} is below ${PAY_AVG_THRESHOLD} → ${products} product${products === 1 ? "" : "s"} ÷ 10 × ${inr(PAY_PER_UNIT)}`;
+    return { amount, working, byDays, activeDays, workDays, products, avg };
   };
   const summaries = useMemo(() => Object.fromEntries(Object.entries(days).map(([d, e]) => [d, summarise(e)])), [days]);
   function countOn(d) { return summaries[d]?.count || 0; }
@@ -281,8 +283,8 @@ export default function ActivityPage() {
             <div style={{ fontSize: 13, color: "#7b241c", lineHeight: 1.5 }}>
               New products saved to S3 with <b>more than 3 new shades</b>, India + USA. Shades imported or copied from the other
               market's database don't count. Edits to existing products are listed, not counted.
-              🌴 Holidays are left out of averages{canEdit ? " — open a day to mark one" : ""}. Pay: average above {PAY_AVG_THRESHOLD} → active
-              working days × {inr(PAY_PER_UNIT)}, otherwise products ÷ 10 × {inr(PAY_PER_UNIT)}.
+              🌴 Holidays are left out of averages{canEdit ? " — open a day to mark one" : ""}. Days with 0 done (not holidays) count as 0 in the average.
+              Pay: average {PAY_AVG_THRESHOLD} or more → every working day (incl. 0-done days) × {inr(PAY_PER_UNIT)}, otherwise products ÷ 10 × {inr(PAY_PER_UNIT)}.
             </div>
             <div style={{ fontSize: 12, color: "#b08080" }}>
               {data[user]?.updatedAt ? `Updated ${new Date(data[user].updatedAt).toLocaleString()}` : ""}
@@ -346,7 +348,7 @@ export default function ActivityPage() {
                       {m === thisMonth ? "so far " : ""}{inr(mPay.amount)}
                     </span>
                     <span style={{ fontSize: 12, color: "#9b4a42" }}>
-                      {activeDays} active day{activeDays === 1 ? "" : "s"}{mAvg.holidaysIn ? ` · 🌴 ${mAvg.holidaysIn} holiday${mAvg.holidaysIn === 1 ? "" : "s"}` : ""}
+                      {mAvg.workDays} working day{mAvg.workDays === 1 ? "" : "s"} · {activeDays} with work{mAvg.holidaysIn ? ` · 🌴 ${mAvg.holidaysIn} holiday${mAvg.holidaysIn === 1 ? "" : "s"}` : ""}
                     </span>
                   </div>
                   {open && (

@@ -414,7 +414,7 @@ function LogsInner() {
       <div className="m-pad" style={{ padding: "24px 28px", display: "flex", flexDirection: "column", gap: 20 }}>
 
         {passwordModal}
-        {currentUser === "dhruvi" && <BuildDatabasePanel />}
+        {currentUser === "dhruvi" && <BuildDatabasePanel market={market} runWithPassword={runWithPassword} />}
 
         <div className="logs-layout">
 
@@ -761,7 +761,8 @@ function VerifiedToggle({ entry, onToggle }) {
   );
 }
 
-function BuildDatabasePanel() {
+function BuildDatabasePanel({ market = "india", runWithPassword }) {
+  const M = MARKETS[market] || MARKETS.india;
   const [open, setOpen] = useState(false);
   const [buildCategory, setBuildCategory] = useState("lip-gloss");
   const [building, setBuilding] = useState(false);
@@ -770,12 +771,12 @@ function BuildDatabasePanel() {
     if (!buildCategory) return;
     setBuilding(true);
     try {
-      const res = await fetch("/api/build-product-database", {
+      const res = await runWithPassword((password) => fetch("/api/build-product-database", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ category: buildCategory }),
+        body: JSON.stringify({ category: buildCategory, usa: M.usa, password }),
         cache: "no-store",
-      });
+      }));
       const data = await res.json();
       if (!data?.success) { alert(data?.error || "Build failed"); return; }
       const pretty = JSON.stringify(data.dict || {}, null, 2);
@@ -783,13 +784,18 @@ function BuildDatabasePanel() {
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = data.filename || `CategorisedLMD.${buildCategory}.json`;
+      a.download = data.filename || `CategorisedLMD.${M.usa ? "usa." : ""}${buildCategory}.json`;
       document.body.appendChild(a);
       a.click();
       a.remove();
       URL.revokeObjectURL(url);
+      if (data.saved) {
+        alert(`Saved to S3: ${data.bucket}/${data.key}${data.backup_key ? `\nPrevious file backed up to: ${data.backup_key}` : "\n(No previous file — created new.)"}\n${data.summary?.products_considered ?? 0} products, ${data.summary?.total_shades ?? 0} shades.`);
+      } else {
+        alert(`Built and downloaded, but NOT saved to S3.\n${data.save_error || ""}`);
+      }
     } catch (e) {
-      alert(e?.message || "Build failed");
+      if (e?.message !== "Password required") alert(e?.message || "Build failed");
     } finally {
       setBuilding(false);
     }
@@ -802,12 +808,12 @@ function BuildDatabasePanel() {
         style={{ background: "none", border: "none", cursor: "pointer", padding: 0, display: "flex", alignItems: "center", gap: 8, ...GL.sectionHeader }}
       >
         <span style={{ display: "inline-block", transform: open ? "rotate(90deg)" : "none", transition: "transform 0.15s" }}>▸</span>
-        Build Product Database <span style={{ fontWeight: 400, textTransform: "none", letterSpacing: 0, color: "#b08080" }}>(India)</span>
+        Build Product Database <span style={{ fontWeight: 400, textTransform: "none", letterSpacing: 0, color: "#b08080" }}>({M.flag} {M.label})</span>
       </button>
       {open && (
         <div style={{ marginTop: 14 }}>
           <p style={{ fontSize: 14, color: "#7b241c", margin: "0 0 14px", opacity: 0.8 }}>
-            Rebuild the categorised dictionary from S3 and download it locally.
+            Rebuild the {M.label} categorised dictionary from {M.usa ? "brands_usa/" : "brands/"} save it to S3 at {M.usa ? "find_products_usa" : "find_products"}/product_database/&lt;category&gt;/categorised_LMD.json (the old file is backed up first). A copy is also downloaded.
           </p>
           <div style={{ display: "flex", alignItems: "flex-end", gap: 14, flexWrap: "wrap" }}>
             <div>
@@ -846,7 +852,7 @@ function BuildDatabasePanel() {
               disabled={building}
               style={{ ...GL.btnPrimary, padding: "11px 20px", opacity: building ? 0.6 : 1, cursor: building ? "not-allowed" : "pointer" }}
             >
-              {building ? "Building…" : "Build & Download"}
+              {building ? "Building…" : "Build & Save"}
             </button>
           </div>
         </div>

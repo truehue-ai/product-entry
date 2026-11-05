@@ -37,36 +37,38 @@ export const STAGES = [
 export const METRIC_GROUPS = ["Reach", "Engagement", "Retention", "Purchase intent", "Proof"];
 
 // format: count | pct (stored as 0–1) | ratio. goals: null = shown without a goal (not counted towards a stage).
+// weight: how much the metric counts in each stage's score (out of 100). Score per metric = weight × min(1, current ÷ goal);
+// a metric with no data yet scores 0. Weights are scaled to add up to 100, so they don't have to.
 export const METRICS = [
   {
     key: "paidMembers", label: "Paid members", group: "Reach", format: "count",
     definition: `Users whose account was created on or after ${PAID_MEMBER_START_DATE} (India time) and who have a lifetime pass (premium/timestamp.json). Accounts created earlier are left out.`,
-    goals: { pilot: 10000, stage2: 25000, platform: 75000 },
+    goals: { pilot: 10000, stage2: 25000, platform: 75000 }, weight: 15,
   },
   {
     key: "engagedMau", label: "Engaged MAU", group: "Reach", format: "count",
     definition: "Paid members who opened the app and did at least one meaningful action (shade search, shade view, try-on, compare shades or product view) in the last 30 days. App opens alone don't count.",
-    goals: { pilot: 4500, stage2: 12000, platform: 50000 },
+    goals: { pilot: 4500, stage2: 12000, platform: 50000 }, weight: 15,
   },
   {
     key: "engagedDau", label: "Engaged DAU (30-day avg)", group: "Reach", format: "count",
     definition: "Engaged paid members per day, averaged over the last 30 days.",
-    goals: { pilot: 675, stage2: 2400, platform: 10000 },
+    goals: { pilot: 675, stage2: 2400, platform: 10000 }, weight: 10,
   },
   {
     key: "stickiness", label: "Stickiness (DAU / MAU)", group: "Engagement", format: "pct",
     definition: "Engaged DAU (30-day average) ÷ engaged MAU.",
-    goals: { pilot: 0.15, stage2: 0.2, platform: 0.2 },
+    goals: { pilot: 0.15, stage2: 0.2, platform: 0.2 }, weight: 10,
   },
   {
     key: "sessionsPerMau", label: "Sessions per MAU / month", group: "Engagement", format: "ratio",
     definition: "Sessions by paid members in the last 30 days ÷ engaged MAU. A session starts when the app is opened, or reopened after 30+ minutes away (the app's \"session-start\" step).",
-    goals: { pilot: 4, stage2: 6, platform: 6 },
+    goals: { pilot: 4, stage2: 6, platform: 6 }, weight: 5,
   },
   {
     key: "m1", label: "Paid-member M1 retention", group: "Retention", format: "pct",
     definition: "Of paid members whose account was created in month X, the % who were engaged in month X+1. Uses the most recent cohort whose month X+1 is over.",
-    goals: { pilot: 0.4, stage2: 0.45, platform: 0.45 },
+    goals: { pilot: 0.4, stage2: 0.45, platform: 0.45 }, weight: 10,
   },
   {
     key: "m1Opened", label: "M1 — opened the app at all (reference)", group: "Retention", format: "pct",
@@ -76,12 +78,12 @@ export const METRICS = [
   {
     key: "m3", label: "Paid-member M3 retention", group: "Retention", format: "pct",
     definition: "Of paid members whose account was created in month X, the % who were engaged in month X+3. Uses the most recent cohort whose month X+3 is over.",
-    goals: { pilot: 0.25, stage2: 0.3, platform: 0.3 },
+    goals: { pilot: 0.25, stage2: 0.3, platform: 0.3 }, weight: 10,
   },
   {
     key: "monthlySearches", label: "Monthly product searches", group: "Purchase intent", format: "count",
     definition: "Shade / product searches made by paid members in the last 30 days. Recorded per member by the backend from when the update went live (the Product Analytics files only keep totals).",
-    goals: { pilot: 20000, stage2: 75000, platform: 300000 },
+    goals: { pilot: 20000, stage2: 75000, platform: 300000 }, weight: 10,
   },
   {
     key: "searchesPerUser", label: "Searches per engaged user", group: "Purchase intent", format: "ratio",
@@ -101,7 +103,7 @@ export const METRICS = [
   {
     key: "clickOutRate", label: "Click-out rate (users)", group: "Purchase intent", format: "pct",
     definition: "Engaged paid members who clicked out to a retailer at least once in the last 30 days ÷ engaged MAU. (User-based until sessions are logged — then it can become sessions with a click-out ÷ total sessions.)",
-    goals: { pilot: 0.08, stage2: 0.1, platform: 0.1 },
+    goals: { pilot: 0.08, stage2: 0.1, platform: 0.1 }, weight: 10,
   },
   {
     key: "clickOutRateSessions", label: "Click-out rate (sessions, reference)", group: "Purchase intent", format: "pct",
@@ -111,6 +113,6 @@ export const METRICS = [
   {
     key: "caseStudies", label: "Brand pilot case studies completed", group: "Proof", format: "count",
     definition: "Completed brand pilot case studies (entered by hand in app/lib/adsPlatformGoals.js).",
-    goals: { pilot: 0, stage2: 2, platform: 5 },
+    goals: { pilot: 0, stage2: 2, platform: 5 }, weight: 5,
   },
 ];

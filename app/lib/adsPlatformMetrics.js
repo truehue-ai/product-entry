@@ -191,20 +191,35 @@ export function computeAdsPlatformMetrics(snap, asOf = istDay()) {
     caseStudies: { value: CASE_STUDIES_COMPLETED, note: "Entered by hand" },
   };
 
-  // ── goals ──
+  // ── goals and weighted scores ──
+  // per metric and stage: progress = min(1, current ÷ goal) (0 with no data); points = weight share × progress,
+  // weights scaled so a stage's points add up to 100; left = points still to gain
   const rows = METRICS.map((m) => {
     const v = values[m.key] || { value: null };
     const met = {};
+    const progress = {};
     for (const s of STAGES) {
       const goal = m.goals?.[s.key];
       met[s.key] = goal == null ? null : v.value != null && v.value >= goal;
+      progress[s.key] = goal == null ? null : v.value == null ? 0 : goal <= 0 ? 1 : Math.min(1, v.value / goal);
     }
-    return { ...m, ...v, met };
+    return { ...m, ...v, met, progress };
   });
   const stages = STAGES.map((s) => {
     const withGoal = rows.filter((r) => r.met[s.key] != null);
     const met = withGoal.filter((r) => r.met[s.key]).length;
-    return { ...s, met, total: withGoal.length, done: withGoal.length > 0 && met === withGoal.length };
+    const totalWeight = withGoal.reduce((a, r) => a + (r.weight || 0), 0);
+    const parts = withGoal.map((r) => {
+      const max = totalWeight ? ((r.weight || 0) / totalWeight) * 100 : 0;
+      const points = max * r.progress[s.key];
+      return { key: r.key, label: r.label, weight: r.weight || 0, value: r.value, format: r.format, goal: r.goals[s.key], noData: r.value == null,
+        max, points, left: max - points, progress: r.progress[s.key] };
+    });
+    const score = parts.reduce((a, p) => a + p.points, 0);
+    return {
+      ...s, met, total: withGoal.length, done: withGoal.length > 0 && met === withGoal.length,
+      score, focus: [...parts].sort((x, y) => y.left - x.left || y.max - x.max),
+    };
   });
   const currentStage = [...stages].reverse().find((s) => s.done)?.label || "Pre-pilot";
 

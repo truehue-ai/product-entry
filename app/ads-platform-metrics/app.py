@@ -265,6 +265,72 @@ def jwt_optional(f):
 
 
 ''' ---------------------------------------------------------------------------------------------------------------------------------------------------------------- '''
+''' ----------------------------------------------------------------------------- REGION (IN / US) ---------------------------------------------------------------------- '''
+''' ---------------------------------------------------------------------------------------------------------------------------------------------------------------- '''
+#
+# Brand/product data exists for two regions:
+#   "in" (default) -> S3 "brands/...",     search dict "all-data.json"
+#   "us"           -> S3 "brands_usa/...", search dict "all-data-usa.json"
+#
+# Endpoints decorated with @region_aware read an optional `region` from the
+# JSON body or the query string (?region=us). Missing / unknown -> "in", so
+# every existing client keeps getting exactly the same S3 paths and Redis keys
+# as before. The region is held in a ContextVar for the duration of the
+# request; asyncio tasks / to_thread calls started inside the request inherit
+# it, so helpers like process_shade_* pick it up without extra parameters.
+
+import contextvars
+
+REGION_CONFIG = {
+    "in": {"brands_root": "brands",     "all_data_key": "all-data.json",     "cache_prefix": "",      "currency": "INR"},
+    "us": {"brands_root": "brands_usa", "all_data_key": "all-data-usa.json", "cache_prefix": "usa:",  "currency": "USD"},
+}
+DEFAULT_REGION = "in"
+
+_CURRENT_REGION = contextvars.ContextVar("current_region", default=DEFAULT_REGION)
+
+def normalize_region(raw) -> str:
+    r = str(raw or "").strip().lower()
+    if r in ("us", "usa", "united states", "united-states"):
+        return "us"
+    return DEFAULT_REGION
+
+def current_region() -> str:
+    return _CURRENT_REGION.get()
+
+def region_cfg() -> dict:
+    return REGION_CONFIG.get(current_region(), REGION_CONFIG[DEFAULT_REGION])
+
+def brands_root() -> str:
+    return region_cfg()["brands_root"]
+
+def shade_info_cache_key(brand, productId) -> str:
+    # "in" -> product_shade_info_{brand}_{productId}      (unchanged)
+    # "us" -> usa:product_shade_info_{brand}_{productId}
+    # The US prefix sits at the very front, so no India key (which always
+    # starts with "product_shade_info_") can ever equal a US key.
+    return f"{region_cfg()['cache_prefix']}product_shade_info_{brand}_{productId}"
+
+def region_aware(f):
+    @wraps(f)
+    async def decorated_function(*args, **kwargs):
+        raw = request.args.get("region")
+        if raw is None:
+            try:
+                body = await request.get_json(silent=True)
+                if isinstance(body, dict):
+                    raw = body.get("region")
+            except Exception:
+                raw = None
+        token = _CURRENT_REGION.set(normalize_region(raw))
+        try:
+            return await f(*args, **kwargs)
+        finally:
+            _CURRENT_REGION.reset(token)
+    return decorated_function
+
+
+''' ---------------------------------------------------------------------------------------------------------------------------------------------------------------- '''
 ''' ----------------------------------------------------------------------------- ENCRYPTION -------------------------------------------------------------------------- '''
 ''' ---------------------------------------------------------------------------------------------------------------------------------------------------------------- '''
 
@@ -498,7 +564,7 @@ async def get_full_model_image_from_s3(filename, bucket_name=BUCKET_NAME):
 async def get_shades_info_from_s3(brand, productId, bucket_name=BUCKET_NAME):
     session = SessionManager.get_session()
     async with get_s3_client(session) as s3_client:
-        file_key = f'brands/{brand}/product_shade_values/{productId}/shades.json'
+        file_key = f'{brands_root()}/{brand}/product_shade_values/{productId}/shades.json'
         try:
             response = await s3_client.get_object(Bucket=bucket_name, Key=file_key)
             logging.debug('GOTTTTT shades info from s3')
@@ -512,7 +578,7 @@ async def get_shades_info_from_s3(brand, productId, bucket_name=BUCKET_NAME):
 async def get_pigment_rec_info_from_s3(brand, productId, bucket_name=BUCKET_NAME):
     session = SessionManager.get_session()
     async with get_s3_client(session) as s3_client:
-        file_key = f'brands/{brand}/product_shade_values/{productId}/pigment_rec.json'
+        file_key = f'{brands_root()}/{brand}/product_shade_values/{productId}/pigment_rec.json'
         try:
             response = await s3_client.get_object(Bucket=bucket_name, Key=file_key)
             logging.debug('GOTTTTT pigment info from s3')
@@ -554,7 +620,7 @@ async def upload_lip_masks_for_customer():
         productId = data['productId']
 
         redis = await RedisClient.get_client()
-        shades_json = await redis.get(f"product_shade_info_{brand}_{productId}")
+        shades_json = await redis.get(shade_info_cache_key(brand, productId))
 
         if not shades_json:
             logging.debug("Shades info not found in Redis, fetching from S3")
@@ -562,7 +628,7 @@ async def upload_lip_masks_for_customer():
             if shades is None:
                 return jsonify(encrypt_payload({'error': 'Failed to retrieve shade info'})), 500
             shades_json = json.dumps(shades)
-            await redis.setex(f"product_shade_info_{brand}_{productId}", 3600, json.dumps(shades))
+            await redis.setex(shade_info_cache_key(brand, productId), 3600, json.dumps(shades))
         else:
             shades = json.loads(shades_json)
 
@@ -613,14 +679,14 @@ async def upload_lip_masks_for_model():
         logging.debug(f'UPLOADING LIP MASKS FOR {mn_number}')
         # Store image in Redis
         redis = await RedisClient.get_client()
-        shades_json = await redis.get(f"product_shade_info_{brand}_{productId}")
+        shades_json = await redis.get(shade_info_cache_key(brand, productId))
 
         if not shades_json:
             logging.debug("Shades info not found in Redis, fetching from S3")
             shades = await get_shades_info_from_s3(brand, productId)
             if shades is None:
                 return jsonify(encrypt_payload({'error': 'Failed to retrieve shade info'})), 500
-            await redis.setex(f"product_shade_info_{brand}_{productId}", 3600, json.dumps(shades))
+            await redis.setex(shade_info_cache_key(brand, productId), 3600, json.dumps(shades))
         else:
             shades = json.loads(shades_json)
 
@@ -1735,7 +1801,7 @@ async def process_shade_multistick(
         finish = lip_finish_for("multistick")
 
     # ✅ Use model_img_path in S3 key
-    s3_key = f"brands/{brand}/model_edited_pictures/{productId}/{model_img_path}/{shade_name}.jpg"
+    s3_key = f"{brands_root()}/{brand}/model_edited_pictures/{productId}/{model_img_path}/{shade_name}.jpg"
     image_url = f"https://{CLOUDFRONT_DOMAIN}/{s3_key}"
 
     # ✅ Check if already exists
@@ -1805,7 +1871,7 @@ async def process_shade_lip(
         finish = lip_finish_for("matte-lipstick")
 
     # ✅ Use model_img_path in S3 key
-    s3_key = f"brands/{brand}/model_edited_pictures/{productId}/{model_img_path}/{shade_name}.jpg"
+    s3_key = f"{brands_root()}/{brand}/model_edited_pictures/{productId}/{model_img_path}/{shade_name}.jpg"
     image_url = f"https://{CLOUDFRONT_DOMAIN}/{s3_key}"
 
     # ✅ Check if already exists
@@ -1913,7 +1979,7 @@ async def process_shade_blush(
     model_img, blush_feather_radius='', right_blush_feathered_mask='',
     left_blush_feathered_mask=''
     ):
-    s3_key = f"brands/{brand}/model_edited_pictures/{productId}/{model_img_path}/{shade_name}.jpg"
+    s3_key = f"{brands_root()}/{brand}/model_edited_pictures/{productId}/{model_img_path}/{shade_name}.jpg"
     image_url = f"https://{CLOUDFRONT_DOMAIN}/{s3_key}"
 
     # ✅ Step 1: Check if file already exists in S3
@@ -1970,7 +2036,7 @@ async def process_shade_eyeshadow(
     logging.debug(f'{shade_name}, {brand}, {mn_number}, {sk_folder}, {productId}')
 
     # ✅ S3 key & CloudFront URL
-    s3_key = f"brands/{brand}/model_edited_pictures/{productId}/{model_img_path}/{shade_name}.jpg"
+    s3_key = f"{brands_root()}/{brand}/model_edited_pictures/{productId}/{model_img_path}/{shade_name}.jpg"
     image_url = f"https://{CLOUDFRONT_DOMAIN}/{s3_key}"
 
     # ✅ Check if already exists in S3
@@ -2025,7 +2091,7 @@ async def process_shade_concealer(
     logging.debug(f'{shade_name}, {brand}, {mn_number}, {sk_folder}, {productId}')
 
     # ✅ Define S3 key and URL
-    s3_key = f"brands/{brand}/model_edited_pictures/{productId}/{model_img_path}/{shade_name}.jpg"
+    s3_key = f"{brands_root()}/{brand}/model_edited_pictures/{productId}/{model_img_path}/{shade_name}.jpg"
     image_url = f"https://{CLOUDFRONT_DOMAIN}/{s3_key}"
 
     # ✅ Check if image already exists in S3
@@ -2081,7 +2147,7 @@ async def process_shade_foundation(
     logging.debug(f'{shade_name}, {brand}, {mn_number}, {sk_folder}, {productId}')
 
     # ✅ Build S3 key and URL
-    s3_key = f"brands/{brand}/model_edited_pictures/{productId}/{model_img_path}/{shade_name}.jpg"
+    s3_key = f"{brands_root()}/{brand}/model_edited_pictures/{productId}/{model_img_path}/{shade_name}.jpg"
     image_url = f"https://{CLOUDFRONT_DOMAIN}/{s3_key}"
 
     # ✅ Check if image already exists in S3
@@ -2136,7 +2202,7 @@ async def process_shade_eyebrow(
     logging.debug(f'{shade_name}, {brand}, {mn_number}, {sk_folder}, {productId}')
 
     # ✅ Create S3 key and CloudFront URL
-    s3_key = f"brands/{brand}/model_edited_pictures/{productId}/{model_img_path}/{shade_name}.jpg"
+    s3_key = f"{brands_root()}/{brand}/model_edited_pictures/{productId}/{model_img_path}/{shade_name}.jpg"
     image_url = f"https://{CLOUDFRONT_DOMAIN}/{s3_key}"
 
     # ✅ Check if already in S3
@@ -2192,7 +2258,7 @@ async def process_shade_contour(
     logging.debug(f'{shade_name}, {brand}, {mn_number}, {sk_folder}, {productId}')
 
     # ✅ Build S3 key and CloudFront URL
-    s3_key = f"brands/{brand}/model_edited_pictures/{productId}/{model_img_path}/{shade_name}.jpg"
+    s3_key = f"{brands_root()}/{brand}/model_edited_pictures/{productId}/{model_img_path}/{shade_name}.jpg"
     image_url = f"https://{CLOUDFRONT_DOMAIN}/{s3_key}"
 
     # ✅ Check if it already exists in S3
@@ -2283,6 +2349,7 @@ async def download_numpy_array_from_s3(s3_client, bucket, key):
 
 @app.route('/get_shade_recommendations', methods=['POST'])
 @jwt_required
+@region_aware
 async def get_shade_recommendations():
     try:
         data = await request.get_json()
@@ -2314,13 +2381,13 @@ async def get_shade_recommendations():
         product_type = category_to_type[product_type]
 
         redis = await RedisClient.get_client()
-        shades_json = await redis.get(f"product_shade_info_{brand}_{productId}")
+        shades_json = await redis.get(shade_info_cache_key(brand, productId))
 
         if not shades_json:
             shades = await get_shades_info_from_s3(brand, productId)
             if shades is None:
                 return jsonify({'error': 'Failed to retrieve shade info'}), 500
-            await redis.setex(f"product_shade_info_{brand}_{productId}", 3600, json.dumps(shades))
+            await redis.setex(shade_info_cache_key(brand, productId), 3600, json.dumps(shades))
         else:
             shades = json.loads(shades_json)
 
@@ -2462,14 +2529,14 @@ async def apply_multiple_lipstick():
             pigment_rec = await get_pigment_rec_info_from_s3(brand, productId)
 
         redis = await RedisClient.get_client()
-        shades_json = await redis.get(f"product_shade_info_{brand}_{productId}")
+        shades_json = await redis.get(shade_info_cache_key(brand, productId))
 
         if not shades_json:
             logging.debug("Shades info not found in Redis, fetching from S3")
             shades = await get_shades_info_from_s3(brand, productId)
             if shades is None:
                 return jsonify(encrypt_payload({'error': 'Failed to retrieve shade info'})), 500
-            await redis.setex(f"product_shade_info_{brand}_{productId}", 3600, json.dumps(shades))
+            await redis.setex(shade_info_cache_key(brand, productId), 3600, json.dumps(shades))
         else:
             shades = json.loads(shades_json)
 
@@ -3408,12 +3475,12 @@ async def apply_makeup_model_batch():
         product_type = category_to_type[product_type]
 
         redis = await RedisClient.get_client()
-        shades_json = await redis.get(f"product_shade_info_{brand}_{productId}")
+        shades_json = await redis.get(shade_info_cache_key(brand, productId))
         if not shades_json:
             shades = await get_shades_info_from_s3(brand, productId)
             if shades is None:
                 return jsonify(encrypt_payload({'error': 'Failed to retrieve shade info'})), 500
-            await redis.setex(f"product_shade_info_{brand}_{productId}", 3600, json.dumps(shades))
+            await redis.setex(shade_info_cache_key(brand, productId), 3600, json.dumps(shades))
         else:
             shades = json.loads(shades_json)
 
@@ -3740,6 +3807,7 @@ async def apply_makeup_model_batch():
 
 @app.route('/apply_makeup_model_solo', methods=['POST'])
 @jwt_required
+@region_aware
 async def apply_multiple_lipstick_solo():
     try:
         data = await request.get_json()
@@ -4526,7 +4594,7 @@ async def process_customer_shade_lip(productId, shade_name, shade_value, brand, 
         version = version.decode('utf-8')
         
 
-        s3_key = f"permanent/shopify/{image_key}/{version}/brands/{brand}/customer_edited_pictures/{productId}/{shade_name}.jpg"
+        s3_key = f"permanent/shopify/{image_key}/{version}/{brands_root()}/{brand}/customer_edited_pictures/{productId}/{shade_name}.jpg"
         image_url = f"https://{CLOUDFRONT_DOMAIN}/{s3_key}"
 
             # ✅ Step 1: Check if file already exists in S3
@@ -4592,7 +4660,7 @@ async def process_customer_shade_blush(productId, shade_name, shade_value, brand
         version = version.decode('utf-8')
         
 
-        s3_key = f"permanent/shopify/{image_key}/{version}/brands/{brand}/customer_edited_pictures/{productId}/{shade_name}.jpg"
+        s3_key = f"permanent/shopify/{image_key}/{version}/{brands_root()}/{brand}/customer_edited_pictures/{productId}/{shade_name}.jpg"
         image_url = f"https://{CLOUDFRONT_DOMAIN}/{s3_key}"
 
             # ✅ Step 1: Check if file already exists in S3
@@ -4651,7 +4719,7 @@ async def process_customer_shade_multistick(productId, shade_name, shade_value, 
         version = version.decode('utf-8')
         
 
-        s3_key = f"permanent/shopify/{image_key}/{version}/brands/{brand}/customer_edited_pictures/{productId}/{shade_name}.jpg"
+        s3_key = f"permanent/shopify/{image_key}/{version}/{brands_root()}/{brand}/customer_edited_pictures/{productId}/{shade_name}.jpg"
         image_url = f"https://{CLOUDFRONT_DOMAIN}/{s3_key}"
 
             # ✅ Step 1: Check if file already exists in S3
@@ -4725,7 +4793,7 @@ async def process_customer_shade_eyeshadow(productId, shade_name, shade_value, b
         version = version.decode('utf-8')
         
 
-        s3_key = f"permanent/shopify/{image_key}/{version}/brands/{brand}/customer_edited_pictures/{productId}/{shade_name}.jpg"
+        s3_key = f"permanent/shopify/{image_key}/{version}/{brands_root()}/{brand}/customer_edited_pictures/{productId}/{shade_name}.jpg"
         image_url = f"https://{CLOUDFRONT_DOMAIN}/{s3_key}"
 
             # ✅ Step 1: Check if file already exists in S3
@@ -4815,7 +4883,7 @@ async def process_customer_shade_concealer(productId, shade_name, shade_value, b
         version = version.decode('utf-8')
         
 
-        s3_key = f"permanent/shopify/{image_key}/{version}/brands/{brand}/customer_edited_pictures/{productId}/{shade_name}.jpg"
+        s3_key = f"permanent/shopify/{image_key}/{version}/{brands_root()}/{brand}/customer_edited_pictures/{productId}/{shade_name}.jpg"
         image_url = f"https://{CLOUDFRONT_DOMAIN}/{s3_key}"
 
             # ✅ Step 1: Check if file already exists in S3
@@ -4874,7 +4942,7 @@ async def process_customer_shade_eyebrow(productId, shade_name, shade_value, bra
         version = version.decode('utf-8')
         
 
-        s3_key = f"permanent/shopify/{image_key}/{version}/brands/{brand}/customer_edited_pictures/{productId}/{shade_name}.jpg"
+        s3_key = f"permanent/shopify/{image_key}/{version}/{brands_root()}/{brand}/customer_edited_pictures/{productId}/{shade_name}.jpg"
         image_url = f"https://{CLOUDFRONT_DOMAIN}/{s3_key}"
 
             # ✅ Step 1: Check if file already exists in S3
@@ -4934,7 +5002,7 @@ async def process_customer_shade_contour(productId, shade_name, shade_value, bra
         version = version.decode('utf-8')
         
 
-        s3_key = f"permanent/shopify/{image_key}/{version}/brands/{brand}/customer_edited_pictures/{productId}/{shade_name}.jpg"
+        s3_key = f"permanent/shopify/{image_key}/{version}/{brands_root()}/{brand}/customer_edited_pictures/{productId}/{shade_name}.jpg"
         image_url = f"https://{CLOUDFRONT_DOMAIN}/{s3_key}"
 
             # ✅ Step 1: Check if file already exists in S3
@@ -4994,7 +5062,7 @@ async def process_customer_shade_foundation(productId, shade_name, shade_value, 
         version = version.decode('utf-8')
         
 
-        s3_key = f"permanent/shopify/{image_key}/{version}/brands/{brand}/customer_edited_pictures/{productId}/{shade_name}.jpg"
+        s3_key = f"permanent/shopify/{image_key}/{version}/{brands_root()}/{brand}/customer_edited_pictures/{productId}/{shade_name}.jpg"
         image_url = f"https://{CLOUDFRONT_DOMAIN}/{s3_key}"
 
             # ✅ Step 1: Check if file already exists in S3
@@ -5099,7 +5167,7 @@ async def apply_lipstick_customer():
         product_type = category_to_type[product_type]
 
         redis = await RedisClient.get_client()
-        shades_json = await redis.get(f"product_shade_info_{brand}_{productId}")
+        shades_json = await redis.get(shade_info_cache_key(brand, productId))
 
         logging.debug('GOT SHADES')
 
@@ -5108,7 +5176,7 @@ async def apply_lipstick_customer():
             shades = await get_shades_info_from_s3(brand, productId)
             if shades is None:
                 return jsonify(encrypt_payload({'error': 'Failed to retrieve shade info'})), 500
-            await redis.setex(f"product_shade_info_{brand}_{productId}", 3600, json.dumps(shades))
+            await redis.setex(shade_info_cache_key(brand, productId), 3600, json.dumps(shades))
         else:
             shades = json.loads(shades_json)
 
@@ -5981,12 +6049,12 @@ async def apply_makeup_customer_batch():
         product_type = category_to_type[product_type]
 
         redis = await RedisClient.get_client()
-        shades_json = await redis.get(f"product_shade_info_{brand}_{productId}")
+        shades_json = await redis.get(shade_info_cache_key(brand, productId))
         if not shades_json:
             shades = await get_shades_info_from_s3(brand, productId)
             if shades is None:
                 return jsonify(encrypt_payload({'error': 'Failed to retrieve shade info'})), 500
-            await redis.setex(f"product_shade_info_{brand}_{productId}", 3600, json.dumps(shades))
+            await redis.setex(shade_info_cache_key(brand, productId), 3600, json.dumps(shades))
         else:
             shades = json.loads(shades_json)
 
@@ -6349,6 +6417,7 @@ async def apply_makeup_customer_batch():
 
 @app.route('/apply_makeup_customer_solo', methods=['POST'])
 @jwt_required
+@region_aware
 async def apply_lipstick_customer_solo():
     try:
         data = await request.get_json()
@@ -9626,6 +9695,7 @@ async def delete_from_favourites():
 
 @app.route('/get_links', methods=['POST'])
 @jwt_required
+@region_aware
 async def get_links():
     try:
         data = await request.get_json()
@@ -9636,7 +9706,7 @@ async def get_links():
             return jsonify({"error": "Missing 'brand' or 'product'"}), 400
 
         # Construct the S3 key
-        key = f"brands/{brand}/links/{product}/links.json"
+        key = f"{brands_root()}/{brand}/links/{product}/links.json"
         session = SessionManager.get_session()
 
         async with session.client("s3") as s3_client:
@@ -9662,6 +9732,7 @@ async def get_links():
 
 @app.route('/get_product_links_price_type', methods=['POST'])
 @jwt_required
+@region_aware
 async def get_product_links_price_type():
     try:
         data = await request.get_json()
@@ -9675,9 +9746,9 @@ async def get_product_links_price_type():
 
         async with session.client("s3") as s3_client:
             # Define keys
-            links_key = f"brands/{brand}/links/{product}/links.json"
-            price_key = f"brands/{brand}/price/{product}/price.json"
-            type_key = f"brands/{brand}/type/{product}/type.json"
+            links_key = f"{brands_root()}/{brand}/links/{product}/links.json"
+            price_key = f"{brands_root()}/{brand}/price/{product}/price.json"
+            type_key = f"{brands_root()}/{brand}/type/{product}/type.json"
 
             links_data = {}
             price_data = {}
@@ -12223,15 +12294,16 @@ async def register_push_token():
 
 @app.route("/get_all_data", methods=['GET']) 
 @jwt_required
+@region_aware
 async def get_all_data():
     session = SessionManager.get_session()
 
     try:
         async with session.client("s3") as s3_client:
-            response = await s3_client.get_object(Bucket=BUCKET_NAME, Key="all-data.json")
+            response = await s3_client.get_object(Bucket=BUCKET_NAME, Key=region_cfg()["all_data_key"])
             content = await response["Body"].read()
             data = json.loads(content.decode("utf-8"))
-            return jsonify({"all-data": data}), 200
+            return jsonify({"all-data": data, "region": current_region()}), 200
 
     except s3_client.exceptions.NoSuchKey:  # Move inside try block
         return jsonify({"error": "File not found in S3"}), 404
@@ -16313,7 +16385,10 @@ SERPAPI_KEY = "3f09a20da0c065b5d4ae709f517bf590988359cb349ee37169f58b7e453840d2"
 def _extract_price_from_text(text: str) -> float | None:
     if not text:
         return None
-    m = re.search(r'(?:₹|Rs\.?)\s*([\d,]+)', str(text))
+    if current_region() == "us":
+        m = re.search(r'(?:US\$|\$|USD)\s*([\d,]+(?:\.\d{1,2})?)', str(text))
+    else:
+        m = re.search(r'(?:₹|Rs\.?)\s*([\d,]+)', str(text))
     if m:
         try:
             return float(m.group(1).replace(",", ""))
@@ -16330,7 +16405,7 @@ async def _get_saved_link_for_shade(brand: str, product: str, shade: str) -> dic
     try:
         brand_slug   = brand.replace(" ", "-").lower()
         product_slug = product.replace(" ", "-").lower()
-        links_key    = f"brands/{brand_slug}/links/{product_slug}/links.json"
+        links_key    = f"{brands_root()}/{brand_slug}/links/{product_slug}/links.json"
 
         session = SessionManager.get_session()
         async with session.client("s3") as s3_client:
@@ -16388,6 +16463,7 @@ async def _get_saved_link_for_shade(brand: str, product: str, shade: str) -> dic
         return None
         
 @app.route("/search_buy_links", methods=["POST"])
+@region_aware
 async def search_buy_links():
     saved_result = None
     try:
@@ -16415,7 +16491,7 @@ async def search_buy_links():
             "engine":  "google",
             "q":       query,
             "api_key": SERPAPI_KEY,
-            "gl":      "in",
+            "gl":      "us" if current_region() == "us" else "in",
             "hl":      "en",
             "num":     "10",
         }
@@ -16433,6 +16509,13 @@ async def search_buy_links():
             "ulta.com", "ssbeauty.in", "ajio.com", "tatacliq.com",
             "purplle.com", "sugarcosmetics.com", "charactercosmetics.in"
         ]
+        if current_region() == "us":
+            preferred_domains = [
+                "sephora.com", "ulta.com", "target.com", "walmart.com",
+                "amazon.com", "macys.com", "nordstrom.com", "dermstore.com",
+                "cvs.com", "walgreens.com", "bloomingdales.com", "kohls.com",
+                "beautylish.com", "revolve.com", "saksfifthavenue.com"
+            ]
 
         results = []
 
@@ -16448,7 +16531,10 @@ async def search_buy_links():
             price     = _extract_price_from_text(str(price_raw))
             if price is None:
                 try:
-                    price = float(str(price_raw).replace(",", "").replace("₹", "").replace("Rs", "").strip())
+                    if current_region() == "us":
+                        price = float(str(price_raw).replace(",", "").replace("US$", "").replace("$", "").replace("USD", "").strip())
+                    else:
+                        price = float(str(price_raw).replace(",", "").replace("₹", "").replace("Rs", "").strip())
                 except (ValueError, TypeError):
                     price = None
 
@@ -16580,7 +16666,7 @@ async def search_buy_links():
             final_results = [r for r in final_results if r["link"] != saved_result["link"]]
             final_results.insert(0, saved_result)
 
-        return jsonify({"results": final_results[:8]}), 200
+        return jsonify({"results": final_results[:8], "region": current_region(), "currency": region_cfg()["currency"]}), 200
 
     except aiohttp.ClientError as e:
         logging.error(f"[search_buy_links] network error: {e}")

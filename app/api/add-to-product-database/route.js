@@ -157,7 +157,8 @@ function insertShadeIntoDict(shade, dict, productCategory) {
 
 /* --------------------------------- Route ---------------------------------- */
 export async function POST(req) {
-  const { shades, product_category } = await req.json();
+  const { shades, product_category, usa: usaRaw = false } = await req.json();
+  const usa = usaRaw === true || usaRaw === "1" || usaRaw === "usa"; // USA -> find_products_usa/
 
   if (!product_category || !Array.isArray(shades)) {
     return Response.json(
@@ -168,7 +169,7 @@ export async function POST(req) {
 
   const bucket = "truehue-full-data";
   // ALIGN with builder path & filename
-  const key = `find_products/product_database/${product_category}/categorised_LMD.json`;
+  const key = `${usa ? "find_products_usa" : "find_products"}/product_database/${product_category}/categorised_LMD.json`;
 
   const s3 = new S3Client({
     region: process.env.X_AWS_REGION,

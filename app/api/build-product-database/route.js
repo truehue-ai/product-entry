@@ -1,17 +1,25 @@
 // app/api/build-product-database/route.js
 export const runtime = "nodejs";
+export const maxDuration = 300;
 
 import {
   S3Client,
   ListObjectsV2Command,
   GetObjectCommand,
+  PutObjectCommand,
+  CopyObjectCommand,
 } from "@aws-sdk/client-s3";
 import { awsCredentialsProvider } from "@vercel/oidc-aws-credentials-provider";
+import { getSessionUser } from "../../lib/auth";
+import { rejectUnlessActionPassword } from "../shade-capture/actionAuth";
 
 const REGION = process.env.X_AWS_REGION;
 
-const DATA_BUCKET = "truehue-full-data";     // read-only reference bucket (existing CategorisedLMD.json)
+const DATA_BUCKET = "truehue-full-data";     // where categorised_LMD.json lives; each build saves here (after backing up the old file)
 const WORK_BUCKET = process.env.X_AWS_BUCKET_NAME;
+// India (default) reads brands/ and targets find_products/; USA ({ usa: true }) reads brands_usa/ and targets find_products_usa/
+const brandsRoot = (usa) => (usa ? "brands_usa" : "brands");
+const dbKey = (usa, category) => `${usa ? "find_products_usa" : "find_products"}/product_database/${category}/categorised_LMD.json`;
 
 const s3 = new S3Client({
   region: REGION,
@@ -29,8 +37,8 @@ async function getJSON(Bucket, Key) {
   }
 }
 
-async function listAllBrandProducts() {
-  const prefix = "brands/";
+async function listAllBrandProducts(usa = false) {
+  const prefix = `${brandsRoot(usa)}/`;
   let ContinuationToken;
   const items = new Map();
 
@@ -45,7 +53,7 @@ async function listAllBrandProducts() {
     for (const obj of resp.Contents || []) {
       const k = obj.Key || "";
       const m = k.match(
-        /^brands\/([^/]+)\/product_shade_values\/([^/]+)\/(shades\.json|links\.json|price\.json|types?\.json)$/
+        new RegExp(`^${brandsRoot(usa)}/([^/]+)/product_shade_values/([^/]+)/(shades\\.json|links\\.json|price\\.json|types?\\.json)$`)
       );
       if (m) {
         const [, brand, product] = m;
@@ -100,9 +108,9 @@ function isBaseCategory(cat) {
   return lower === "foundation" || lower === "concealer" || lower === "skin-tint";
 }
 
-async function hasEditedFinalShades(brand, product) {
+async function hasEditedFinalShades(brand, product, usa = false) {
   // Folder-style prefix check: brands/<brand>/edited_final_shades/<product>/**
-  const folderPrefix = `brands/${brand}/edited_final_shades/${product}/`;
+  const folderPrefix = `${brandsRoot(usa)}/${brand}/edited_final_shades/${product}/`;
   const folderResp = await s3.send(
     new ListObjectsV2Command({
       Bucket: WORK_BUCKET,
@@ -113,7 +121,7 @@ async function hasEditedFinalShades(brand, product) {
   if ((folderResp.Contents || []).length > 0) return true;
 
   // File-style fallback: brands/<brand>/edited_final_shades/${product}.json
-  const filePrefix = `brands/${brand}/edited_final_shades/${product}.json`;
+  const filePrefix = `${brandsRoot(usa)}/${brand}/edited_final_shades/${product}.json`;
   const fileResp = await s3.send(
     new ListObjectsV2Command({
       Bucket: WORK_BUCKET,
@@ -155,24 +163,25 @@ function normalizeTone(v) {
   return String(v);
 }
 
-async function loadMergedShades(brand, product) {
-  const base = `brands/${brand}/product_shade_values/${product}`;
-  const shades = await getJSON(WORK_BUCKET, `${base}/shades.json`);
-  const meta   = await getJSON(WORK_BUCKET, `${base}/meta.json`);
-
-  const links =
-    (await getJSON(WORK_BUCKET, `${base}/links.json`)) ||
-    (await getJSON(WORK_BUCKET, `brands/${brand}/links/${product}/links.json`));
-
-  const price =
-    (await getJSON(WORK_BUCKET, `${base}/price.json`)) ||
-    (await getJSON(WORK_BUCKET, `brands/${brand}/price/${product}/price.json`));
-
-  const type =
-    (await getJSON(WORK_BUCKET, `${base}/types.json`)) ||
-    (await getJSON(WORK_BUCKET, `${base}/type.json`)) ||
-    (await getJSON(WORK_BUCKET, `brands/${brand}/type/${product}/types.json`)) ||
-    (await getJSON(WORK_BUCKET, `brands/${brand}/type/${product}/type.json`));
+async function loadMergedShades(brand, product, usa = false) {
+  const root = brandsRoot(usa);
+  const base = `${root}/${brand}/product_shade_values/${product}`;
+  // all candidate files read at once (same files and same fallback order as before)
+  const [shades, meta, links1, links2, price1, price2, type1, type2, type3, type4] = await Promise.all([
+    getJSON(WORK_BUCKET, `${base}/shades.json`),
+    getJSON(WORK_BUCKET, `${base}/meta.json`),
+    getJSON(WORK_BUCKET, `${base}/links.json`),
+    getJSON(WORK_BUCKET, `${root}/${brand}/links/${product}/links.json`),
+    getJSON(WORK_BUCKET, `${base}/price.json`),
+    getJSON(WORK_BUCKET, `${root}/${brand}/price/${product}/price.json`),
+    getJSON(WORK_BUCKET, `${base}/types.json`),
+    getJSON(WORK_BUCKET, `${base}/type.json`),
+    getJSON(WORK_BUCKET, `${root}/${brand}/type/${product}/types.json`),
+    getJSON(WORK_BUCKET, `${root}/${brand}/type/${product}/type.json`),
+  ]);
+  const links = links1 || links2;
+  const price = price1 || price2;
+  const type = type1 || type2 || type3 || type4;
 
   let combined = [];
   if (Array.isArray(shades)) {
@@ -602,8 +611,8 @@ function insertShadeIntoDict(shade, dict, requestedCategory) {
 }
 
 // ---------- Existing dict loader + product index ----------
-async function loadExistingCategoryDict(category) {
-  const key = `find_products/product_database/${category}/categorised_LMD.json`;
+async function loadExistingCategoryDict(category, usa = false) {
+  const key = dbKey(usa, category);
   return await getJSON(DATA_BUCKET, key); // may be null
 }
 
@@ -733,10 +742,19 @@ function deepMergeDicts(baseDict, addDict) {
   return out;
 }
 
-// ---------- POST: build + return (no upload) ----------
+// ---------- POST: build, save to S3 (old file backed up first) + return for download ----------
 export async function POST(req) {
+  let stage = "starting";
   try {
-    const { category, mode = "rebuild" } = await req.json();
+    const { category, mode = "rebuild", usa: usaRaw = false, password } = await req.json();
+    const denied = rejectUnlessActionPassword(password);
+    if (denied) return denied;
+    if ((await getSessionUser()) !== "dhruvi") {
+      return new Response(JSON.stringify({ success: false, error: "Only dhruvi can build the product database" }), {
+        status: 403, headers: { "Content-Type": "application/json" },
+      });
+    }
+    const usa = usaRaw === true || usaRaw === "1" || usaRaw === "usa";
     if (!category) {
       return new Response(JSON.stringify({ success: false, error: "Missing 'category'" }), {
         status: 400, headers: { "Content-Type": "application/json" },
@@ -746,24 +764,32 @@ export async function POST(req) {
     //        "rebuild"     = ignore existing dict, build from scratch
 
     // 1) load existing dict + index products inside it
-    const existingDict = await loadExistingCategoryDict(category);
+    stage = "reading the current database file";
+    const existingDict = await loadExistingCategoryDict(category, usa);
     const existingIndex = indexExistingProducts(existingDict);
 
     // 2) discover products and build dict (skipping products already present)
-    const all = await listAllBrandProducts();
+    stage = `listing ${brandsRoot(usa)}/`;
+    const all = await listAllBrandProducts(usa);
 
+    stage = "reading products";
+    // load products 25 at a time (in parallel); results are used in the same order as before
+    const loaded = [];
+    for (let i = 0; i < all.length; i += 25) {
+      const batch = await Promise.all(all.slice(i, i + 25).map(async ({ brand, product }) => {
+        const { rows, productType } = await loadMergedShades(brand, product, usa);
+        if (!rows?.length || productType !== category) return null; // (no edited_final_shades requirement any more)
+        return { brand, product, rows };
+      }));
+      loaded.push(...batch);
+    }
+
+    stage = "building the dictionary";
     const built = {};
     const considered = [];
-    for (const { brand, product } of all) {
-      const { rows, productType } = await loadMergedShades(brand, product);
-      if (!rows?.length) continue;
-      if (productType !== category) continue;
-
-      // Lip-only: must have edited_final_shades
-      if (isLipCategory(category) || isGlossCategory(category)) {
-        const ok = await hasEditedFinalShades(brand, product);
-        if (!ok) continue;
-      }
+    for (const item of loaded) {
+      if (!item) continue;
+      const { brand, product, rows } = item;
 
       // Skip if this product already exists in the current CategorisedLMD
       // Skip if this product already exists in the current CategorisedLMD (incremental mode only)
@@ -795,12 +821,51 @@ export async function POST(req) {
     // 4) enforce at least 6 items per L/M/D per price bucket
     const finalDict = ensureMinPerBucket(merged, 6);
 
+    // 5) save to S3: copy the current file to backups/ first (a new file, nothing deleted), then overwrite it
+    const targetKey = dbKey(usa, category);
+    let backupKey = null;
+    let saved = false;
+    let saveError = null;
+    try {
+      // never overwrite the database with an empty build
+      if (!considered.length) throw new Error(mode === "incremental"
+        ? `No new ${category} products in ${brandsRoot(usa)}/ — nothing to add, the current file is unchanged`
+        : `No ${category} products found in ${brandsRoot(usa)}/ — nothing saved, the current file is unchanged`);
+      if (existingDict) {
+        stage = "backing up the current file";
+        const stamp = new Date().toISOString().replace(/[:.]/g, "-");
+        backupKey = targetKey.replace(/categorised_LMD\.json$/, `backups/categorised_LMD.${stamp}.json`);
+        await s3.send(new CopyObjectCommand({
+          Bucket: DATA_BUCKET,
+          CopySource: `${DATA_BUCKET}/${targetKey.split("/").map(encodeURIComponent).join("/")}`,
+          Key: backupKey,
+        }));
+      }
+      stage = "saving to S3";
+      await s3.send(new PutObjectCommand({
+        Bucket: DATA_BUCKET,
+        Key: targetKey,
+        Body: JSON.stringify(finalDict, null, 2),
+        ContentType: "application/json",
+      }));
+      saved = true;
+    } catch (e) {
+      // the build is still returned for download; the old file is untouched if the backup step failed
+      saveError = `Failed while ${stage}: ${e?.name || ""} ${e?.message || ""}`.trim();
+      console.error("[build-product-database]", saveError);
+      if (!existingDict || stage === "backing up the current file") backupKey = null;
+    }
+
     return new Response(
       JSON.stringify({
         success: true,
-        filename: `CategorisedLMD.${category}.json`,
-        target_key_if_uploaded: `find_products/product_database/${category}/categorised_LMD.json`,
-        bucket_hint: DATA_BUCKET,
+        filename: usa ? `CategorisedLMD.usa.${category}.json` : `CategorisedLMD.${category}.json`,
+        market: usa ? "usa" : "india",
+        saved,
+        save_error: saveError,
+        bucket: DATA_BUCKET,
+        key: targetKey,
+        backup_key: backupKey,
         considered,
         summary: {
           products_considered: considered.length,
@@ -812,7 +877,9 @@ export async function POST(req) {
       { headers: { "Content-Type": "application/json" } }
     );
   } catch (e) {
-    return new Response(JSON.stringify({ success: false, error: e?.message || "Failed" }), {
+    const error = `Failed while ${stage}: ${e?.name || ""} ${e?.message || "Failed"}`.trim();
+    console.error("[build-product-database]", error, e);
+    return new Response(JSON.stringify({ success: false, error }), {
       status: 500, headers: { "Content-Type": "application/json" },
     });
   }

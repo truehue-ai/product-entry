@@ -128,6 +128,7 @@ export default function AdsPlatformMetricsPage() {
             {data?.exists && (
               <>
                 <StageCards stages={data.stages} />
+                <Focus stages={data.stages} />
                 <MetricsTable rows={data.rows} stages={data.stages} />
                 <Cohorts cohorts={data.cohorts} />
                 <ComeBack data={data.comeBack} startDate={data.startDate} />
@@ -213,15 +214,67 @@ function StageCards({ stages }) {
         <div key={s.key} style={{ ...GL.card, padding: "16px 18px", display: "flex", flexDirection: "column", gap: 8 }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 8 }}>
             <span style={{ fontSize: 16, fontWeight: 800, color: "#1a0a09" }}>{s.done ? "✓ " : ""}{s.label}</span>
-            <span style={{ fontSize: 14, fontWeight: 700, color: s.done ? MET_INK : "#4a3a3a" }}>{s.met} / {s.total} met</span>
+            <span style={{ fontSize: 13, fontWeight: 700, color: s.done ? MET_INK : "#7b6b6b" }}>{s.met} / {s.total} met</span>
+          </div>
+          <div style={{ display: "flex", alignItems: "baseline", gap: 6 }}>
+            <span style={{ fontSize: 30, fontWeight: 800, color: "#1a0a09" }}>{Math.round(s.score)}</span>
+            <span style={{ fontSize: 13, fontWeight: 600, color: "#7b6b6b" }}>/ 100 weighted score</span>
           </div>
           <div style={{ height: 8, background: "rgba(0,0,0,0.06)", borderRadius: 999, overflow: "hidden" }}>
-            <div style={{ width: `${s.total ? (s.met / s.total) * 100 : 0}%`, height: "100%", background: s.done ? "#16a34a" : "#ab1f10", borderRadius: 999 }} />
+            <div style={{ width: `${Math.min(100, s.score)}%`, height: "100%", background: s.done ? "#16a34a" : "#ab1f10", borderRadius: 999 }} />
           </div>
           <div style={{ fontSize: 12, color: "#9b8b88" }}>{s.description}</div>
         </div>
       ))}
     </div>
+  );
+}
+
+// ── where to focus: points each metric still has to gain, per stage ──
+function Focus({ stages }) {
+  const firstOpen = stages.find((s) => !s.done) || stages[stages.length - 1];
+  const [key, setKey] = useState(firstOpen.key);
+  const stage = stages.find((s) => s.key === key) || firstOpen;
+  const maxLeft = Math.max(1, ...stage.focus.map((f) => f.max));
+  return (
+    <Section title="Where to focus"
+      sub="Each metric's share of the stage score (its weight). The bar is what it has earned; the biggest gaps are at the top — that's where work adds the most points.">
+      <div style={{ display: "flex", background: "rgba(171,31,16,0.07)", borderRadius: 10, padding: 3, gap: 3, alignSelf: "flex-start" }}>
+        {stages.map((s) => (
+          <button key={s.key} onClick={() => setKey(s.key)} style={{
+            border: "none", cursor: "pointer", borderRadius: 8, padding: "6px 12px", fontSize: 12, fontWeight: 600, whiteSpace: "nowrap",
+            background: key === s.key ? "#fff" : "transparent", color: key === s.key ? "#ab1f10" : "#9b4a42",
+            boxShadow: key === s.key ? "0 2px 8px rgba(171,31,16,0.15)" : "none",
+          }}>{s.label} · {Math.round(s.score)}</button>
+        ))}
+      </div>
+      <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+        {stage.focus.map((f) => (
+          <div key={f.key} style={{ display: "grid", gridTemplateColumns: "minmax(110px, 230px) minmax(50px, 1fr) auto", gap: 10, alignItems: "center" }}>
+            <div style={{ fontSize: 13, fontWeight: 600, color: "#1a0a09" }}>
+              {f.label}{" "}
+              <span style={{ fontSize: 11, fontWeight: 700, color: "#7b241c", background: "rgba(171,31,16,0.08)", borderRadius: 999, padding: "2px 7px", whiteSpace: "nowrap" }}>
+                weight {f.weight}{Math.abs(f.max - f.weight) >= 0.05 ? ` · ${f.max.toFixed(1)} pts` : ""}
+              </span>
+              <div style={{ fontSize: 11.5, fontWeight: 500, color: "#9b8b88" }}>
+                {f.noData ? "No data yet — scores 0" : `${formatMetric(f.value, f.format)} of ${formatMetric(f.goal, f.format)} goal (${Math.round(f.progress * 100)}%)`}
+              </div>
+            </div>
+            <div title={`${f.points.toFixed(1)} of ${f.max.toFixed(1)} points`}
+              style={{ height: 14, width: `${(f.max / maxLeft) * 100}%`, background: "rgba(0,0,0,0.06)", borderRadius: 4, overflow: "hidden" }}>
+              <div style={{ width: `${f.max ? (f.points / f.max) * 100 : 0}%`, height: "100%", background: f.left < 0.05 ? "#16a34a" : C_MAU, borderRadius: 4 }} />
+            </div>
+            <div style={{ fontSize: 12.5, color: "#1a0a09", whiteSpace: "nowrap", textAlign: "right" }}>
+              {f.left < 0.05 ? <span style={{ color: MET_INK, fontWeight: 700 }}>✓ done</span>
+                : <><b>+{f.left.toFixed(1)}</b> <span style={{ color: "#9b8b88" }}>pts to gain</span></>}
+            </div>
+          </div>
+        ))}
+      </div>
+      <div style={{ fontSize: 12, color: "#9b8b88" }}>
+        Score = sum of weight × min(1, current ÷ goal), scaled to 100. Weights live in app/lib/adsPlatformGoals.js.
+      </div>
+    </Section>
   );
 }
 
@@ -233,7 +286,7 @@ function MetricsTable({ rows, stages }) {
         <table className="ap">
           <thead>
             <tr>
-              <th>Metric</th><th>Current</th>
+              <th>Metric</th><th>Weight</th><th>Current</th>
               {stages.map((s) => <th key={s.key}>{s.label}</th>)}
             </tr>
           </thead>
@@ -243,13 +296,14 @@ function MetricsTable({ rows, stages }) {
               if (!groupRows.length) return null;
               return [
                 <tr key={`g-${g}`}>
-                  <td colSpan={2 + stages.length} style={{ ...GL.h, fontSize: 11.5, padding: "14px 10px 4px" }}>{g}</td>
+                  <td colSpan={3 + stages.length} style={{ ...GL.h, fontSize: 11.5, padding: "14px 10px 4px" }}>{g}</td>
                 </tr>,
                 ...groupRows.map((r) => (
                   <tr key={r.key}>
                     <td style={{ minWidth: 200, fontWeight: 600, color: "#1a0a09" }}>
                       <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>{r.label} <Info text={r.definition} /></span>
                     </td>
+                    <td style={{ fontWeight: 700, color: r.weight ? "#1a0a09" : "#b8a8a5", textAlign: "center" }}>{r.weight ?? "—"}</td>
                     <td style={{ minWidth: 150, background: "rgba(255,255,255,0.7)" }}>
                       {r.value != null ? (
                         <>
