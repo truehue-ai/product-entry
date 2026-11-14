@@ -1,11 +1,16 @@
 export const runtime = "nodejs";
 
+import { isDhruvi } from "../../lib/auth";
+
 /**
  * POST /api/send-notification
  * Proxies to the Python backend's /send_push_notification endpoint.
  * Body: { number, title, body, data? }
  */
 export async function POST(req) {
+  if (!(await isDhruvi())) {
+    return new Response(JSON.stringify({ error: "Only dhruvi can send notifications" }), { status: 403, headers: { "Content-Type": "application/json" } });
+  }
   try {
     const payload = await req.json();
 

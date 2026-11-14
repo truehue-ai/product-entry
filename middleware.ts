@@ -5,7 +5,7 @@ import { SESSION_COOKIE, verifySession, META_ADS_ONLY, META_ADS_ONLY_PATHS, ANAL
 
 // API routes that need a signed-in session. Other API routes keep working without one (as before) — some may be
 // called from outside the dashboard — but signed-in Meta-Ads-only users are still kept out of them.
-const PROTECTED_API = ['/api/audit', '/api/meta-ads', '/api/marketing', '/api/analytics/ads-platform'];
+const PROTECTED_API = ['/api/audit', '/api/meta-ads', '/api/marketing', '/api/analytics/ads-platform', '/api/calendar', '/api/magazine', '/api/notifications', '/api/send-notification'];
 const under = (p: string, base: string) => p === base || p.startsWith(`${base}/`);
 
 export async function middleware(req: NextRequest) {

@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useMemo, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import {
   LineChart, Line, BarChart, Bar, Cell, XAxis, YAxis, Tooltip, CartesianGrid, ResponsiveContainer, ReferenceArea, ReferenceLine,
 } from "recharts";
@@ -10,6 +10,7 @@ import {
   withMetrics, pctChange, notReported, listReports, NA, NA_TEXT, RoasValue, entityRows, sliceBreakdowns, sliceHourly, NotForCustom,
   PageShell, RangeBar, Section, Segmented, TipBox, TipRow, LegendDot, Legend, Empty,
 } from "./shared";
+import TodayActions from "./TodayActions";
 
 // Meta Ads performance — only data from the Meta API (purchases and revenue are what Meta reports: pixel purchase
 // count and purchase value). Each date range is cached in S3 separately; the page never calls Meta on load,
@@ -54,9 +55,10 @@ function MetaAds() {
   const money = useMoney(snap?.account?.currency);
   const [level, setLevel] = useState("campaign");
   const [sort, setSort] = useState({ key: "spend", dir: -1 });
+  const actual = useActualRevenue(allowed);
 
   // every range is cut from the one cached snapshot — switching tabs never calls Meta
-  const view = useMemo(() => (snap && !rp.range.error ? buildView(snap, rp.range, money) : null), [snap, rp.range, money]);
+  const view = useMemo(() => (snap && !rp.range.error ? buildView(snap, rp.range, money, actual.days) : null), [snap, rp.range, money, actual.days]);
 
   const COLUMNS = [
     { key: "name", label: level === "ad" ? "Ad" : "Campaign", text: true },
@@ -94,13 +96,16 @@ function MetaAds() {
       <RangeBar rp={rp} data={data} />
       {error && <div style={{ ...GL.card, padding: 16, fontSize: 13, color: "#c0392b" }}>{error}</div>}
 
+      {/* Today's actions: independent of the selected range (last 3 complete days + November targets) */}
+      {snap && <TodayActions snap={snap} money={money} actualDays={actual.days} user={user} />}
+
       {view && (
         <>
           {/* Summary */}
           <div className="ma-grid-4">
             <Kpi label="Spend" value={money(s.cur.spend)} cur={s.cur.spend} prev={s.prev.spend} neutral />
-            <Kpi label="Revenue" na={s.cur.revenue == null} value={money(s.cur.revenue)} cur={s.cur.revenue} prev={s.prev.revenue} />
-            <Kpi label="ROAS" na={s.cur.revenue == null} value={fmtRoas(s.cur.roas)} cur={s.cur.roas} prev={s.prev.roas}
+            <Kpi label="Revenue · Meta" na={s.cur.revenue == null} value={money(s.cur.revenue)} cur={s.cur.revenue} prev={s.prev.revenue} />
+            <Kpi label="ROAS · Meta" na={s.cur.revenue == null} value={fmtRoas(s.cur.roas)} cur={s.cur.roas} prev={s.prev.roas}
               extra={s.cur.roas == null ? null : (
                 <span style={{ color: s.cur.roas >= RULES.roasTarget ? GOOD : BAD, fontWeight: 700 }}>
                   {s.cur.roas >= RULES.roasTarget ? "✓ at/above" : "✕ below"} target {RULES.roasTarget}
@@ -121,11 +126,15 @@ function MetaAds() {
             </div>
           )}
 
+          {/* Actual revenue (Razorpay + App), entered by hand */}
+          <ActualRevenue view={view} actual={actual} money={money} />
+
           {/* Daily trend */}
           <Section title="Daily trend" sub="Spend vs revenue, and ROAS per day. Hover a day for details.">
             <Legend>
               <LegendDot color={C1} label="Spend" />
-              <LegendDot color={C2} label="Revenue" />
+              <LegendDot color={C2} label="Revenue (Meta)" />
+              {view.actual.days > 0 && <LegendDot color={C_ACT} label="Actual revenue (Razorpay + App)" />}
               {view.settlingFrom && <LegendDot color="rgba(0,0,0,0.07)" label="Still settling" bar />}
             </Legend>
             <ResponsiveContainer width="100%" height={240}>
@@ -137,9 +146,12 @@ function MetaAds() {
                 <Tooltip content={<DayTooltip money={money} />} cursor={{ stroke: "rgba(0,0,0,0.15)", strokeWidth: 1 }} />
                 <Line type="monotone" dataKey="spend" stroke={C1} strokeWidth={2} dot={false} activeDot={{ r: 5, stroke: "#fff", strokeWidth: 2 }} />
                 <Line type="monotone" dataKey="revenue" stroke={C2} strokeWidth={2} dot={false} activeDot={{ r: 5, stroke: "#fff", strokeWidth: 2 }} />
+                {view.actual.days > 0 && <Line type="monotone" dataKey="actual" stroke={C_ACT} strokeWidth={2} strokeDasharray="6 3" dot={{ r: 2.5, fill: C_ACT }} activeDot={{ r: 5, stroke: "#fff", strokeWidth: 2 }} />}
               </LineChart>
             </ResponsiveContainer>
-            <div style={{ fontSize: 12, fontWeight: 700, color: "#7b6b6b", padding: "4px 4px 0" }}>ROAS · dashed line = target {RULES.roasTarget}</div>
+            <div style={{ fontSize: 12, fontWeight: 700, color: "#7b6b6b", padding: "4px 4px 0" }}>
+              ROAS (Meta){view.actual.days > 0 && <span style={{ color: C_ACT }}> · true ROAS (Razorpay + App) on days you entered</span>} · dashed line = target {RULES.roasTarget}
+            </div>
             <ResponsiveContainer width="100%" height={150}>
               <LineChart data={view.series} syncId="ma-day" margin={{ top: 8, right: 12, left: 0, bottom: 0 }}>
                 <CartesianGrid stroke="rgba(0,0,0,0.05)" vertical={false} />
@@ -149,6 +161,7 @@ function MetaAds() {
                 <ReferenceLine y={RULES.roasTarget} stroke={GOOD} strokeDasharray="5 4" />
                 <Tooltip content={<DayTooltip money={money} />} cursor={{ stroke: "rgba(0,0,0,0.15)", strokeWidth: 1 }} />
                 <Line type="monotone" dataKey="roas" stroke={C_INK} strokeWidth={2} connectNulls dot={view.series.length <= 31 ? { r: 2.5, fill: C_INK } : false} activeDot={{ r: 5, stroke: "#fff", strokeWidth: 2 }} />
+                {view.actual.days > 0 && <Line type="monotone" dataKey="trueRoas" stroke={C_ACT} strokeWidth={2} strokeDasharray="6 3" dot={{ r: 2.5, fill: C_ACT }} activeDot={{ r: 5, stroke: "#fff", strokeWidth: 2 }} />}
               </LineChart>
             </ResponsiveContainer>
           </Section>
@@ -221,10 +234,12 @@ function MetaAds() {
   );
 }
 
+const C_ACT = "#7c3aed"; // actual revenue (Razorpay + App) and true ROAS
+
 const roasProps = { target: RULES.roasTarget, lowRoas: RULES.notWorking.maxRoas, lowDataSpend: RULES.lowDataSpend };
 
-// ── all numbers for the page, from one snapshot ──
-function buildView(snap, range, money) {
+// ── all numbers for the page, from one snapshot (+ the hand-entered actual revenue, by day) ──
+function buildView(snap, range, money, actualDays) {
   const { since, until, prevSince, prevUntil } = range;
   const isCur = (d) => d >= since && d <= until;
   const isPrev = (d) => d >= prevSince && d <= prevUntil;
@@ -249,11 +264,31 @@ function buildView(snap, range, money) {
   const summary = { cur: withMetrics(cur), prev: withMetrics(prev) };
 
   const n = daysBetween(since, until);
+  // Actual revenue (Razorpay + App, full amounts for the day) vs what Meta attributed — only over the days entered,
+  // so spend and Meta revenue are compared like for like. Account level only: it can't be split by ad / campaign.
+  const actualRows = [];
+  const act = { days: 0, rangeDays: n, razorpay: 0, app: 0, total: 0, spend: 0, meta: cur.revenue == null ? null : 0 };
   const series = Array.from({ length: n }, (_, i) => {
     const date = addDays(since, i);
     const d = withMetrics(zeroIfReported(byDay[date] || empty(), cur));
-    return { date, spend: Math.round(d.spend), revenue: round(d.revenue), purchases: d.purchases, roas: d.roas, settling: !!settlingFrom && date >= settlingFrom };
+    const e = actualDays?.[date];
+    const total = e ? (e.razorpay || 0) + (e.app || 0) : null;
+    if (e) {
+      act.days++; act.razorpay += e.razorpay || 0; act.app += e.app || 0; act.total += total; act.spend += d.spend;
+      if (act.meta != null) act.meta += d.revenue || 0;
+      actualRows.push({
+        date, razorpay: e.razorpay || 0, app: e.app || 0, total, spend: d.spend, meta: d.revenue, by: e.by,
+        unattributed: d.revenue == null ? null : total - d.revenue, trueRoas: ratio(total, d.spend), metaRoas: d.roas,
+      });
+    }
+    return { date, spend: Math.round(d.spend), revenue: round(d.revenue), purchases: d.purchases, roas: d.roas, settling: !!settlingFrom && date >= settlingFrom,
+      actual: total == null ? null : round(total), trueRoas: total == null ? null : ratio(total, d.spend), razorpay: e?.razorpay ?? null, app: e?.app ?? null };
   });
+  const actual = {
+    ...act, rows: actualRows.reverse(),
+    unattributed: act.meta == null ? null : act.total - act.meta,
+    trueRoas: ratio(act.total, act.spend), metaRoas: ratio(act.meta, act.spend),
+  };
 
   // tables
   const ctrOf = (x) => (x && x.i > 0 ? (x.c / x.i) * 100 : null);
@@ -347,7 +382,7 @@ function buildView(snap, range, money) {
     breakdowns[name] = list.map(withMetrics).filter((x) => x.spend > 0).sort((a, b) => b.spend - a.spend);
   }
 
-  return { since, until, settlingFrom, summary, series, table, working, notWorking, fatigue, weeks, hours, weekdays, breakdowns };
+  return { since, until, settlingFrom, summary, series, actual, table, working, notWorking, fatigue, weeks, hours, weekdays, breakdowns };
 }
 
 // ── pieces ──
@@ -713,7 +748,171 @@ function DayTooltip({ active, payload, label, money }) {
       <TipRow color={C1} label="Spend" value={money(r.spend)} />
       <TipRow color={C2} label="Revenue" value={r.revenue == null ? NA_TEXT : money(r.revenue)} />
       <TipRow color={C_INK} label="ROAS" value={r.revenue == null ? NA_TEXT : fmtRoas(r.roas)} />
+      {r.actual != null && (
+        <>
+          <TipRow color={C_ACT} label="Actual revenue" value={money(r.actual)} />
+          <TipRow label="· Razorpay / App" value={`${money(r.razorpay)} / ${money(r.app)}`} />
+          <TipRow color={C_ACT} label="True ROAS" value={fmtRoas(r.trueRoas)} />
+        </>
+      )}
       <div style={{ color: "#7b6b6b", fontSize: 12, marginTop: 4 }}>{r.purchases == null ? `Purchases ${NA_TEXT}` : `${r.purchases} purchase${r.purchases === 1 ? "" : "s"}`}</div>
     </TipBox>
+  );
+}
+
+// ── actual revenue (Razorpay + App), entered by hand per day and saved in S3 ──
+function useActualRevenue(enabled) {
+  const [days, setDays] = useState({});
+  const [loaded, setLoaded] = useState(false);
+  const [error, setError] = useState("");
+  useEffect(() => {
+    if (!enabled) return;
+    (async () => {
+      try {
+        const r = await fetch(`/api/meta-ads/revenue?t=${Date.now()}`, { cache: "no-store" });
+        const j = await r.json();
+        if (j.error) throw new Error(j.error);
+        setDays(j.days || {});
+      } catch (e) {
+        setError(e?.message || "Could not load saved revenue");
+      } finally {
+        setLoaded(true);
+      }
+    })();
+  }, [enabled]);
+  const call = useCallback(async (init, url = "/api/meta-ads/revenue") => {
+    const r = await fetch(url, init);
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok || j.error) throw new Error(j.error || "Request failed");
+    setDays(j.days || {});
+  }, []);
+  const save = useCallback((date, razorpay, app) => call({ method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ date, razorpay, app }) }), [call]);
+  const remove = useCallback((date) => call({ method: "DELETE" }, `/api/meta-ads/revenue?date=${encodeURIComponent(date)}`), [call]);
+  return { days, loaded, error, save, remove };
+}
+
+function ActualRevenue({ view, actual, money }) {
+  const today = istToday();
+  const [date, setDate] = useState(() => addDays(istToday(), -1));
+  const [rz, setRz] = useState("");
+  const [app, setApp] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState("");
+  const existing = actual.days[date];
+
+  // picking a date fills in what's already saved for it
+  useEffect(() => {
+    const e = actual.days[date];
+    setRz(e ? String(e.razorpay) : "");
+    setApp(e ? String(e.app) : "");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [date, actual.loaded]);
+
+  const valid = (v) => v === "" || (Number.isFinite(Number(v)) && Number(v) >= 0);
+  const canSave = date && date <= today && (rz !== "" || app !== "") && valid(rz) && valid(app) && !busy;
+  const run = async (fn, ok) => {
+    setBusy(true); setMsg("");
+    try { await fn(); setMsg(`✓ ${ok}`); } catch (e) { setMsg(e?.message || "Something went wrong"); } finally { setBusy(false); }
+  };
+  const onSave = () => run(() => actual.save(date, rz === "" ? 0 : Number(rz), app === "" ? 0 : Number(app)),
+    `Saved ${fmtDay(date)}${date < view.since || date > view.until ? " (outside the range you're viewing)" : ""}`);
+  const onDelete = (d) => { if (window.confirm(`Delete the revenue saved for ${fmtDay(d)}?`)) run(() => actual.remove(d), `Deleted ${fmtDay(d)}`); };
+  const edit = (d) => { setDate(d); setMsg(""); };
+
+  const a = view.actual;
+  const tone = (v) => (v == null ? "#1a0a09" : v >= RULES.roasTarget ? GOOD : v < RULES.notWorking.maxRoas ? BAD : "#1a0a09");
+  const typed = (rz === "" ? 0 : Number(rz) || 0) + (app === "" ? 0 : Number(app) || 0);
+  const lbl = { fontSize: 11, fontWeight: 700, color: "#7b6b6b", textTransform: "uppercase", letterSpacing: "0.04em" };
+
+  return (
+    <Section title="Actual revenue · Razorpay + App"
+      sub="Meta doesn't attribute every payment. Enter the full Razorpay and app revenue for a day. The page compares it with Meta's revenue and works out the true ROAS. This is an overall number: the extra revenue can't be traced to an ad, so ad and campaign ROAS stay Meta-only.">
+      {/* entry */}
+      <div style={{ display: "flex", gap: 10, alignItems: "flex-end", flexWrap: "wrap", background: "rgba(124,58,237,0.05)", borderRadius: 12, padding: "12px 14px" }}>
+        <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+          <span style={lbl}>Date</span>
+          <input type="date" value={date} max={today} onChange={(e) => { setDate(e.target.value); setMsg(""); }} style={GL.input} />
+        </label>
+        <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+          <span style={lbl}>Razorpay revenue (₹)</span>
+          <input type="number" inputMode="decimal" min="0" step="any" value={rz} placeholder="0" onChange={(e) => setRz(e.target.value)} style={{ ...GL.input, width: 160 }} />
+        </label>
+        <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+          <span style={lbl}>App revenue (₹)</span>
+          <input type="number" inputMode="decimal" min="0" step="any" value={app} placeholder="0" onChange={(e) => setApp(e.target.value)} style={{ ...GL.input, width: 160 }} />
+        </label>
+        <button className="th-btn-outline" style={{ ...GL.btnOutline, opacity: canSave ? 1 : 0.5 }} disabled={!canSave} onClick={onSave}>
+          {busy ? "Saving…" : existing ? "Update day" : "Save day"}
+        </button>
+        <div style={{ fontSize: 12.5, color: "#374151", paddingBottom: 8 }}>
+          Total <b>{money(typed)}</b>
+          {existing && <span style={{ color: "#9b8b88" }}> · already saved for this day{existing.by ? ` by ${existing.by}` : ""}, saving replaces it</span>}
+        </div>
+      </div>
+      {(msg || actual.error) && (
+        <div style={{ fontSize: 13, fontWeight: 600, color: msg.startsWith("✓") ? GOOD : "#c0392b" }}>{msg || actual.error}</div>
+      )}
+
+      {/* range summary */}
+      {a.days === 0 ? (
+        <Empty>No actual revenue entered for any day in this range yet.</Empty>
+      ) : (
+        <>
+          <div style={{ fontSize: 12.5, color: a.days < a.rangeDays ? WARN : "#374151", fontWeight: 600 }}>
+            Entered for {a.days} of {a.rangeDays} day{a.rangeDays === 1 ? "" : "s"} in this range
+            {a.days < a.rangeDays && ". The numbers below cover only those days (spend and Meta revenue included), so they compare like for like"}
+          </div>
+          <div className="ma-grid-4">
+            <Stat label="Actual revenue" value={money(a.total)} sub={`Razorpay ${money(a.razorpay)} · App ${money(a.app)}`} />
+            <Stat label="Meta-attributed" value={a.meta == null ? <NA /> : money(a.meta)}
+              sub={a.meta == null ? NA_TEXT : a.total > 0 ? `${fmtPct((a.meta / a.total) * 100, 0)} of actual revenue` : "same days"} />
+            <Stat label="Unattributed" value={a.unattributed == null ? <NA /> : money(a.unattributed)}
+              sub={a.unattributed == null ? NA_TEXT : a.unattributed < 0 ? "Meta reported more than the actual revenue" : "actual − Meta, not linked to any ad"} />
+            <Stat label="True ROAS" value={<span style={{ color: tone(a.trueRoas) }}>{fmtRoas(a.trueRoas)}</span>}
+              sub={<>Actual ÷ {money(a.spend)} spend · Meta ROAS {fmtRoas(a.metaRoas)} · target {RULES.roasTarget}</>}
+              bar={a.trueRoas == null ? null : <TargetBar value={a.trueRoas} target={RULES.roasTarget} />} />
+          </div>
+          <div className="m-scroll-x" style={{ overflow: "auto", maxHeight: 360, borderRadius: 12, border: "1px solid rgba(171,31,16,0.08)", background: "rgba(255,255,255,0.6)" }}>
+            <table className="ma">
+              <thead>
+                <tr><th className="l name">Day</th><th>Razorpay</th><th>App</th><th>Actual</th><th>Meta revenue</th><th>Unattributed</th><th>Spend</th><th>True ROAS</th><th>Meta ROAS</th><th></th></tr>
+              </thead>
+              <tbody>
+                {a.rows.map((r) => (
+                  <tr key={r.date}>
+                    <td className="l name"><div style={{ fontWeight: 600 }}>{fmtDay(r.date, { weekday: "short", day: "numeric", month: "short" })}</div>
+                      {r.by && <div style={{ fontSize: 11, color: "#9b8b88" }}>by {r.by}</div>}</td>
+                    <td>{money(r.razorpay)}</td>
+                    <td>{money(r.app)}</td>
+                    <td style={{ fontWeight: 700 }}>{money(r.total)}</td>
+                    <td>{r.meta == null ? <NA /> : money(r.meta)}</td>
+                    <td>{r.unattributed == null ? <NA /> : money(r.unattributed)}</td>
+                    <td>{money(r.spend)}</td>
+                    <td style={{ color: tone(r.trueRoas), fontWeight: 700 }}>{fmtRoas(r.trueRoas)}</td>
+                    <td>{fmtRoas(r.metaRoas)}</td>
+                    <td>
+                      <button onClick={() => edit(r.date)} style={linkBtn}>Edit</button>
+                      <button onClick={() => onDelete(r.date)} disabled={busy} style={{ ...linkBtn, color: "#9b8b88" }}>Delete</button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
+      )}
+    </Section>
+  );
+}
+const linkBtn = { background: "none", border: "none", padding: "0 4px", cursor: "pointer", fontSize: 12, fontWeight: 600, color: "#ab1f10" };
+
+function Stat({ label, value, sub, bar }) {
+  return (
+    <div style={{ background: "rgba(255,255,255,0.55)", borderRadius: 14, padding: "12px 14px", minWidth: 0 }}>
+      <div style={{ fontSize: 11, fontWeight: 700, color: "#7b6b6b", textTransform: "uppercase", letterSpacing: "0.05em" }}>{label}</div>
+      <div className="kpi-value" style={{ fontSize: 24, fontWeight: 800, color: "#1a0a09", margin: "4px 0 2px", overflowWrap: "anywhere" }}>{value}</div>
+      <div style={{ fontSize: 12, color: "#7b6b6b" }}>{sub}</div>
+      {bar}
+    </div>
   );
 }

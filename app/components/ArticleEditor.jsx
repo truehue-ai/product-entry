@@ -516,6 +516,12 @@ export default function ArticleEditorPage() {
     const searchParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
     const [activeTab, setActiveTab] = useState(searchParams?.get('tab') === 'preview' ? 'preview' : 'build');// 'build' | 'preview'
   const [tagInput, setTagInput]   = useState('');
+  const [showImport, setShowImport] = useState(false);
+  const [importText, setImportText] = useState('');
+  const [importError, setImportError] = useState('');
+  const [checking, setChecking]     = useState(false);
+  const [checkResult, setCheckResult] = useState(null);
+  const [copied, setCopied]         = useState(false);
 
   // Load existing article
   useEffect(() => {
@@ -585,7 +591,7 @@ export default function ArticleEditorPage() {
   }
 
   async function uploadFeaturedImage(file) {
-    const ext   = file.name.split('.').pop();
+    const ext   = file.name.split('.').pop().toLowerCase();
     const version = template.featured_image ? `_v${Date.now()}` : '';
     const s3Key = `magazine/${template.id}/image${version}.${ext}`;
     const formData = new FormData();
@@ -602,7 +608,7 @@ export default function ArticleEditorPage() {
 }
 
 async function uploadOverlayImage(file) {
-    const ext = file.name.split('.').pop();
+    const ext = file.name.split('.').pop().toLowerCase();
     const s3Key = `magazine/${template.id}/overlay.${ext}`;
     const formData = new FormData();
     formData.append('file', file);
@@ -614,6 +620,46 @@ async function uploadOverlayImage(file) {
     if (!res.ok) throw new Error(await res.text());
     const { url } = await res.json();
     setTemplate(prev => ({ ...prev, cover_overlay_url: url }));
+  }
+
+  // Paste a whole article template (e.g. one written in a Claude session) — fills every field and section.
+  // On an existing article the ID stays the same.
+  function applyImport() {
+    try {
+      const data = JSON.parse(importText);
+      if (!data || typeof data !== 'object' || Array.isArray(data)) throw new Error('Paste one article object { … }');
+      if (!Array.isArray(data.sections)) throw new Error('The article needs a "sections" list');
+      const id = isNew ? (data.id || slugify(data.title || '')) : articleId;
+      setTemplate({ ...BLANK_TEMPLATE, ...data, id, tags: Array.isArray(data.tags) ? data.tags : [] });
+      setShowImport(false); setImportText(''); setImportError(''); setCheckResult(null);
+    } catch (e) {
+      setImportError(e.message || 'Not valid JSON');
+    }
+  }
+
+  async function copyJson() {
+    try {
+      await navigator.clipboard.writeText(JSON.stringify({ ...template, slots: buildSlots(template.sections) }, null, 2));
+      setCopied(true); setTimeout(() => setCopied(false), 2000);
+    } catch { setError('Could not copy'); }
+  }
+
+  // What each product slot will pull from the product database (no try-ons, read-only)
+  async function checkProducts() {
+    setChecking(true); setCheckResult(null);
+    try {
+      const res = await fetch('/api/magazine/check', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sections: template.sections }),
+      });
+      const data = await res.json();
+      if (!res.ok || data.error) throw new Error(data.error || 'Check failed');
+      setCheckResult(data.slots);
+    } catch (e) {
+      setCheckResult({ error: e.message });
+    } finally {
+      setChecking(false);
+    }
   }
 
   async function saveArticle() {
@@ -686,6 +732,8 @@ async function uploadOverlayImage(file) {
         <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
           {saved && <span style={{ fontSize: 13, color: '#1a7a4a', fontWeight: 600 }}>✓ Saved</span>}
           {error  && <span style={{ fontSize: 13, color: '#c02020', maxWidth: 280 }}>{error}</span>}
+          <button onClick={() => { setShowImport(true); setImportError(''); }} style={ghostBtn}>⤓ Import JSON</button>
+          <button onClick={copyJson} style={ghostBtn}>{copied ? '✓ Copied' : '⧉ Copy JSON'}</button>
           <button
             onClick={saveArticle}
             disabled={saving}
@@ -986,6 +1034,15 @@ async function uploadOverlayImage(file) {
                 </div>
               </div>
 
+              {template.sections.some(s => s.type === 'product_card') && (
+                <div style={{ marginBottom: 14, display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  <button onClick={checkProducts} disabled={checking} style={{ ...ghostBtn, alignSelf: 'flex-start', opacity: checking ? 0.6 : 1 }}>
+                    {checking ? 'Checking products…' : '🔎 Check products'}
+                  </button>
+                  {checkResult && <CheckPanel result={checkResult} />}
+                </div>
+              )}
+
               {template.sections.length === 0 && (
                 <div style={{
                   textAlign: 'center', padding: '48px 24px',
@@ -1032,6 +1089,84 @@ async function uploadOverlayImage(file) {
           </div>
         )}
       </div>
+
+      {showImport && (
+        <div onClick={() => setShowImport(false)} style={{
+          position: 'fixed', inset: 0, background: 'rgba(26,10,9,0.35)', zIndex: 100,
+          display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16,
+        }}>
+          <div onClick={e => e.stopPropagation()} style={{
+            background: '#fff8f7', borderRadius: 16, padding: 20, width: 'min(760px, 100%)',
+            display: 'flex', flexDirection: 'column', gap: 12, boxShadow: '0 24px 64px rgba(0,0,0,0.2)',
+          }}>
+            <div style={{ fontSize: 15, fontWeight: 700, color: '#1a0a09' }}>Import article JSON</div>
+            <div style={{ fontSize: 12.5, color: '#9b4a42' }}>
+              Paste the whole article. It replaces everything in the editor (nothing is saved until you click {isNew ? 'Publish' : 'Save'}).
+              {!isNew && ' The article ID stays the same.'}
+            </div>
+            <textarea value={importText} onChange={e => setImportText(e.target.value)} rows={16} placeholder='{ "title": "…", "sections": [ … ] }'
+              style={{ ...inputStyle, fontFamily: 'monospace', fontSize: 12.5 }} />
+            {importError && <div style={{ color: '#c02020', fontSize: 13 }}>{importError}</div>}
+            <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+              <button onClick={() => setShowImport(false)} style={ghostBtn}>Cancel</button>
+              <button onClick={applyImport} disabled={!importText.trim()} style={{
+                background: '#ab1f10', color: 'white', border: 'none', borderRadius: 10, padding: '9px 20px',
+                fontSize: 14, fontWeight: 600, cursor: 'pointer', opacity: importText.trim() ? 1 : 0.5,
+              }}>Import</button>
+            </div>
+          </div>
+        </div>
+      )}
     </main>
   );
 }
+
+// Results of "Check products": per slot, what the product database returns for each depth (and undertone)
+function CheckPanel({ result }) {
+  if (result.error) return <div style={{ color: '#c02020', fontSize: 13 }}>{result.error}</div>;
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+      {result.map((r) => (
+        <div key={r.slot} style={{
+          background: 'rgba(255,255,255,0.7)', borderRadius: 12, padding: '12px 14px',
+          border: `1.5px solid ${r.ok ? 'rgba(26,122,74,0.35)' : 'rgba(192,32,32,0.35)'}`,
+        }}>
+          <div style={{ fontSize: 13, fontWeight: 700, color: r.ok ? '#1a7a4a' : '#c02020' }}>
+            {r.ok ? '✓' : '✕'} {r.heading} <span style={{ color: '#9b4a42', fontWeight: 500, fontFamily: 'monospace', fontSize: 11 }}>{r.slot}</span>
+          </div>
+          {r.error && <div style={{ fontSize: 12.5, color: '#c02020', marginTop: 4 }}>{r.error}</div>}
+          {r.suggestions?.length > 0 && (
+            <div style={{ fontSize: 12, color: '#374151', marginTop: 4 }}>
+              Did you mean: {r.suggestions.map((x) => <code key={x} style={{ background: 'rgba(0,0,0,0.05)', padding: '1px 5px', borderRadius: 4, marginRight: 4 }}>{x}</code>)}
+            </div>
+          )}
+          {r.note && <div style={{ fontSize: 12.5, color: '#374151', marginTop: 4 }}>{r.note}</div>}
+          {r.warning && <div style={{ fontSize: 12.5, color: '#b45309', marginTop: 4 }}>{r.warning}</div>}
+          {r.results && (
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 8, marginTop: 8 }}>
+              {r.results.map((g) => (
+                <div key={`${g.undertone || ''}${g.depth}`} style={{ background: 'rgba(171,31,16,0.04)', borderRadius: 8, padding: '8px 10px' }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: '#9b4a42', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                    {g.undertone ? `${g.undertone} · ` : ''}{g.depth === 'L' ? 'Light' : g.depth === 'M' ? 'Medium' : 'Deep'} · {g.total} available
+                  </div>
+                  {g.products.length === 0 ? <div style={{ fontSize: 12, color: '#c02020' }}>Nothing: slot will be empty</div> : g.products.map((x, i) => (
+                    <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#1a0a09', marginTop: 3 }}>
+                      <span style={{ width: 10, height: 10, borderRadius: '50%', background: x.hex, border: '1px solid rgba(0,0,0,0.1)', flexShrink: 0 }} />
+                      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{x.brand} · {x.shade}</span>
+                      <span style={{ marginLeft: 'auto', color: '#ab1f10', fontWeight: 600 }}>₹{Math.round(x.price)}</span>
+                    </div>
+                  ))}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+const ghostBtn = {
+  background: 'rgba(255,255,255,0.7)', color: '#ab1f10', border: '1.5px solid rgba(171,31,16,0.3)',
+  borderRadius: 10, padding: '8px 14px', fontSize: 13, fontWeight: 600, cursor: 'pointer',
+};

@@ -153,6 +153,21 @@ const TABS = [
   { id: 'account',    label: 'Account',    icon: '⚙️' },
 ];
 
+// Ready-made pushes (fill the form with one click). Campaign id = what opens are counted under.
+const PRESETS = [
+  {
+    label: '💄 Shaadi Season Lip Edit',
+    tab: 'learn',
+    campaignId: 'shaadi-season-lip-edit-2026',
+    articleId: 'shaadi-season-lip-edit-2026',
+    title: 'Your shaadi season lip edit is here 💄',
+    body: '$name$, 5 functions, 1 lipstick that survives them all. See the wedding shades picked for YOUR skin tone →',
+  },
+];
+
+const slug = (t) => t.toLowerCase().replace(/\$name\$/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 60);
+const todayIST = () => new Date(Date.now() + 5.5 * 3600 * 1000).toISOString().slice(0, 10);
+
 const FILTER_GROUPS = ['Model Fine-Tune', 'Coins', 'Purchases', 'Feature Usage', 'Logins'];
 
 function StatusPill({ status }) {
@@ -214,9 +229,11 @@ export default function NotificationsPage() {
     setUser(u);
   }, [router]);
 
-  // All token users
+  // Recipients (users with a push token) — from the saved list in S3, see /api/notifications/recipients
   const [tokenUsers, setTokenUsers]   = useState([]);
   const [loadingUsers, setLoadingUsers] = useState(false);
+  const [listInfo, setListInfo]       = useState(null); // { exists, updatedAt, checkedCount }
+  const [listMsg, setListMsg]         = useState('');
 
   // Steps per user: Map<id, { stepSet, stepCounts }>
   const [stepsData, setStepsData]       = useState(null);
@@ -230,35 +247,83 @@ export default function NotificationsPage() {
   const [title, setTitle] = useState('');
   const [body, setBody]   = useState('');
   const [sending, setSending] = useState(false);
+  const [campaignId, setCampaignId] = useState(''); // empty = auto from date + title
+  const [articleId, setArticleId]   = useState('');
+
+  // Campaigns + open tracking (/api/notifications/campaigns)
+  const [campaigns, setCampaigns]   = useState(null);
+  const [opens, setOpens]           = useState({}); // id -> { loading, opened, sent, rate, error }
+  const [campaignErr, setCampaignErr] = useState('');
+  const loadCampaigns = async () => {
+    setCampaignErr('');
+    try {
+      const r = await fetch('/api/notifications/campaigns', { cache: 'no-store' });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(j.error || `HTTP ${r.status}`);
+      setCampaigns(j.campaigns || []);
+    } catch (e) { setCampaignErr(e.message); }
+  };
+  const countOpens = async (id) => {
+    setOpens(o => ({ ...o, [id]: { loading: true } }));
+    try {
+      const r = await fetch(`/api/notifications/campaigns?id=${encodeURIComponent(id)}`, { cache: 'no-store' });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(j.error || `HTTP ${r.status}`);
+      setOpens(o => ({ ...o, [id]: j }));
+    } catch (e) { setOpens(o => ({ ...o, [id]: { error: e.message } })); }
+  };
+  useEffect(() => { if (user) loadCampaigns(); }, [user]);
+  const effectiveCampaignId = (campaignId.trim() || `${todayIST()}-${slug(title) || 'push'}`).slice(0, 80);
+  const applyPreset = (p) => {
+    setTargetTab(p.tab); setTitle(p.title); setBody(p.body); setCampaignId(p.campaignId); setArticleId(p.articleId || '');
+  };
 
   // Results
   const [results, setResults]         = useState([]);
   const [showResults, setShowResults] = useState(false);
 
-  // ── Fetch token users ──────────────────────────────────────────────────
+  // ── Recipients: read the saved list (fast); "Add new users" / "Full rescan" update it ──
+  const applyList = (j) => {
+    setTokenUsers(j.recipients || []);
+    setListInfo({ exists: j.exists, updatedAt: j.updatedAt, checkedCount: j.checkedCount });
+  };
   useEffect(() => {
     if (!user) return;
     let active = true;
     (async () => {
       setLoadingUsers(true);
       try {
-        const [r1, r2] = await Promise.all([
-          fetch('/api/analytics/users', { cache: 'no-store' }),
-          fetch('/api/analytics/users?mode=full', { cache: 'no-store' }),
-        ]);
-        const j1 = await r1.json();
-        const j2 = await r2.json();
-        const tokenList = j1.usersWithPushTokens || [];
-        const nameMap = new Map((j2.users || []).map(u => [u.id, u.name || '']));
-        if (active) setTokenUsers(tokenList.map(u => ({ ...u, name: nameMap.get(u.id) || '' })));
-      } catch {
-        if (active) setTokenUsers([]);
+        const r = await fetch('/api/notifications/recipients', { cache: 'no-store' });
+        const j = await r.json();
+        if (!r.ok || j.error) throw new Error(j.error || `HTTP ${r.status}`);
+        if (active) applyList(j);
+      } catch (e) {
+        if (active) { setTokenUsers([]); setListMsg(`Couldn't load recipients: ${e.message}`); }
       } finally {
         if (active) setLoadingUsers(false);
       }
     })();
     return () => { active = false; };
   }, [user]);
+
+  const updateList = async (mode) => {
+    if (mode === 'full' && !window.confirm('Re-check every user for a push token? This reads every user and can take a few minutes.')) return;
+    setLoadingUsers(true); setListMsg('');
+    try {
+      const r = await fetch('/api/notifications/recipients', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ mode }),
+      });
+      const j = await r.json();
+      if (!r.ok || j.error) throw new Error(j.error || `HTTP ${r.status}`);
+      applyList(j);
+      setStepsData(null); // recipients changed: step data must be loaded again
+      setListMsg(`✓ Checked ${j.checkedNow} user${j.checkedNow === 1 ? '' : 's'} · ${j.added} added${j.removed ? ` · ${j.removed} removed` : ''}`);
+    } catch (e) {
+      setListMsg(`Update failed: ${e.message}`);
+    } finally {
+      setLoadingUsers(false);
+    }
+  };
 
   // ── Load steps (lazy) ──────────────────────────────────────────────────
   const loadStepsData = async () => {
@@ -328,27 +393,42 @@ export default function NotificationsPage() {
   const failedCount  = results.filter(r => r.status === 'failed').length;
   const pendingCount = results.filter(r => r.status === 'pending').length;
 
-  const runSend = async (targets) => {
+  // Sends in batches: 500 users per request to the dashboard, which sends to Expo 100 at a time.
+  // $name$ is filled in per user, so each person still gets their own text.
+  const SEND_CHUNK = 500;
+  const personal = (text, name) => text.trim().replace(/\$name\$/gi, name || 'there');
+  const runSend = async (targets, { test = false } = {}) => {
+    const cid = test ? `${effectiveCampaignId}-test`.slice(0, 80) : effectiveCampaignId;
+    if (!/^[a-z0-9][a-z0-9-]{0,79}$/.test(cid)) { alert('Campaign id: lowercase letters, numbers and dashes only.'); return; }
+    let logError = null;
     setSending(true);
     setShowResults(true);
-    setResults(targets.map(u => ({ id: u.id, status: 'pending', detail: '' })));
-    const out = [];
-    for (const u of targets) {
+    const status = new Map(targets.map(u => [u.id, { id: u.id, status: 'pending', detail: '' }]));
+    setResults([...status.values()]);
+    for (let i = 0; i < targets.length; i += SEND_CHUNK) {
+      const chunk = targets.slice(i, i + SEND_CHUNK);
       try {
-        const r = await fetch('/api/send-notification', {
+        const r = await fetch('/api/notifications/send', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ number: u.id, title: title.trim().replace(/\$name\$/gi, u.name || 'there'), body: body.trim().replace(/\$name\$/gi, u.name || 'there'), data: targetTab ? { tab: targetTab } : {} }),
+          body: JSON.stringify({
+            messages: chunk.map(u => ({ number: u.id, title: personal(title, u.name), body: personal(body, u.name) })),
+            data: targetTab ? { tab: targetTab } : {},
+            campaign: { id: cid, title: title.trim(), body: body.trim(), article_id: articleId.trim() || undefined },
+          }),
         });
-        const j = await r.json();
-        out.push({ id: u.id, status: (r.ok && j.ok) ? 'sent' : 'failed', detail: j.error || (r.ok ? '' : `HTTP ${r.status}`) });
+        const j = await r.json().catch(() => ({}));
+        if (!r.ok || !Array.isArray(j.results)) throw new Error(j.error || `HTTP ${r.status}`);
+        for (const x of j.results) status.set(x.id, x);
+        if (j.logError) logError = j.logError;
       } catch (e) {
-        out.push({ id: u.id, status: 'failed', detail: e?.message || 'Network error' });
+        for (const u of chunk) status.set(u.id, { id: u.id, status: 'failed', detail: e?.message || 'Network error' });
       }
-      setResults([...out, ...targets.slice(out.length).map(u2 => ({ id: u2.id, status: 'pending', detail: '' }))]);
+      setResults([...status.values()]);
     }
-    setResults(out);
     setSending(false);
+    if (logError) alert(`Sent, but the campaign log couldn't be saved, so opens can't be counted for it: ${logError}`);
+    loadCampaigns();
   };
 
   const sendToFiltered = async () => {
@@ -363,24 +443,8 @@ export default function NotificationsPage() {
   const sendTest = async () => {
     if (!title.trim()) { alert('Title is required.'); return; }
     if (!body.trim())  { alert('Message body is required.'); return; }
-    setSending(true);
-    setShowResults(true);
-    setResults([{ id: '7383231612', status: 'pending', detail: '' }]);
-    const testUser = tokenUsers.find(u => u.id === '7383231612');
-    const testName = testUser?.name || 'there';
-    try {
-      const r = await fetch('/api/send-notification', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ number: '7383231612', title: title.trim().replace(/\$name\$/gi, testName), body: body.trim().replace(/\$name\$/gi, testName), data: targetTab ? { tab: targetTab } : {} }),
-      });
-      const j = await r.json();
-      setResults([{ id: '7383231612', status: (r.ok && j.ok) ? 'sent' : 'failed', detail: j.error || '' }]);
-    } catch (e) {
-      setResults([{ id: '7383231612', status: 'failed', detail: e?.message || 'Network error' }]);
-    } finally {
-      setSending(false);
-    }
+    const testUser = tokenUsers.find(u => u.id === '7383231612') || { id: '7383231612', name: '' };
+    await runSend([testUser], { test: true });
   };
 
   if (!user) return null;
@@ -413,6 +477,29 @@ export default function NotificationsPage() {
       </div>
 
       <div style={{ padding: '28px', display: 'flex', flexDirection: 'column', gap: 24, maxWidth: 1000, margin: '0 auto' }}>
+
+        {/* ── Saved recipient list ── */}
+        <div style={{ ...GL.card, padding: '16px 22px', display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+          <div style={{ flex: '1 1 260px', fontSize: 13, color: '#7b241c' }}>
+            {loadingUsers ? 'Updating recipient list…'
+              : listInfo?.exists
+                ? <><b style={{ color: '#ab1f10' }}>{tokenUsers.length.toLocaleString()}</b> users with notifications on · saved list, {listInfo.checkedCount?.toLocaleString()} users checked · updated {listInfo.updatedAt ? new Date(listInfo.updatedAt).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : '—'}</>
+                : 'No saved recipient list yet. Click "Build list" once (checks every user, takes a few minutes).'}
+            {listMsg && <div style={{ fontSize: 12.5, fontWeight: 600, marginTop: 4, color: listMsg.startsWith('✓') ? '#15803d' : '#b91c1c' }}>{listMsg}</div>}
+          </div>
+          <button className="th-btn-outline" style={{ ...GL.btnOutline, padding: '8px 14px', fontSize: 13, opacity: loadingUsers ? 0.55 : 1 }}
+            disabled={loadingUsers} onClick={() => updateList('new')}
+            title="Checks only users who signed up since the last update">
+            {listInfo?.exists ? '↻ Add new users' : 'Build list'}
+          </button>
+          {listInfo?.exists && (
+            <button className="th-btn-ghost" style={{ background: 'none', border: 'none', fontSize: 12.5, color: '#9b4a42', cursor: 'pointer', textDecoration: 'underline', opacity: loadingUsers ? 0.55 : 1 }}
+              disabled={loadingUsers} onClick={() => updateList('full')}
+              title="Re-checks everyone, e.g. people who turned notifications on later">
+              Full rescan
+            </button>
+          )}
+        </div>
 
         {/* ── Audience Filters ── */}
         <div style={{ ...GL.card, padding: 28 }}>
@@ -489,6 +576,15 @@ export default function NotificationsPage() {
           <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
 
             <div>
+              <label style={GL.label}>Ready-made</label>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                {PRESETS.map(p => (
+                  <button key={p.campaignId} className="th-btn-outline" style={{ ...GL.btnOutline, padding: '8px 14px', fontSize: 13 }} onClick={() => applyPreset(p)}>{p.label}</button>
+                ))}
+              </div>
+            </div>
+
+            <div>
               <label style={GL.label}>Navigate to Tab</label>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
                 {TABS.map(tab => (
@@ -532,6 +628,19 @@ export default function NotificationsPage() {
               <label style={GL.label}>Message</label>
               <textarea className="th-input" style={{ ...GL.input, resize: 'vertical', minHeight: 100, lineHeight: 1.6 }} placeholder="e.g. Check out the latest lip shades from NARS — available now on TrueHue." value={body} onChange={e => setBody(e.target.value)} maxLength={256} />
               <div style={{ fontSize: 12, color: '#b08080', marginTop: 5, textAlign: 'right' }}>{body.length}/256</div>
+            </div>
+
+            <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+              <div style={{ flex: '1 1 240px' }}>
+                <label style={GL.label}>Campaign (opens are counted under this)</label>
+                <input className="th-input" style={GL.input} placeholder={effectiveCampaignId} value={campaignId} onChange={e => setCampaignId(e.target.value.toLowerCase())} maxLength={80} />
+                <div style={{ fontSize: 12, color: '#b08080', marginTop: 5 }}>Leave empty for <b>{effectiveCampaignId}</b>. Test sends go under <b>…-test</b>.</div>
+              </div>
+              <div style={{ flex: '1 1 240px' }}>
+                <label style={GL.label}>Article id (optional)</label>
+                <input className="th-input" style={GL.input} placeholder="e.g. shaadi-season-lip-edit-2026" value={articleId} onChange={e => setArticleId(e.target.value.trim())} maxLength={120} />
+                <div style={{ fontSize: 12, color: '#b08080', marginTop: 5 }}>Sent as <code>article_id</code> so the app can open the article directly.</div>
+              </div>
             </div>
 
             {(title || body) && (
@@ -590,7 +699,7 @@ export default function NotificationsPage() {
           {filteredUsers.length > 0 && (
             <div className="m-scroll-x"><div style={{ minWidth: 520 }}>
               <div style={{ display: 'grid', gridTemplateColumns: '140px 1fr 110px 90px', gap: 14, padding: '0 14px', fontSize: 11, fontWeight: 700, color: '#9b4a42', letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: 8 }}>
-                <span>User</span><span>Token</span><span>Unique steps</span><span style={{ textAlign: 'right' }}>Status</span>
+                <span>User</span><span>Name</span><span>Unique steps</span><span style={{ textAlign: 'right' }}>Status</span>
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 5, maxHeight: 480, overflowY: 'auto', paddingRight: 4 }}>
                 {filteredUsers.map((u) => {
@@ -599,8 +708,8 @@ export default function NotificationsPage() {
                   return (
                     <div key={u.id} style={{ display: 'grid', gridTemplateColumns: '140px 1fr 110px 90px', gap: 14, alignItems: 'center', background: 'rgba(255,255,255,0.65)', borderRadius: 11, padding: '12px 14px', border: '1px solid rgba(171,31,16,0.06)' }}>
                       <span style={{ fontSize: 14, fontWeight: 600, color: '#1a0a09' }}>{u.id}</span>
-                      <span style={{ fontSize: 12, fontFamily: 'monospace', color: '#7b241c', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        {u.token || <span style={{ color: '#c0b0b0', fontStyle: 'italic' }}>token not parsed</span>}
+                      <span style={{ fontSize: 13, color: '#7b241c', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {u.name || <span style={{ color: '#c0b0b0', fontStyle: 'italic' }}>no name</span>}
                       </span>
                       <span style={{ fontSize: 12, color: '#9b4a42' }}>{d ? `${d.stepSet.size} steps` : '—'}</span>
                       <div style={{ textAlign: 'right' }}>
@@ -612,6 +721,42 @@ export default function NotificationsPage() {
               </div>
             </div></div>
           )}
+        </div>
+
+        {/* ── Campaigns & opens ── */}
+        <div style={{ ...GL.card, padding: 28 }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+            <div style={{ ...GL.sectionHeader, marginBottom: 0 }}>Campaigns &amp; Opens</div>
+            <button className="th-btn-outline" style={{ ...GL.btnOutline, padding: '7px 14px', fontSize: 13 }} onClick={loadCampaigns}>↻ Refresh</button>
+          </div>
+          <div style={{ fontSize: 12, color: '#9b4a42', marginBottom: 12, lineHeight: 1.5 }}>
+            An open = the user tapped the push. It's recorded by the app (step <code>notif_open:&lt;campaign&gt;</code>), so only app versions with open tracking count it.
+          </div>
+          {campaignErr && <div style={{ fontSize: 13, color: '#b91c1c' }}>Couldn't load campaigns: {campaignErr}</div>}
+          {campaigns && campaigns.length === 0 && <div style={{ fontSize: 13, color: '#9b4a42' }}>No campaigns yet. They appear here after the first send.</div>}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            {(campaigns || []).map(c => {
+              const o = opens[c.id];
+              return (
+                <div key={c.id} style={{ display: 'flex', alignItems: 'center', gap: 14, background: 'rgba(255,255,255,0.65)', borderRadius: 11, padding: '12px 14px', border: '1px solid rgba(171,31,16,0.06)', flexWrap: 'wrap' }}>
+                  <div style={{ flex: '1 1 260px', minWidth: 0 }}>
+                    <div style={{ fontSize: 14, fontWeight: 600, color: '#1a0a09', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.title || c.id}</div>
+                    <div style={{ fontSize: 12, color: '#9b4a42' }}>{c.id} · {c.lastSentAt ? new Date(c.lastSentAt).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' }) : '—'}</div>
+                  </div>
+                  <div style={{ fontSize: 13, color: '#7b241c' }}><b>{c.sent}</b> sent{c.failed ? ` · ${c.failed} failed` : ''}</div>
+                  <div style={{ fontSize: 13, color: '#15803d', minWidth: 120, textAlign: 'right' }}>
+                    {o?.loading ? 'Counting…'
+                      : o?.error ? <span style={{ color: '#b91c1c' }}>{o.error}</span>
+                      : o ? <><b>{o.opened}</b> opened · {(o.rate * 100).toFixed(1)}%</>
+                      : null}
+                  </div>
+                  <button className="th-btn-outline" style={{ ...GL.btnOutline, padding: '6px 12px', fontSize: 12 }} disabled={o?.loading} onClick={() => countOpens(c.id)}>
+                    {o && !o.loading ? '↻ Recount' : 'Count opens'}
+                  </button>
+                </div>
+              );
+            })}
+          </div>
         </div>
 
         {/* ── Send results summary ── */}

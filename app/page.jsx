@@ -1,139 +1,77 @@
 'use client';
 
 import { Suspense, useEffect, useState } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import { logout as logoutSession } from './components/currentUser';
 
-// Tools inside the "Product Database" section
-const PRODUCT_DATABASE = {
-  dhruvi: [
-    {
-      href: '/shade-capture',
-      label: 'Shade Capture',
-      description: 'To-do queue, brands and capture for India & USA — pick shades, save to S3, make products live.',
-      icon: '🎨',
-    },
-    {
-      href: '/logs',
-      label: 'Product Logs',
-      description: 'Browse every saved product by brand — shades, links, prices, live & verified.',
-      icon: '📦',
-    },
-    {
-      href: '/activity',
-      label: 'Activity',
-      description: "Aastha's daily work — new products (4+ shades) per day, monthly average and pay.",
-      icon: '🗓️',
-    },
-    {
-      href: '/audit',
-      label: 'Audit',
-      description: 'See which shades were added by which user on any date.',
-      icon: '🔍',
-    },
-  ],
-  aastha: [
-    {
-      href: '/shade-capture',
-      label: 'Shade Capture',
-      description: 'To-do queue, brands and capture for India & USA — pick shades and save to S3.',
-      icon: '🎨',
-    },
-    {
-      href: '/logs',
-      label: 'Product Logs',
-      description: 'Browse every saved product by brand — shades, links and prices.',
-      icon: '📦',
-    },
-    {
-      href: '/activity',
-      label: 'My Activity',
-      description: 'Your daily work — products added per day, monthly average and pay.',
-      icon: '🗓️',
-    },
-  ],
-};
+// Home: tools grouped into categories. `users` = who sees the tool; `forUser` swaps the label / description per user.
+const ALL = ['dhruvi'];
+const CATEGORIES = [
+  {
+    key: 'products',
+    label: 'Product Database',
+    icon: '🗄️',
+    sub: 'Add, check and track products',
+    tools: [
+      { href: '/shade-capture', label: 'Shade Capture', icon: '🎨', users: ['dhruvi', 'aastha'],
+        description: 'To-do queue and capture for India & USA: pick shades, save, make live.' },
+      { href: '/logs', label: 'Product Logs', icon: '📦', users: ['dhruvi', 'aastha'],
+        description: 'Every saved product by brand: shades, links, prices.' },
+      { href: '/activity', label: 'Activity', icon: '🗓️', users: ['dhruvi', 'aastha'],
+        description: "Aastha's products per day, monthly average and pay.",
+        forUser: { aastha: { label: 'My Activity', description: 'Your products per day, monthly average and pay.' } } },
+      { href: '/audit', label: 'Audit', icon: '🔍', users: ALL,
+        description: 'Which shades were added by whom, on any date.' },
+    ],
+  },
+  {
+    key: 'ads',
+    label: 'Ads & Marketing',
+    icon: '📣',
+    sub: 'Paid ads, buyers and content planning',
+    tools: [
+      { href: '/meta-ads', label: 'Meta Ads', icon: '📣', users: ['dhruvi', 'riddhi', 'jagat'],
+        description: "Today's actions, spend, revenue and ROAS vs target." },
+      { href: '/meta-ads/persona', label: 'Meta Persona', icon: '🧑‍🤝‍🧑', users: ALL,
+        description: 'Who buys from our ads, vs our Instagram followers.' },
+      { href: '/marketing', label: 'Marketing Organiser', icon: '🎬', users: ALL,
+        description: 'Weekly Instagram and ad plan, ad quota and Inspo library.' },
+      { href: '/ads-platform-metrics', label: 'Ads Platform Metrics', icon: '🎯', users: ['dhruvi', 'jagat'],
+        description: 'Is the community ready to sell ad placements to brands.' },
+    ],
+  },
+  {
+    key: 'analytics',
+    label: 'App Analytics',
+    icon: '📊',
+    sub: 'How people use the app',
+    tools: [
+      { href: '/analytics/usage', label: 'User Metrics', icon: '📈', users: ['dhruvi', 'jagat'],
+        description: 'Daily / weekly / monthly actives, retention, premium users.' },
+      { href: '/analytics', label: 'Analytics', icon: '📊', users: ['dhruvi', 'jagat'],
+        description: 'User funnel, coin actions, premium products, steps graph.' },
+      { href: '/product-analytics', label: 'Product Analytics', icon: '🧴', users: ['dhruvi', 'jagat'],
+        description: 'Brand & product search demand, buy-now clicks, skintones.' },
+    ],
+  },
+  {
+    key: 'app',
+    label: 'In the App',
+    icon: '✨',
+    sub: 'What users see and receive',
+    tools: [
+      { href: '/articles', label: 'The Edit', icon: '✨', users: ALL,
+        description: 'Create and preview personalised beauty articles.' },
+      { href: '/notifications', label: 'Notifications', icon: '🔔', users: ALL,
+        description: 'Send push notifications to all users.' },
+    ],
+  },
+];
 
-// Main dashboard cards; `section` opens a group of tools instead of a page
-const CARDS = {
-  dhruvi: [
-    {
-      section: 'product-database',
-      label: 'Product Database',
-      description: 'Shade capture, product logs, activity and audit — everything for adding and checking products.',
-      icon: '🗄️',
-    },
-    {
-      href: '/analytics/usage',
-      label: 'User Metrics',
-      description: 'How often people use the app — daily/weekly/monthly actives, first-days usage, retention, premium users and features per day.',
-      icon: '📈',
-    },
-    {
-      href: '/analytics',
-      label: 'Analytics',
-      description: 'User funnel, coin actions, premium products, and steps graph.',
-      icon: '📊',
-    },
-    {
-      href: '/meta-ads',
-      label: 'Meta Ads',
-      description: 'Which ads are working — spend, revenue, ROAS vs target, week on week, time of day, day of week and breakdowns.',
-      icon: '📣',
-    },
-    {
-      href: '/meta-ads/persona',
-      label: 'Meta Persona',
-      description: 'Who buys from our ads — age, gender, region, device, placement — and how buyers compare with our Instagram followers.',
-      icon: '🧑‍🤝‍🧑',
-    },
-    {
-      href: '/ads-platform-metrics',
-      label: 'Ads Platform Metrics',
-      description: 'Is the paid community ready to sell ad placements to brands — each metric vs the Pilot, Stage 2 and Platform goals.',
-      icon: '🎯',
-    },
-    {
-      href: '/marketing',
-      label: 'Marketing Organiser',
-      description: 'Plan the week for Instagram and Meta ads — what to post, shoot and edit when, ad quota, and the Inspo library.',
-      icon: '🎬',
-    },
-    {
-      href: '/product-analytics',
-      label: 'Product Analytics',
-      description: 'Brand & product search demand — buy-now clicks, redirects, skintone/undertone breakdown.',
-      icon: '🧴',
-    },
-    {
-      href: '/notifications',
-      label: 'Notifications',
-      description: 'Send push notifications to all users with a registered device token.',
-      icon: '🔔',
-    },
-    {
-      href: '/articles',
-      label: 'The Edit',
-      description: 'Create and preview personalised beauty editorial articles for the app.',
-      icon: '✨',
-    },
-  ],
-  aastha: [
-    {
-      section: 'product-database',
-      label: 'Product Database',
-      description: 'Shade capture, product logs and your activity.',
-      icon: '🗄️',
-    },
-  ],
-};
-
-// riddhi: Meta Ads only
-CARDS.riddhi = CARDS.dhruvi.filter((c) => c.href === '/meta-ads');
-// jagat: analytics pages (view only) + Meta Ads
-CARDS.jagat = CARDS.dhruvi.filter((c) => ['/analytics/usage', '/analytics', '/product-analytics', '/ads-platform-metrics', '/meta-ads'].includes(c.href));
-
-const SECTIONS = { 'product-database': { label: 'Product Database', icon: '🗄️', tools: PRODUCT_DATABASE } };
+// categories with only the tools this user can open (empty ones are hidden)
+const categoriesFor = (user) => CATEGORIES
+  .map((c) => ({ ...c, tools: c.tools.filter((t) => t.users.includes(user)).map((t) => ({ ...t, ...(t.forUser?.[user] || {}) })) }))
+  .filter((c) => c.tools.length);
 
 export default function DashboardPage() {
   return (
@@ -145,7 +83,6 @@ export default function DashboardPage() {
 
 function Dashboard() {
   const router = useRouter();
-  const sp = useSearchParams();
   const [user, setUser] = useState(null);
 
   useEffect(() => {
@@ -162,11 +99,7 @@ function Dashboard() {
 
   if (!user) return null;
 
-  const sectionKey = sp.get('section');
-  const section = SECTIONS[sectionKey];
-  const tools = section ? (section.tools[user] ?? []) : null;
-  const cards = tools ?? CARDS[user] ?? [];
-  const openCard = (card) => (card.section ? router.push(`/?section=${card.section}`) : router.push(card.href));
+  const categories = categoriesFor(user);
 
   return (
     <main style={{
@@ -202,38 +135,19 @@ function Dashboard() {
           backdrop-filter: blur(20px);
           -webkit-backdrop-filter: blur(20px);
           border: 1.5px solid rgba(255,255,255,0.8);
-          border-radius: 20px;
-          padding: 32px 28px;
+          border-radius: 16px;
+          padding: 18px 18px;
           text-align: left;
           display: flex;
           flex-direction: column;
-          gap: 12px;
+          gap: 8px;
           box-shadow: 0 4px 24px rgba(171,31,16,0.07);
         }
         .dash-card:hover {
-          transform: translateY(-6px) scale(1.015);
+          transform: translateY(-3px);
           box-shadow: 0 24px 48px rgba(171,31,16,0.16);
           background: rgba(255,255,255,0.72);
         }
-
-        .dash-card-group {
-          background: linear-gradient(135deg, rgba(255,255,255,0.78) 0%, rgba(253,232,228,0.85) 100%);
-          border: 1.5px solid rgba(171,31,16,0.22);
-          box-shadow: 0 8px 32px rgba(171,31,16,0.12);
-        }
-        .dash-card-group:hover { background: linear-gradient(135deg, rgba(255,255,255,0.9) 0%, rgba(253,232,228,0.95) 100%); }
-
-        .back-btn {
-          font-size: 13px;
-          font-weight: 600;
-          color: #ab1f10;
-          background: rgba(255,255,255,0.6);
-          border: 1.5px solid rgba(171,31,16,0.25);
-          border-radius: 999px;
-          padding: 7px 16px;
-          cursor: pointer;
-        }
-        .back-btn:hover { background: rgba(171,31,16,0.07); border-color: #ab1f10; }
 
         .logout-btn {
           font-size: 13px;
@@ -302,116 +216,149 @@ function Dashboard() {
 
       {/* Hero */}
       <div style={{
-        padding: '64px 32px 28px',
+        padding: '48px 32px 24px',
         textAlign: 'center',
         animation: 'fadeUp 0.4s ease both',
         position: 'relative',
         zIndex: 1,
       }}>
-        {section ? (
-          <>
-            <button className="back-btn" onClick={() => router.push('/')}>← All tools</button>
-            <h1 style={{
-              fontSize: 'clamp(28px, 4.5vw, 44px)',
-              fontWeight: 700,
-              color: '#1a0a09',
-              margin: '14px 0 0',
-              lineHeight: 1.15,
-              letterSpacing: '-0.5px',
-            }}>
-              {section.icon} {section.label}
-            </h1>
-            <p style={{ marginTop: 10, fontSize: 15, color: '#9b4a42', fontWeight: 400 }}>
-              Add, check and track products.
-            </p>
-          </>
-        ) : (
-          <>
-            <h1 style={{
-              fontSize: 'clamp(28px, 4.5vw, 48px)',
-              fontWeight: 700,
-              color: '#1a0a09',
-              margin: 0,
-              lineHeight: 1.15,
-              letterSpacing: '-0.5px',
-            }}>
-              Welcome back, {user} 👋
-            </h1>
-            <p style={{
-              marginTop: 10,
-              fontSize: 15,
-              color: '#9b4a42',
-              fontWeight: 400,
-            }}>
-              What would you like to work on today?
-            </p>
-          </>
-        )}
+        <h1 style={{
+          fontSize: 'clamp(28px, 4.5vw, 44px)',
+          fontWeight: 700,
+          color: '#1a0a09',
+          margin: 0,
+          lineHeight: 1.15,
+          letterSpacing: '-0.5px',
+        }}>
+          Welcome back, {user} 👋
+        </h1>
+        <p style={{ marginTop: 10, fontSize: 15, color: '#9b4a42', fontWeight: 400 }}>
+          What would you like to work on today?
+        </p>
       </div>
 
-      {/* Cards grid */}
+      {/* Today's to-do from Google Calendar — dhruvi only */}
+      {user === 'dhruvi' && <TodayTodo />}
+
+      {/* Categories */}
       <div style={{
-        maxWidth: 900,
+        maxWidth: 1040,
         margin: '0 auto',
-        padding: '12px 24px 80px',
-        display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))',
-        gap: 22,
+        padding: '8px 24px 80px',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 30,
         position: 'relative',
         zIndex: 1,
       }}>
-        {cards.map((card, i) => (
-          <button
-            key={`${sectionKey || 'main'}:${card.href || card.section}`}
-            className={`dash-card ${card.section ? 'dash-card-group' : ''}`}
-            onClick={() => openCard(card)}
-            style={{ animationDelay: `${i * 80}ms` }}
-          >
-            <span style={{ fontSize: 34 }}>{card.icon}</span>
-
-            <span style={{
-              fontSize: 20,
-              fontWeight: 700,
-              color: '#ab1f10',
-              lineHeight: 1.2,
-              letterSpacing: '-0.3px',
-            }}>
-              {card.label}
-            </span>
-
-            <span style={{
-              fontSize: 13.5,
-              color: '#6b4242',
-              lineHeight: 1.6,
-              fontWeight: 400,
-            }}>
-              {card.description}
-            </span>
-
-            <span style={{
-              marginTop: 6,
-              fontSize: 13,
-              fontWeight: 600,
-              color: '#ab1f10',
-              display: 'flex',
-              alignItems: 'center',
-              gap: 4,
-              opacity: 0.85,
-            }}>
-              {card.section ? (
-                <>
-                  {(SECTIONS[card.section].tools[user] ?? []).map((t) => (
-                    <span key={t.href} title={t.label} style={{ fontSize: 16 }}>{t.icon}</span>
-                  ))}
-                  <span style={{ marginLeft: 6 }}>
-                    {(SECTIONS[card.section].tools[user] ?? []).length} tools →
+        {categories.map((cat, ci) => (
+          <section key={cat.key} style={{ animation: 'fadeUp 0.45s ease both', animationDelay: `${ci * 70}ms` }}>
+            <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, margin: '0 4px 12px', borderBottom: '1px solid rgba(171,31,16,0.12)', paddingBottom: 8 }}>
+              <span style={{ fontSize: 13, fontWeight: 800, color: '#7b241c', letterSpacing: '0.08em', textTransform: 'uppercase' }}>
+                {cat.icon} {cat.label}
+              </span>
+              <span style={{ fontSize: 12.5, color: '#9b8b88' }}>{cat.sub}</span>
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(230px, 1fr))', gap: 14 }}>
+              {cat.tools.map((tool) => (
+                <button key={tool.href} className="dash-card" onClick={() => router.push(tool.href)}>
+                  <span style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <span style={{ fontSize: 24, lineHeight: 1 }}>{tool.icon}</span>
+                    <span style={{ fontSize: 16, fontWeight: 700, color: '#ab1f10', letterSpacing: '-0.2px' }}>{tool.label}</span>
                   </span>
-                </>
-              ) : 'Open →'}
-            </span>
-          </button>
+                  <span style={{ fontSize: 13, color: '#6b4242', lineHeight: 1.5 }}>{tool.description}</span>
+                </button>
+              ))}
+            </div>
+          </section>
         ))}
       </div>
     </main>
+  );
+}
+// ── Today's to-do (dhruvi only): today's events from her Google Calendar, as a checklist ──
+const nowIst = () => new Date(Date.now() + 5.5 * 3600 * 1000).toISOString().slice(11, 16);
+const fmt12 = (t) => {
+  if (!t) return '';
+  const [h, m] = t.split(':').map(Number);
+  return `${((h + 11) % 12) + 1}:${String(m).padStart(2, '0')} ${h < 12 ? 'am' : 'pm'}`;
+};
+
+function TodayTodo() {
+  const [data, setData] = useState(null);
+  const [done, setDone] = useState({});
+  const [now, setNow] = useState(nowIst());
+
+  useEffect(() => {
+    fetch(`/api/calendar/today?t=${Date.now()}`, { cache: 'no-store' })
+      .then((r) => r.json())
+      .then((j) => setData(j))
+      .catch(() => setData({ error: "Couldn't load today's to-do" }));
+    const t = setInterval(() => setNow(nowIst()), 60_000);
+    return () => clearInterval(t);
+  }, []);
+
+  // ticks are a per-browser convenience, kept per day
+  const storeKey = data?.day ? `todo-done-${data.day}` : null;
+  useEffect(() => {
+    if (!storeKey) return;
+    try { setDone(JSON.parse(localStorage.getItem(storeKey) || '{}')); } catch { setDone({}); }
+  }, [storeKey]);
+  const toggle = (id) => setDone((p) => {
+    const next = { ...p, [id]: !p[id] };
+    try { if (storeKey) localStorage.setItem(storeKey, JSON.stringify(next)); } catch {}
+    return next;
+  });
+
+  const events = data?.events || [];
+  const finished = events.filter((e) => done[e.id]).length;
+  const dayLabel = data?.day
+    ? new Date(`${data.day}T00:00:00Z`).toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'short', timeZone: 'UTC' })
+    : '';
+
+  return (
+    <div style={{ maxWidth: 1040, margin: '0 auto', padding: '0 24px 22px', position: 'relative', zIndex: 1, animation: 'fadeUp 0.4s ease both' }}>
+      <div style={{
+        background: 'rgba(255,255,255,0.62)', backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)',
+        border: '1.5px solid rgba(255,255,255,0.85)', borderRadius: 18, boxShadow: '0 4px 24px rgba(171,31,16,0.08)', padding: '16px 18px',
+      }}>
+        <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, flexWrap: 'wrap', marginBottom: 10 }}>
+          <span style={{ fontSize: 13, fontWeight: 800, color: '#7b241c', letterSpacing: '0.08em', textTransform: 'uppercase' }}>✅ Today's to-do</span>
+          <span style={{ fontSize: 12.5, color: '#9b8b88' }}>{dayLabel}{events.length ? ` · ${finished} of ${events.length} done` : ''}</span>
+          <a href="https://calendar.google.com/calendar/r/day" target="_blank" rel="noreferrer"
+            style={{ marginLeft: 'auto', fontSize: 12.5, fontWeight: 600, color: '#ab1f10', textDecoration: 'none' }}>Edit in Google Calendar ↗</a>
+        </div>
+
+        {!data ? <div style={{ fontSize: 13, color: '#9b8b88' }}>Loading…</div>
+          : data.configured === false ? (
+            <div style={{ fontSize: 13, color: '#6b4242', lineHeight: 1.6 }}>
+              Connect your calendar: Google Calendar → Settings → your calendar → <b>Integrate calendar</b> → copy
+              <b> Secret address in iCal format</b>, and add it to the app's environment as <code>GOOGLE_CALENDAR_ICS_URL</code>.
+            </div>
+          ) : data.error && !events.length ? <div style={{ fontSize: 13, color: '#c0392b' }}>{data.error}</div>
+          : !events.length ? <div style={{ fontSize: 13, color: '#9b8b88' }}>Nothing on your calendar today.</div>
+          : (
+            <div style={{ display: 'flex', flexDirection: 'column' }}>
+              {events.map((e) => {
+                const isNow = !e.allDay && e.start <= now && (!e.end || now < e.end);
+                const past = !e.allDay && e.end && e.end <= now;
+                return (
+                  <label key={e.id} style={{
+                    display: 'flex', alignItems: 'center', gap: 12, padding: '8px 10px', borderRadius: 10, cursor: 'pointer',
+                    background: isNow ? 'rgba(171,31,16,0.08)' : 'transparent', opacity: done[e.id] ? 0.45 : past ? 0.7 : 1,
+                  }}>
+                    <input type="checkbox" checked={!!done[e.id]} onChange={() => toggle(e.id)} style={{ width: 16, height: 16, accentColor: '#ab1f10' }} />
+                    <span style={{ minWidth: 128, fontSize: 13, color: '#7b6b6b', fontVariantNumeric: 'tabular-nums' }}>
+                      {e.allDay ? 'All day' : `${fmt12(e.start)}${e.end ? ` – ${fmt12(e.end)}` : ''}`}
+                    </span>
+                    <span style={{ fontSize: 14, fontWeight: 600, color: '#1a0a09', textDecoration: done[e.id] ? 'line-through' : 'none' }}>{e.title}</span>
+                    {isNow && <span style={{ marginLeft: 'auto', fontSize: 11, fontWeight: 800, color: '#fff', background: '#ab1f10', borderRadius: 999, padding: '2px 9px' }}>NOW</span>}
+                  </label>
+                );
+              })}
+            </div>
+          )}
+      </div>
+    </div>
   );
 }

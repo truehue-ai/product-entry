@@ -282,8 +282,8 @@ def jwt_optional(f):
 import contextvars
 
 REGION_CONFIG = {
-    "in": {"brands_root": "brands",     "all_data_key": "all-data.json",     "cache_prefix": "",      "currency": "INR"},
-    "us": {"brands_root": "brands_usa", "all_data_key": "all-data-usa.json", "cache_prefix": "usa:",  "currency": "USD"},
+    "in": {"brands_root": "brands",     "all_data_key": "all-data.json",     "cache_prefix": "",      "currency": "INR", "find_products_root": "find_products"},
+    "us": {"brands_root": "brands_usa", "all_data_key": "all-data-usa.json", "cache_prefix": "usa:",  "currency": "USD", "find_products_root": "find_products_usa"},
 }
 DEFAULT_REGION = "in"
 
@@ -328,6 +328,20 @@ def region_aware(f):
         finally:
             _CURRENT_REGION.reset(token)
     return decorated_function
+
+
+def in_region(region):
+    """Run the wrapped handler with a fixed region (used by the *_usa routes)."""
+    def decorator(f):
+        @wraps(f)
+        async def decorated_function(*args, **kwargs):
+            token = _CURRENT_REGION.set(normalize_region(region))
+            try:
+                return await f(*args, **kwargs)
+            finally:
+                _CURRENT_REGION.reset(token)
+        return decorated_function
+    return decorator
 
 
 ''' ---------------------------------------------------------------------------------------------------------------------------------------------------------------- '''
@@ -7271,16 +7285,20 @@ def hex_to_hue(hex_code):
 def get_shades_by_skintone_look_price(
     data, look_category, skintone_label,
     min_price, max_price, product_type,
-    bucket_size=500, max_results=8
+    bucket_size=500, max_results=8,
+    exclude=None, price_buckets=None
 ):
+    # exclude: lower-cased hex codes already shown ("view more"); None = original behaviour
+    # price_buckets: explicit bucket keys (USA); None = original 500-wide buckets
     selected_shades = {}
     used_hues = set()
     extra_pool = []  # fallback list if not enough unique hues
 
-    # ✅ replace your old price_buckets block with this:
-    start_bucket = (min_price // bucket_size) * bucket_size
-    end_exclusive = (max_price // bucket_size) * bucket_size  # do NOT include max bucket
-    price_buckets = [f"{p}" for p in range(start_bucket, end_exclusive, bucket_size)]
+    if price_buckets is None:
+        # ✅ replace your old price_buckets block with this:
+        start_bucket = (min_price // bucket_size) * bucket_size
+        end_exclusive = (max_price // bucket_size) * bucket_size  # do NOT include max bucket
+        price_buckets = [f"{p}" for p in range(start_bucket, end_exclusive, bucket_size)]
 
     look_data = data.get(look_category, {})
     bucket_index = 0
@@ -7293,6 +7311,8 @@ def get_shades_by_skintone_look_price(
 
         for shade_entry in skintone_bucket:
             hex_code = list(shade_entry.keys())[0]
+            if exclude and str(hex_code).lower() in exclude:
+                continue
             hue = hex_to_hue(hex_code)
 
             if hue not in used_hues and len(selected_shades) < max_results:
@@ -7312,7 +7332,8 @@ def get_shades_by_skintone_look_price(
 
 
 async def get_shade_bucket_dict_from_s3(product_category):
-    key = f'find_products/product_database/{product_category}/categorised_LMD.json'
+    # India: find_products/...   USA (inside a *_usa route): find_products_usa/...
+    key = f'{region_cfg()["find_products_root"]}/product_database/{product_category}/categorised_LMD.json'
 
     session = SessionManager.get_session()
     async with get_s3_client(session) as s3_client:
@@ -7323,6 +7344,114 @@ async def get_shade_bucket_dict_from_s3(product_category):
         except s3_client.exceptions.ClientError as e:
             logging.error(f"Error fetching shade dict from S3: {e}")
             return None
+
+
+# ── Find the perfect product: "view more" pages + region helpers ─────────────
+# No `page` in the request = exactly the original behaviour (same Redis keys,
+# same response). page 1 = the original selection; page 2, 3, … = the next
+# shades, never repeating ones already shown.
+
+MAX_SHADE_PAGES = 50
+
+
+def read_shade_page(data):
+    """`page` from the request body: None when absent/invalid, else 1..MAX_SHADE_PAGES."""
+    raw = (data or {}).get('page')
+    if raw is None or raw == '':
+        return None
+    try:
+        page = int(raw)
+    except (TypeError, ValueError):
+        return None
+    return max(1, min(page, MAX_SHADE_PAGES))
+
+
+def selected_shades_key(min_price, max_price, product_category, look_category, skintone, page=None):
+    """Redis key for one page of selected shades. India + page 1/None = the original key."""
+    key = f"{region_cfg()['cache_prefix']}selected_shades_for_{min_price}_{max_price}_{product_category}_{look_category}_{skintone}"
+    if page and page > 1:
+        key += f"_page{page}"
+    return key
+
+
+async def load_product_dict(redis, product_category):
+    """categorised_LMD.json for this region, cached in Redis for an hour (same as before)."""
+    shade_dict_key = f"{region_cfg()['cache_prefix']}product_database_{product_category}"
+    product_dict_json = await redis.get(shade_dict_key)
+    if not product_dict_json or product_dict_json.decode('utf-8') == 'null':
+        product_dict = await get_shade_bucket_dict_from_s3(product_category)
+        await redis.setex(shade_dict_key, 3600, json.dumps(product_dict))
+        return product_dict
+    return json.loads(product_dict_json)
+
+
+def price_buckets_for(min_price, max_price, bucket_size=500):
+    """Price-bucket keys to search, in price order — the original ₹500 buckets.
+    USA prices are stored in rupees too, so both regions use the same buckets."""
+    start_bucket = (min_price // bucket_size) * bucket_size
+    end_exclusive = (max_price // bucket_size) * bucket_size  # do NOT include max bucket
+    return [f"{p}" for p in range(start_bucket, end_exclusive, bucket_size)]
+
+
+def count_remaining_shades(product_dict, look_category, skintone, price_buckets, shown):
+    """How many shades in range haven't been shown yet."""
+    look_data = (product_dict or {}).get(look_category, {}) or {}
+    remaining = set()
+    for bucket in price_buckets:
+        for entry in (look_data.get(bucket, {}) or {}).get(skintone, []) or []:
+            if not entry:
+                continue
+            hex_code = str(list(entry.keys())[0]).lower()
+            if hex_code not in shown:
+                remaining.add(hex_code)
+    return len(remaining)
+
+
+async def generate_shade_page(data, page):
+    """generate_shared_shades with `page`: picks the next shades and reports whether there are more."""
+    skintone = data['skintone']
+    min_price = int(data['min_price'])
+    max_price = int(data['max_price'])
+    look_category = data['look_category']
+    product_category = data['product_category']
+    product_type = 'blush'
+
+    redis = await RedisClient.get_client()
+    product_dict = await load_product_dict(redis, product_category)
+    if not product_dict:
+        return jsonify({'error': 'No products for this category', 'region': current_region()}), 404
+
+    buckets = price_buckets_for(min_price, max_price)
+
+    # Already shown = what the app says it is showing + earlier pages still in Redis
+    exclude = {str(h).lower() for h in (data.get('exclude') or []) if h}
+    for p in range(1, page):
+        prev = await redis.get(selected_shades_key(min_price, max_price, product_category, look_category, skintone, p))
+        if prev:
+            exclude.update(str(h).lower() for h in (json.loads(prev) or {}).keys())
+
+    redis_key = selected_shades_key(min_price, max_price, product_category, look_category, skintone, page)
+    cached = await redis.get(redis_key)
+    if cached:
+        selected = json.loads(cached) or {}
+        status = 'already_exists'
+    else:
+        selected = get_shades_by_skintone_look_price(
+            product_dict, look_category, skintone, min_price, max_price, product_type,
+            exclude=exclude, price_buckets=buckets
+        )
+        await redis.setex(redis_key, 600, json.dumps(selected))
+        status = 'generated'
+
+    shown = exclude | {str(h).lower() for h in selected.keys()}
+    remaining = count_remaining_shades(product_dict, look_category, skintone, buckets, shown)
+    return jsonify({
+        'status': status,
+        'page': page,
+        'count': len(selected),
+        'has_more': remaining > 0,
+        'region': current_region(),
+    })
 
 
 @app.route('/generate_shared_shades', methods=['POST'])
@@ -7338,9 +7467,14 @@ async def generate_shared_shades():
         product_category = data['product_category']
         product_type = 'blush'
 
+        # "view more" — only when the app sends `page`
+        page = read_shade_page(data)
+        if page is not None:
+            return await generate_shade_page(data, page)
+
         redis = await RedisClient.get_client()
 
-        redis_key = f"selected_shades_for_{min_price}_{max_price}_{product_category}_{look_category}_{skintone}"
+        redis_key = selected_shades_key(min_price, max_price, product_category, look_category, skintone)
 
         logging.debug(f'redis key, {redis_key}')
         cached = await redis.get(redis_key)
@@ -7351,7 +7485,7 @@ async def generate_shared_shades():
             logging.debug('already exists')
             return jsonify({'status': 'already_exists'})
 
-        shade_dict_key = f"product_database_{product_category}"
+        shade_dict_key = f"{region_cfg()['cache_prefix']}product_database_{product_category}"
 
         logging.debug(f'shade_dict_key, {shade_dict_key}')
 
@@ -7469,7 +7603,7 @@ async def find_perfect_product_model():
 
         selected_shades = {}
 
-        cached_shades_json = await redis.get(f"selected_shades_for_{min_price}_{max_price}_{product_category}_{look_category}_{skintone}")
+        cached_shades_json = await redis.get(selected_shades_key(min_price, max_price, product_category, look_category, skintone, read_shade_page(data)))
 
         if cached_shades_json:
             selected_shades = json.loads(cached_shades_json)
@@ -8115,7 +8249,7 @@ async def find_perfect_product_customer():
 
         selected_shades = {}
 
-        cached_shades_json = await redis.get(f"selected_shades_for_{min_price}_{max_price}_{product_category}_{look_category}_{skintone}")
+        cached_shades_json = await redis.get(selected_shades_key(min_price, max_price, product_category, look_category, skintone, read_shade_page(data)))
 
         if cached_shades_json:
             selected_shades = json.loads(cached_shades_json)
@@ -8722,6 +8856,33 @@ async def find_perfect_product_customer():
     except Exception as e:
         logging.error(f"Error in get_shades_by_skintone_look: {e}")
         return jsonify({'error': 'Server error', 'message': str(e)}), 500
+
+
+# ── USA versions of Find the Perfect Product ("Global" tab) ─────────────────
+# Same request/response as the India endpoints above (including `page`), but
+# products come from find_products_usa/product_database/<category>/categorised_LMD.json,
+# try-on images live under brands_usa/, and Redis keys are prefixed "usa:" so
+# they never mix with India's.
+
+@app.route('/generate_shared_shades_usa', methods=['POST'])
+@jwt_required
+@in_region("us")
+async def generate_shared_shades_usa():
+    return await generate_shared_shades()
+
+
+@app.route('/find_perfect_product_model_usa', methods=['POST'])
+@jwt_required
+@in_region("us")
+async def find_perfect_product_model_usa():
+    return await find_perfect_product_model()
+
+
+@app.route('/find_perfect_product_customer_usa', methods=['POST'])
+@jwt_required
+@in_region("us")
+async def find_perfect_product_customer_usa():
+    return await find_perfect_product_customer()
 
 def hex_to_rgb(hex_str: str):
     h = hex_str.lstrip("#")

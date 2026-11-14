@@ -23,10 +23,14 @@ export default function ArticlesPage() {
   async function fetchFeed() {
     try {
       const res = await fetch('/api/magazine', { cache: 'no-store' });
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
+      // show the real reason instead of an empty list (e.g. missing / expired backend token)
+      if (!res.ok || data.error || data.msg || data.message) {
+        throw new Error(data.error || data.msg || data.message || `Couldn't load articles (${res.status})`);
+      }
       setArticles(data.articles || []);
     } catch (e) {
-      setError('Failed to load articles');
+      setError(`Couldn't load articles: ${e.message}`);
     } finally {
       setLoading(false);
     }
@@ -39,7 +43,12 @@ export default function ArticlesPage() {
 
   async function deleteArticle(id) {
     if (!confirm(`Delete article "${id}"? This cannot be undone.`)) return;
-    await fetch(`/api/magazine/article/${id}`, { method: 'DELETE' });
+    const res = await fetch(`/api/magazine/article/${id}`, { method: 'DELETE' });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      alert(`Couldn't delete: ${data.error || data.msg || res.status}`);
+      return;
+    }
     setArticles(prev => prev.filter(a => a.id !== id));
   }
 

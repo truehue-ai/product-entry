@@ -11,7 +11,7 @@ export const USERS = ["dhruvi", "aastha", "riddhi", "jagat"];
 
 // riddhi can only use Meta Ads (overview): the home page, /meta-ads and its data / refresh API. Checked in middleware.
 export const META_ADS_ONLY = new Set(["riddhi"]);
-export const META_ADS_ONLY_PATHS = (p) => p === "/" || p === "/meta-ads" || p === "/api/meta-ads" || p.startsWith("/api/auth/");
+export const META_ADS_ONLY_PATHS = (p) => p === "/" || p === "/meta-ads" || p === "/api/meta-ads" || p === "/api/meta-ads/revenue" || p === "/api/meta-ads/reviews" || p.startsWith("/api/auth/");
 
 // jagat can only view Analytics, User Metrics, Product Analytics and Ads Platform Metrics: those pages, plus GET on
 // the APIs they read. No POSTs there (scans, rebuilds, give premium). Plus Meta Ads overview, same as riddhi
@@ -22,7 +22,7 @@ const VIEWER_PAGES = ["/analytics", "/product-analytics", "/ads-platform-metrics
 const VIEWER_API = ["/api/analytics/users", "/api/analytics/buyers", "/api/analytics/steps", "/api/analytics/steps-graph",
   "/api/analytics/usage", "/api/analytics/ads-platform"];
 export const ANALYTICS_VIEWER_PATHS = (p, method) => p === "/" || p.startsWith("/api/auth/")
-  || p === "/meta-ads" || p === "/api/meta-ads"
+  || p === "/meta-ads" || p === "/api/meta-ads" || p === "/api/meta-ads/revenue" || (method === "GET" && p === "/api/meta-ads/reviews")
   || VIEWER_PAGES.some((b) => under(p, b))
   || (method === "GET" && VIEWER_API.some((b) => under(p, b)));
 
